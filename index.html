@@ -51,19 +51,44 @@
   
 <body class="bg-white text-gray-900 font-sans">
   <!-- Navbar -->
-  <header class="bg-blue-800 text-white p-4 shadow-md sticky top-0 z-50">
-    <nav class="max-w-7xl mx-auto flex justify-between items-center">
-      <h1 class="text-xl font-bold">SPAN</h1>
-      <ul class="flex space-x-4 text-sm md:text-base">
-        <li><a href="#home" class="hover:text-gray-200">Home</a></li>
-        <li><a href="#about" class="hover:text-gray-200">About</a></li>
-        <li><a href="#join" class="hover:text-gray-200">Join Us</a></li>
-        <li><a href="#donate" class="hover:text-gray-200">Donate</a></li>
-        <li><a href="#resources" class="hover:text-gray-200">Resources</a></li>
-        <li><a href="#contact" class="hover:text-gray-200">Contact</a></li>
+   <header class="bg-blue-800 text-white shadow-md sticky top-0 z-50">
+    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <!-- Logo -->
+        <h1 class="text-xl font-bold">SPAN</h1>
+  
+        <!-- Mobile menu button -->
+        <div class="md:hidden">
+          <button id="menu-btn" class="focus:outline-none">
+            <svg class="h-6 w-6 fill-current" viewBox="0 0 24 24">
+              <path d="M4 5h16M4 12h16M4 19h16" />
+            </svg>
+          </button>
+        </div>
+  
+        <!-- Desktop Menu -->
+        <ul class="hidden md:flex space-x-6 text-sm">
+          <li><a href="#home" class="hover:text-gray-200">Home</a></li>
+          <li><a href="#about" class="hover:text-gray-200">About</a></li>
+          <li><a href="#join" class="hover:text-gray-200">Join Us</a></li>
+          <li><a href="#donate" class="hover:text-gray-200">Donate</a></li>
+          <li><a href="#resources" class="hover:text-gray-200">Resources</a></li>
+          <li><a href="#contact" class="hover:text-gray-200">Contact</a></li>
+        </ul>
+      </div>
+  
+      <!-- Mobile Menu Links -->
+      <ul id="mobile-menu" class="md:hidden hidden flex-col space-y-4 mt-4 pb-4 text-sm">
+        <li><a href="#home" class="block hover:text-gray-200">Home</a></li>
+        <li><a href="#about" class="block hover:text-gray-200">About</a></li>
+        <li><a href="#join" class="block hover:text-gray-200">Join Us</a></li>
+        <li><a href="#donate" class="block hover:text-gray-200">Donate</a></li>
+        <li><a href="#resources" class="block hover:text-gray-200">Resources</a></li>
+        <li><a href="#contact" class="block hover:text-gray-200">Contact</a></li>
       </ul>
     </nav>
   </header>
+
 
   <!-- Home -->
   <section id="home" class="min-h-screen flex flex-col justify-center items-center text-center px-4 bg-blue-50">
@@ -150,5 +175,15 @@
   <footer class="bg-blue-800 text-white text-center py-4">
     &copy; 2025 SPAN – Students for Patient Advocacy Nationwide. All rights reserved.
   </footer>
+
+  <script>
+    const menuBtn = document.getElementById('menu-btn');
+    const mobileMenu = document.getElementById('mobile-menu');
+  
+    menuBtn.addEventListener('click', () => {
+      mobileMenu.classList.toggle('hidden');
+    });
+  </script>
+
 </body>
 </html>

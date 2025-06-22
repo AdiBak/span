@@ -99,14 +99,25 @@
   <!-- Contact -->
   <section id="contact" class="py-16 px-4 max-w-3xl mx-auto">
     <h3 class="text-3xl font-bold mb-6 text-center">Get in Touch</h3>
-    <form action="https://formspree.io/f/mqkrvlqz" method="POST" class="grid gap-6">
-      <!-- 🔧 Optional: Change Formspree URL if using a different form service -->
-      <input type="text" name="name" placeholder="Your Name" required class="p-3 border rounded" />
-      <input type="email" name="email" placeholder="Your Email" required class="p-3 border rounded" />
-      <textarea name="message" rows="5" placeholder="Your Message" required class="p-3 border rounded"></textarea>
-      <button type="submit" class="bg-blue-800 text-white px-6 py-3 rounded hover:bg-blue-700">Send</button>
+    <form action="https://formspree.io/f/mqkrvlqz" method="POST" class="space-y-6 bg-white shadow-md rounded-lg p-6">
+      <div>
+        <label for="name" class="block text-sm font-medium mb-1">Your Name</label>
+        <input type="text" id="name" name="name" required class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label for="email" class="block text-sm font-medium mb-1">Your Email</label>
+        <input type="email" id="email" name="email" required class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+      </div>
+      <div>
+        <label for="message" class="block text-sm font-medium mb-1">Your Message</label>
+        <textarea id="message" name="message" rows="5" required class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+      </div>
+      <button type="submit" class="bg-blue-800 text-white px-6 py-3 rounded hover:bg-blue-700 transition-colors w-full sm:w-auto">
+        Send Message
+      </button>
     </form>
   </section>
+
 
   <!-- Footer -->
   <footer class="bg-blue-800 text-white text-center py-4">

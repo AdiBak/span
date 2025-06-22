@@ -1,75 +1,70 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Meta Configuration -->
+  <!-- ========== Meta Configuration ========== -->
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="SPAN is a student-led national coalition empowering future healthcare advocates to drive policy reform and protect patient rights." />
   <title>SPAN – Students for Patient Advocacy Nationwide</title>
+  <link rel="canonical" href="https://spanationwide.org/" />
+  <meta name="theme-color" content="#1e40af" />
 
-  <!-- Tailwind CSS -->
+  <!-- ========== Tailwind CSS ========== -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Smooth Scrolling -->
+  <!-- ========== Smooth Scrolling ========== -->
   <style>
-    html {
-      scroll-behavior: smooth;
-    }
+    html { scroll-behavior: smooth; }
   </style>
 
-  <!-- Favicon & Icons -->
+  <!-- ========== Favicon & Icons ========== -->
   <link rel="icon" href="https://joelblessan123.github.io/span/assets/favicon.ico" />
-  <link rel="icon" type="image/png" href="https://joelblessan123.github.io/span/assets/favicon-96x96.png" sizes="96x96" />
+  <link rel="icon" type="image/png" sizes="96x96" href="https://joelblessan123.github.io/span/assets/favicon-96x96.png" />
   <link rel="icon" type="image/svg+xml" href="https://joelblessan123.github.io/span/assets/favicon.svg" />
   <link rel="apple-touch-icon" sizes="180x180" href="https://joelblessan123.github.io/span/assets/apple-touch-icon.png" />
-  <link rel="shortcut icon" href="https://joelblessan123.github.io/span/assets/favicon.ico" />
   <link rel="manifest" href="https://joelblessan123.github.io/span/assets/site.webmanifest" />
 
-  <!-- Open Graph Meta Tags -->
-  <meta property="og:title" content="SPAN – Students for Patient Advocacy Nationwide" />
+  <!-- ========== Open Graph / Twitter Preview ========== -->
+  <meta property="og:title"       content="SPAN – Students for Patient Advocacy Nationwide" />
   <meta property="og:description" content="Empowering the next generation of healthcare advocates to drive policy reform and protect patient rights." />
-  <meta property="og:image" content="https://joelblessan123.github.io/span/assets/favicon.svg" />
-  <meta property="og:url" content="https://spanationwide.org" />
-  <meta property="og:type" content="website" />
-
-  <!-- Twitter Card Meta Tags -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="SPAN – Students for Patient Advocacy Nationwide" />
+  <meta property="og:image"       content="https://joelblessan123.github.io/span/assets/preview.png" />
+  <meta property="og:url"         content="https://spanationwide.org" />
+  <meta property="og:type"        content="website" />
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:title"       content="SPAN – Students for Patient Advocacy Nationwide" />
   <meta name="twitter:description" content="Empowering the next generation of healthcare advocates to drive policy reform and protect patient rights." />
-  <meta name="twitter:image" content="https://joelblessan123.github.io/span/assets/favicon.svg" />
+  <meta name="twitter:image"       content="https://joelblessan123.github.io/span/assets/preview.png" />
+
+  <!-- ========== Google Analytics (GA4) ========== -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-7QY6SHLJDL"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){ dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-7QY6SHLJDL');
+  </script>
 </head>
 
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-7QY6SHLJDL"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-7QY6SHLJDL');
-</script>
-  
 <body class="bg-white text-gray-900 font-sans">
-  <!-- Navbar -->
-   <header class="bg-blue-800 text-white shadow-md sticky top-0 z-50">
+  <!-- ========== Navbar ========== -->
+  <header class="bg-blue-800 text-white shadow-md sticky top-0 z-50">
     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
-        <!-- Logo -->
+        <!-- Logo + Brand -->
         <a href="#home" class="flex items-center space-x-2">
-          <img src="https://joelblessan123.github.io/span/assets/preview.png" alt="SPAN Logo" class="h-8 w-8 object-contain brightness-0 invert" />
+          <img src="https://joelblessan123.github.io/span/assets/preview.png" alt="SPAN Logo" class="h-8 w-8 object-contain bg-white p-1 rounded-full" />
           <span class="text-xl font-bold hover:text-gray-200">SPAN</span>
         </a>
-    
+
         <!-- Mobile menu button -->
         <div class="md:hidden">
-          <button id="menu-btn" class="focus:outline-none" aria-label="Toggle menu">
+          <button id="menu-btn" aria-label="Toggle menu" class="focus:outline-none">
             <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
         </div>
 
-  
         <!-- Desktop Menu -->
         <ul class="hidden md:flex space-x-6 text-sm">
           <li><a href="#home" class="hover:text-gray-200">Home</a></li>
@@ -80,7 +75,7 @@
           <li><a href="#contact" class="hover:text-gray-200">Contact</a></li>
         </ul>
       </div>
-  
+
       <!-- Mobile Menu Links -->
       <ul id="mobile-menu" class="md:hidden hidden flex-col space-y-4 mt-4 pb-4 text-sm">
         <li><a href="#home" class="block hover:text-gray-200">Home</a></li>
@@ -93,58 +88,60 @@
     </nav>
   </header>
 
-
-  <!-- Home -->
+  <!-- ========== Home ========== -->
   <section id="home" class="min-h-screen flex flex-col justify-center items-center text-center px-4 bg-blue-50">
     <h2 class="text-4xl md:text-5xl font-bold mb-6">Students for Patient Advocacy Nationwide</h2>
-    <p class="text-lg md:text-xl max-w-2xl">Empowering the next generation of healthcare advocates to drive policy reform and protect patient rights through grassroots action and educational outreach.</p>
-  </section>
-
-  <!-- About -->
-  <section id="about" class="py-16 px-4 max-w-5xl mx-auto">
-    <h3 class="text-3xl font-bold mb-6 text-center">About SPAN</h3>
-    <p class="text-lg leading-7">
-      SPAN is a national, student-led coalition focused on advocating for patient-centered healthcare reform. The organization empowers high school and college students who are passionate about the intersection of medicine and public policy. Through grassroots organizing, legislative advocacy, nonprofit partnerships, and educational outreach, SPAN aims to improve healthcare access, protect patient rights, and advance issues like mental health, reproductive justice, and disability equity.
+    <p class="text-lg md:text-xl max-w-2xl">
+      Empowering the next generation of healthcare advocates to drive policy reform and protect patient rights through grassroots action and educational outreach.
     </p>
   </section>
 
-<!-- Join Us -->
-<section id="join" class="bg-gray-100 py-16 px-4 max-w-5xl mx-auto">
-  <h3 class="text-3xl font-bold mb-6 text-center">Join Our Movement</h3>
-  <p class="text-lg leading-7 mb-6 text-center">
-    Members of SPAN gain hands-on experience with policy work, lead national initiatives, receive mentorship from
-    professionals, and join a network of ambitious student advocates. We’re expanding across the U.S. and looking for
-    dedicated students ready to transform the healthcare system.
-  </p>
+  <!-- ========== About ========== -->
+  <section id="about" class="py-16 px-4 max-w-5xl mx-auto">
+    <h3 class="text-3xl font-bold mb-6 text-center">About SPAN</h3>
+    <p class="text-lg leading-7">
+      SPAN is a national, student-led coalition focused on advocating for patient-centered healthcare reform. The organization empowers high-school and college students who are passionate about the intersection of medicine and public policy. Through grassroots organizing, legislative advocacy, nonprofit partnerships, and educational outreach, SPAN aims to improve healthcare access, protect patient rights, and advance issues like mental health, reproductive justice, and disability equity.
+    </p>
+  </section>
 
-  <div class="flex justify-center">
-    <!-- Tally embed: replace Google Form -->
-    <iframe
-      data-tally-src="https://tally.so/embed/3lXZjv?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
-      width="100%" height="600" frameborder="0" marginheight="0" marginwidth="0" title="Join SPAN">
-      Loading…
-    </iframe>
-  </div>
-</section>
-  
-<script src="https://tally.so/widgets/embed.js"></script>
+  <!-- ========== Join Us ========== -->
+  <section id="join" class="bg-gray-100 py-16 px-4 max-w-5xl mx-auto">
+    <h3 class="text-3xl font-bold mb-6 text-center">Join Our Movement</h3>
+    <p class="text-lg leading-7 mb-6 text-center">
+      Members of SPAN gain hands-on experience with policy work, lead national initiatives, receive mentorship from professionals, and join a network of ambitious student advocates. We’re expanding across the U.S. and looking for dedicated students ready to transform the healthcare system.
+    </p>
 
+    <div class="flex justify-center">
+      <iframe
+        data-tally-src="https://tally.so/embed/3lXZjv?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
+        width="100%" height="600" frameborder="0" marginheight="0" marginwidth="0" title="Join SPAN">
+        Loading…
+      </iframe>
+    </div>
+  </section>
+  <script src="https://tally.so/widgets/embed.js"></script>
 
-  <!-- Donate -->
+  <!-- ========== Donate ========== -->
   <section id="donate" class="py-16 px-4 max-w-3xl mx-auto">
     <h3 class="text-3xl font-bold mb-6 text-center">Support Our Work</h3>
-    <p class="text-lg text-center mb-6">Your donation helps SPAN grow its outreach, provide resources to student leaders, and advocate for meaningful healthcare reform across the country.</p>
+    <p class="text-lg text-center mb-6">
+      Your donation helps SPAN grow its outreach, provide resources to student leaders, and advocate for meaningful healthcare reform across the country.
+    </p>
     <div class="flex justify-center">
-      <!-- 🔧 TODO: Replace PayPal link with your real donation link -->
-      <a href="https://www.paypal.com/donate/?hosted_button_id=EXAMPLE" target="_blank" class="bg-blue-800 text-white px-6 py-3 rounded hover:bg-blue-700 text-center text-lg">Donate via PayPal</a>
+      <!-- TODO: Replace PayPal link with your real donation link -->
+      <a href="https://www.paypal.com/donate/?hosted_button_id=EXAMPLE"
+         target="_blank"
+         class="bg-blue-800 text-white px-6 py-3 rounded hover:bg-blue-700 text-lg">
+        Donate via PayPal
+      </a>
     </div>
   </section>
 
-  <!-- Resources -->
+  <!-- ========== Resources ========== -->
   <section id="resources" class="bg-gray-100 py-16 px-4 max-w-5xl mx-auto">
     <h3 class="text-3xl font-bold mb-6 text-center">Resources</h3>
     <ul class="list-disc text-lg leading-7 space-y-2 px-6">
-      <!-- 🔧 TODO: Replace "#" with actual links or resource files -->
+      <!-- TODO: Replace "#" with actual URLs -->
       <li><a href="#" class="text-blue-700 underline">Advocacy Toolkit (PDF)</a></li>
       <li><a href="#" class="text-blue-700 underline">How to Start a SPAN Chapter</a></li>
       <li><a href="#" class="text-blue-700 underline">Partner Organization Directory</a></li>
@@ -152,42 +149,42 @@
     </ul>
   </section>
 
-  <!-- Contact -->
+  <!-- ========== Contact ========== -->
   <section id="contact" class="py-16 px-4 max-w-3xl mx-auto">
     <h3 class="text-3xl font-bold mb-6 text-center">Get in Touch</h3>
     <form action="https://formspree.io/f/myzjdqab" method="POST" class="space-y-6 bg-white shadow-md rounded-lg p-6">
       <div>
         <label for="name" class="block text-sm font-medium mb-1">Your Name</label>
-        <input type="text" id="name" name="name" required class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input id="name" name="name" type="text" required
+               class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
       </div>
       <div>
         <label for="email" class="block text-sm font-medium mb-1">Your Email</label>
-        <input type="email" id="email" name="email" required class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <input id="email" name="email" type="email" required
+               class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
       </div>
       <div>
         <label for="message" class="block text-sm font-medium mb-1">Your Message</label>
-        <textarea id="message" name="message" rows="5" required class="w-full p-3 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+        <textarea id="message" name="message" rows="5" required
+                  class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"></textarea>
       </div>
-      <button type="submit" class="bg-blue-800 text-white px-6 py-3 rounded hover:bg-blue-700 transition-colors w-full sm:w-auto">
+      <button type="submit"
+              class="bg-blue-800 text-white px-6 py-3 rounded hover:bg-blue-700 transition-colors w-full sm:w-auto">
         Send Message
       </button>
     </form>
   </section>
 
-
-  <!-- Footer -->
+  <!-- ========== Footer ========== -->
   <footer class="bg-blue-800 text-white text-center py-4">
-    &copy; 2025 SPAN – Students for Patient Advocacy Nationwide. All rights reserved.
+    © 2025 SPAN – Students for Patient Advocacy Nationwide. All rights reserved.
   </footer>
 
+  <!-- ========== Scripts ========== -->
   <script>
-    const menuBtn = document.getElementById('menu-btn');
-    const mobileMenu = document.getElementById('mobile-menu');
-  
-    menuBtn.addEventListener('click', () => {
-      mobileMenu.classList.toggle('hidden');
-    });
+    const menuBtn   = document.getElementById('menu-btn');
+    const mobileNav = document.getElementById('mobile-menu');
+    menuBtn.addEventListener('click', () => mobileNav.classList.toggle('hidden'));
   </script>
-
 </body>
 </html>

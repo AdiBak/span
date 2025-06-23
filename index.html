@@ -54,7 +54,9 @@
   <header class="sticky top-0 z-50 backdrop-blur bg-white/90 dark:bg-slate-800 text-primary dark:text-white shadow">
     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
       <a href="#home" class="flex items-center space-x-2 animate-fade">
-        <img src="assets/Polimed.svg" alt="SPAN Logo" class="h-9 w-9 object-contain" />
+        <div class="relative h-10 w-10 flex items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md">
+          <img src="assets/Polimed.svg" alt="SPAN Logo" class="h-6 w-6 object-contain" />
+        </div>
         <span class="text-xl font-bold tracking-wide">SPAN</span>
       </a>
       <button id="menu-btn" aria-label="Toggle menu" class="md:hidden p-2 focus:outline-none">
@@ -79,10 +81,11 @@
     </ul>
   </header>
 
-  <!-- FULL PAGE CONTENT RESTORED -->
   <!-- ========== Home ========== -->
   <section id="home" class="min-h-screen flex flex-col justify-center items-center text-center px-4 bg-blue-50 dark:bg-slate-900">
-    <h2 class="text-4xl md:text-5xl font-bold mb-6">Students for Patient Advocacy Nationwide</h2>
+    <h2 class="text-4xl md:text-5xl font-bold mb-6 inline-block px-6 py-2 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100">
+      Students for Patient Advocacy Nationwide
+    </h2>
     <p class="text-lg md:text-xl max-w-2xl">
       Empowering the next generation of healthcare advocates to drive policy reform and protect patient rights through grassroots action and educational outreach.
     </p>

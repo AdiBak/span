@@ -85,12 +85,23 @@
 
   <!-- ===== Hero ===== -->
   <section id="home" class="relative flex items-center justify-center text-center min-h-[80vh] px-4 overflow-hidden">
-    <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1538805065871-d1c9c1f11f1c?auto=format&fit=crop&w=1200&q=80')] bg-cover bg-center opacity-30 dark:opacity-20"></div>
-    <div class="absolute inset-0 bg-gradient-to-b from-primary/70 to-primary/90 dark:from-slate-800/80 dark:to-slate-900/90"></div>
-    <div class="relative max-w-2xl text-white space-y-6 animate-fade">
-      <h1 class="text-4xl md:text-5xl font-extrabold leading-tight">Students for Patient Advocacy Nationwide</h1>
-      <p class="text-lg md:text-xl">Empowering tomorrow’s healthcare advocates through policy reform, education, and grassroots action.</p>
-      <a href="#join" class="inline-block mt-4 px-8 py-3 bg-white text-primary font-semibold rounded-full shadow hover:bg-primary-light hover:text-white transition dark:bg-primary-light dark:text-white">Join the Movement</a>
+    <!-- Background Image -->
+    <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1538805065871-d1c9c1f11f1c?auto=format&fit=crop&w=1200&q=80')] bg-cover bg-center opacity-30 dark:opacity-20 pointer-events-none z-0"></div>
+    
+    <!-- Gradient Overlay -->
+    <div class="absolute inset-0 bg-gradient-to-b from-white via-white to-white dark:from-slate-800/80 dark:to-slate-900/90 pointer-events-none z-0"></div>
+    
+    <!-- Hero Content -->
+    <div class="relative z-10 max-w-2xl text-gray-900 dark:text-white space-y-6 animate-fade">
+      <h1 class="text-4xl md:text-5xl font-extrabold leading-tight">
+        Students for Patient Advocacy Nationwide
+      </h1>
+      <p class="text-lg md:text-xl">
+        Empowering tomorrow’s healthcare advocates through policy reform, education, and grassroots action.
+      </p>
+      <a href="#join" class="inline-block mt-4 px-8 py-3 bg-primary text-white font-semibold rounded-full shadow hover:bg-primary-light transition">
+        Join the Movement
+      </a>
     </div>
   </section>
 

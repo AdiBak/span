@@ -51,19 +51,23 @@
 
 <body class="font-sans text-gray-900 bg-white dark:text-gray-200 dark:bg-slate-900">
   <!-- ===== Navbar ===== -->
-  <header class="sticky top-0 z-50 backdrop-blur bg-white/90 dark:bg-slate-800 text-primary dark:text-white shadow-md">
+  <header class="sticky top-0 z-50 backdrop-blur bg-white/90 dark:bg-slate-800 text-primary dark:text-white shadow">
     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
+      <!-- Brand -->
       <a href="#home" class="flex items-center space-x-2 animate-fade">
         <img src="assets/Polimed.svg" alt="SPAN Logo" class="h-9 w-9 object-contain" />
         <span class="text-xl font-bold tracking-wide">SPAN</span>
       </a>
+      <!-- Theme toggle -->
       <button id="theme-toggle" class="hidden md:inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-200/30 dark:hover:bg-white/10 focus:outline-none" aria-label="Toggle dark mode">
         <svg id="icon-sun" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364-6.364l-1.414 1.414M7.05 16.95l-1.414 1.414m0-13.728l1.414 1.414M16.95 16.95l1.414 1.414"/></svg>
         <svg id="icon-moon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       </button>
+      <!-- Hamburger -->
       <button id="menu-btn" aria-label="Toggle menu" class="md:hidden p-2 focus:outline-none">
         <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
       </button>
+      <!-- Desktop links -->
       <ul class="hidden md:flex space-x-6 text-sm font-medium">
         <li><a href="#home" class="hover:text-primary-light">Home</a></li>
         <li><a href="#about" class="hover:text-primary-light">About</a></li>
@@ -73,7 +77,8 @@
         <li><a href="#contact" class="hover:text-primary-light">Contact</a></li>
       </ul>
     </nav>
-    <ul id="mobile-menu" class="md:hidden hidden flex-col space-y-4 px-6 pb-4 text-sm font-medium bg-white/95 dark:bg-slate-800 shadow animate-fade">
+    <!-- Mobile links -->
+    <ul id="mobile-menu" class="md:hidden hidden flex-col space-y-4 px-6 pb-4 text-sm font-medium bg-white/95 dark:bg-slate-800 shadow">
       <li><a href="#home" class="block py-1">Home</a></li>
       <li><a href="#about" class="block py-1">About</a></li>
       <li><a href="#join" class="block py-1">Join Us</a></li>
@@ -85,45 +90,28 @@
 
   <!-- ===== Hero ===== -->
   <section id="home" class="relative flex items-center justify-center text-center min-h-[80vh] px-4 overflow-hidden">
-    <!-- Background Image -->
-    <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1538805065871-d1c9c1f11f1c?auto=format&fit=crop&w=1200&q=80')] bg-cover bg-center opacity-30 dark:opacity-20 pointer-events-none z-0"></div>
-    
-    <!-- Gradient Overlay -->
-    <div class="absolute inset-0 bg-gradient-to-b from-white via-white to-white dark:from-slate-800/80 dark:to-slate-900/90 pointer-events-none z-0"></div>
-    
-    <!-- Hero Content -->
+    <div class="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1538805065871-d1c9c1f11f1c?auto=format&fit=crop&w=1200&q=80')] bg-cover bg-center opacity-30 dark:opacity-20 pointer-events-none"></div>
+    <div class="absolute inset-0 bg-gradient-to-b from-white via-white/90 to-white/95 dark:from-slate-800/80 dark:via-slate-900/80 dark:to-slate-900 pointer-events-none"></div>
     <div class="relative z-10 max-w-2xl text-gray-900 dark:text-white space-y-6 animate-fade">
-      <h1 class="text-4xl md:text-5xl font-extrabold leading-tight">
-        Students for Patient Advocacy Nationwide
-      </h1>
-      <p class="text-lg md:text-xl">
-        Empowering tomorrow’s healthcare advocates through policy reform, education, and grassroots action.
-      </p>
-      <a href="#join" class="inline-block mt-4 px-8 py-3 bg-primary text-white font-semibold rounded-full shadow hover:bg-primary-light transition">
-        Join the Movement
-      </a>
+      <h1 class="text-4xl md:text-5xl font-extrabold leading-tight">Students for Patient Advocacy Nationwide</h1>
+      <p class="text-lg md:text-xl">Empowering tomorrow’s healthcare advocates through policy reform, education, and grassroots action.</p>
+      <a href="#join" class="inline-block mt-4 px-8 py-3 bg-primary text-white font-semibold rounded-full shadow hover:bg-primary-light transition">Join the Movement</a>
     </div>
   </section>
 
-  <!-- ===== Scripts ===== -->
-  <script>
-    document.getElementById('menu-btn').addEventListener('click', () => {
-      document.getElementById('mobile-menu').classList.toggle('hidden');
-    });
-    const root = document.documentElement;
-    const btn = document.getElementById('theme-toggle');
-    const sun = document.getElementById('icon-sun');
-    const moon = document.getElementById('icon-moon');
-    function setTheme(dark) {
-      dark ? root.classList.add('dark') : root.classList.remove('dark');
-      sun.classList.toggle('hidden', dark);
-      moon.classList.toggle('hidden', !dark);
-      localStorage.theme = dark ? 'dark' : 'light';
-    }
-    const userPrefDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const savedTheme = localStorage.theme;
-    setTheme(savedTheme ? savedTheme === 'dark' : userPrefDark);
-    btn.addEventListener('click', () => setTheme(!root.classList.contains('dark')));
-  </script>
-</body>
-</html>
+  <!-- ===== About ===== -->
+  <section id="about" class="py-20 px-4">
+    <div class="max-w-5xl mx-auto text-center space-y-6 animate-fade">
+      <h2 class="text-3xl font-bold text-primary dark:text-primary-light">About SPAN</h2>
+      <p class="text-lg leading-7 text-gray-700 dark:text-gray-300">
+        SPAN is a national, student-led coalition focused on advocating for patient-centered healthcare reform. The organization empowers high-school and college students passionate about medicine and public policy through grassroots organizing, legislative advocacy, nonprofit partnerships, and educational outreach.
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== Join Us ===== -->
+  <section id="join" class="bg-gray-100 dark:bg-slate-800 py-20 px-4">
+    <div class="max-w-5xl mx-auto text-center space-y-6 animate-fade">
+      <h2 class="text-3xl font-bold text-primary dark:text-primary-light">Join Our Movement</h2>
+      <p class="text-lg leading-7 text-gray-700 dark:text-gray-300">Lead initiatives, receive mentorship, and collaborate with student advocates nationwide.</p>
+      <div class

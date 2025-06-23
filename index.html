@@ -27,8 +27,7 @@
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- ===== Favicons (light & dark) ===== -->
-  <!--  Place these files in /assets/ :  span-favicon-light.svg  span-favicon-dark.svg  favicon-32.png  apple-touch-icon.png  -->
+  <!-- ===== Favicons ===== -->
   <link rel="icon" type="image/svg+xml" href="assets/span-favicon-light.svg" media="(prefers-color-scheme: light)">
   <link rel="icon" type="image/svg+xml" href="assets/span-favicon-dark.svg"  media="(prefers-color-scheme: dark)">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
@@ -52,26 +51,19 @@
 
 <body class="font-sans text-gray-900 bg-white dark:text-gray-200 dark:bg-slate-900">
   <!-- ===== Navbar ===== -->
-  <header class="sticky top-0 z-50 backdrop-blur bg-primary/90 dark:bg-slate-800 text-white shadow-md">
+  <header class="sticky top-0 z-50 backdrop-blur bg-white/90 dark:bg-slate-800 text-primary dark:text-white shadow-md">
     <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-      <!-- Brand -->
       <a href="#home" class="flex items-center space-x-2 animate-fade">
         <img src="assets/Polimed.svg" alt="SPAN Logo" class="h-9 w-9 object-contain" />
         <span class="text-xl font-bold tracking-wide">SPAN</span>
       </a>
-
-      <!-- Theme toggle -->
-      <button id="theme-toggle" class="hidden md:inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/20 focus:outline-none" aria-label="Toggle dark mode">
+      <button id="theme-toggle" class="hidden md:inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-200/30 dark:hover:bg-white/10 focus:outline-none" aria-label="Toggle dark mode">
         <svg id="icon-sun" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364-6.364l-1.414 1.414M7.05 16.95l-1.414 1.414m0-13.728l1.414 1.414M16.95 16.95l1.414 1.414"/></svg>
         <svg id="icon-moon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
       </button>
-
-      <!-- Hamburger -->
       <button id="menu-btn" aria-label="Toggle menu" class="md:hidden p-2 focus:outline-none">
         <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
       </button>
-
-      <!-- Desktop links -->
       <ul class="hidden md:flex space-x-6 text-sm font-medium">
         <li><a href="#home" class="hover:text-primary-light">Home</a></li>
         <li><a href="#about" class="hover:text-primary-light">About</a></li>
@@ -81,8 +73,7 @@
         <li><a href="#contact" class="hover:text-primary-light">Contact</a></li>
       </ul>
     </nav>
-    <!-- Mobile links -->
-    <ul id="mobile-menu" class="md:hidden hidden flex-col space-y-4 px-6 pb-4 text-sm font-medium bg-primary/95 dark:bg-slate-800 shadow animate-fade">
+    <ul id="mobile-menu" class="md:hidden hidden flex-col space-y-4 px-6 pb-4 text-sm font-medium bg-white/95 dark:bg-slate-800 shadow animate-fade">
       <li><a href="#home" class="block py-1">Home</a></li>
       <li><a href="#about" class="block py-1">About</a></li>
       <li><a href="#join" class="block py-1">Join Us</a></li>
@@ -103,16 +94,25 @@
     </div>
   </section>
 
-  <!-- ===== Content sections remain unchanged (about, join, donate, resources, contact, footer) ===== -->
-  <!--  …  -->
-
   <!-- ===== Scripts ===== -->
   <script>
-    // mobile nav
-    document.getElementById('menu-btn').addEventListener('click',()=>document.getElementById('mobile-menu').classList.toggle('hidden'));
-    // dark mode toggle
-    const root=document.documentElement;const btn=document.getElementById('theme-toggle');const sun=document.getElementById('icon-sun');const moon=document.getElementById('icon-moon');
-    function setTheme(dark){dark?root.classList.add('dark'):root.classList.remove('dark');sun.classList.toggle('hidden',dark);moon.classList.toggle('hidden',!dark);localStorage.theme=dark?'dark':'light'}
-    // init
-    const userPrefDark=window.matchMedia('(prefers-color-scheme:dark)').matches;
-    setTheme(localStorage.theme?
+    document.getElementById('menu-btn').addEventListener('click', () => {
+      document.getElementById('mobile-menu').classList.toggle('hidden');
+    });
+    const root = document.documentElement;
+    const btn = document.getElementById('theme-toggle');
+    const sun = document.getElementById('icon-sun');
+    const moon = document.getElementById('icon-moon');
+    function setTheme(dark) {
+      dark ? root.classList.add('dark') : root.classList.remove('dark');
+      sun.classList.toggle('hidden', dark);
+      moon.classList.toggle('hidden', !dark);
+      localStorage.theme = dark ? 'dark' : 'light';
+    }
+    const userPrefDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const savedTheme = localStorage.theme;
+    setTheme(savedTheme ? savedTheme === 'dark' : userPrefDark);
+    btn.addEventListener('click', () => setTheme(!root.classList.contains('dark')));
+  </script>
+</body>
+</html>

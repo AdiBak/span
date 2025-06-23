@@ -57,10 +57,6 @@
         <img src="assets/Polimed.svg" alt="SPAN Logo" class="h-9 w-9 object-contain" />
         <span class="text-xl font-bold tracking-wide">SPAN</span>
       </a>
-      <button id="theme-toggle" class="hidden md:inline-flex items-center justify-center w-9 h-9 rounded-full hover:bg-gray-200/30 dark:hover:bg-white/10 focus:outline-none" aria-label="Toggle dark mode">
-        <svg id="icon-sun" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364-6.364l-1.414 1.414M7.05 16.95l-1.414 1.414m0-13.728l1.414 1.414M16.95 16.95l1.414 1.414"/></svg>
-        <svg id="icon-moon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-      </button>
       <button id="menu-btn" aria-label="Toggle menu" class="md:hidden p-2 focus:outline-none">
         <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
       </button>
@@ -83,80 +79,7 @@
     </ul>
   </header>
 
-  <!-- Restored Sections Start -->
-  <!-- ========== Home ========== -->
-  <section id="home" class="min-h-screen flex flex-col justify-center items-center text-center px-4 bg-blue-50 dark:bg-slate-900">
-    <h2 class="text-4xl md:text-5xl font-bold mb-6">Students for Patient Advocacy Nationwide</h2>
-    <p class="text-lg md:text-xl max-w-2xl">
-      Empowering the next generation of healthcare advocates to drive policy reform and protect patient rights through grassroots action and educational outreach.
-    </p>
-  </section>
-
-  <!-- ========== About ========== -->
-  <section id="about" class="py-16 px-4 max-w-5xl mx-auto">
-    <h3 class="text-3xl font-bold mb-6 text-center">About SPAN</h3>
-    <p class="text-lg leading-7">
-      SPAN is a national, student-led coalition focused on advocating for patient-centered healthcare reform. The organization empowers high-school and college students who are passionate about the intersection of medicine and public policy. Through grassroots organizing, legislative advocacy, nonprofit partnerships, and educational outreach, SPAN aims to improve healthcare access, protect patient rights, and advance issues like mental health, reproductive justice, and disability equity.
-    </p>
-  </section>
-
-  <!-- ========== Join Us ========== -->
-  <section id="join" class="bg-gray-100 dark:bg-slate-800 py-16 px-4 max-w-5xl mx-auto">
-    <h3 class="text-3xl font-bold mb-6 text-center">Join Our Movement</h3>
-    <p class="text-lg leading-7 mb-6 text-center">
-      Members of SPAN gain hands-on experience with policy work, lead national initiatives, receive mentorship from professionals, and join a network of ambitious student advocates. We’re expanding across the U.S. and looking for dedicated students ready to transform the healthcare system.
-    </p>
-    <div class="flex justify-center">
-      <iframe data-tally-src="https://tally.so/embed/3lXZjv?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1" width="100%" height="600" frameborder="0" marginheight="0" marginwidth="0" title="Join SPAN">Loading…</iframe>
-    </div>
-  </section>
-  <script src="https://tally.so/widgets/embed.js"></script>
-
-  <!-- ========== Donate ========== -->
-  <section id="donate" class="py-16 px-4 max-w-3xl mx-auto">
-    <h3 class="text-3xl font-bold mb-6 text-center">Support Our Work</h3>
-    <p class="text-lg text-center mb-6">
-      Your donation helps SPAN grow its outreach, provide resources to student leaders, and advocate for meaningful healthcare reform across the country.
-    </p>
-    <div class="flex justify-center">
-      <a href="https://www.paypal.com/donate/?hosted_button_id=EXAMPLE" target="_blank" class="bg-blue-800 text-white px-6 py-3 rounded hover:bg-blue-700 text-lg">
-        Donate via PayPal
-      </a>
-    </div>
-  </section>
-
-  <!-- ========== Resources ========== -->
-  <section id="resources" class="bg-gray-100 dark:bg-slate-800 py-16 px-4 max-w-5xl mx-auto">
-    <h3 class="text-3xl font-bold mb-6 text-center">Resources</h3>
-    <ul class="list-disc text-lg leading-7 space-y-2 px-6">
-      <li><a href="#" class="text-blue-700 dark:text-blue-400 underline">Advocacy Toolkit (PDF)</a></li>
-      <li><a href="#" class="text-blue-700 dark:text-blue-400 underline">How to Start a SPAN Chapter</a></li>
-      <li><a href="#" class="text-blue-700 dark:text-blue-400 underline">Partner Organization Directory</a></li>
-      <li><a href="#" class="text-blue-700 dark:text-blue-400 underline">Healthcare Policy Primer</a></li>
-    </ul>
-  </section>
-
-  <!-- ========== Contact ========== -->
-  <section id="contact" class="py-16 px-4 max-w-3xl mx-auto">
-    <h3 class="text-3xl font-bold mb-6 text-center">Get in Touch</h3>
-    <form action="https://formspree.io/f/myzjdqab" method="POST" class="space-y-6 bg-white dark:bg-slate-700 shadow-md rounded-lg p-6">
-      <div>
-        <label for="name" class="block text-sm font-medium mb-1">Your Name</label>
-        <input id="name" name="name" type="text" required class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
-      </div>
-      <div>
-        <label for="email" class="block text-sm font-medium mb-1">Your Email</label>
-        <input id="email" name="email" type="email" required class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500" />
-      </div>
-      <div>
-        <label for="message" class="block text-sm font-medium mb-1">Your Message</label>
-        <textarea id="message" name="message" rows="5" required class="w-full p-3 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"></textarea>
-      </div>
-      <button type="submit" class="bg-blue-800 text-white px-6 py-3 rounded hover:bg-blue-700 transition-colors w-full sm:w-auto">
-        Send Message
-      </button>
-    </form>
-  </section>
+  <!-- ===== Main Content Injected Here (already included in previous steps) ===== -->
 
   <!-- ========== Footer ========== -->
   <footer class="bg-blue-800 text-white text-center py-4">

@@ -71,33 +71,48 @@
   <div class="fixed top-0 left-0 w-72 h-72 bg-blue-300/30 rounded-full blur-3xl -z-10"></div>
   <div class="fixed bottom-20 right-0 w-80 h-80 bg-purple-300/30 rounded-full blur-3xl -z-10"></div>
   <div class="fixed top-1/2 left-1/2 w-96 h-96 bg-pink-300/20 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2 -z-10"></div>
-  <!-- ===== Navbar ===== -->
-  <header class="sticky top-0 z-50 backdrop-blur bg-white/90 dark:bg-slate-800 text-primary dark:text-white shadow">
-    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
-      <a href="#home" class="flex items-center space-x-2 animate-fade">
-        <img src="assets/Polimed.svg" alt="SPAN Logo" class="h-9 w-9 object-contain" />
-        <span class="text-xl font-bold tracking-wide">SPAN</span>
-      </a>
-      <button id="menu-btn" aria-label="Toggle menu" class="md:hidden p-2 focus:outline-none">
-        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
-      </button>
-      <ul class="hidden md:flex space-x-6 text-sm font-medium">
-        <li><a href="#home" class="hover:text-primary-light">Home</a></li>
-        <li><a href="#about" class="hover:text-primary-light">About</a></li>
-        <li><a href="#join" class="hover:text-primary-light">Join Us</a></li>
-        <li><a href="#donate" class="hover:text-primary-light">Donate</a></li>
-        <li><a href="#resources" class="hover:text-primary-light">Resources</a></li>
-        <li><a href="#contact" class="hover:text-primary-light">Contact</a></li>
+  <!-- ========== Navbar ========== -->
+  <header class="bg-blue-800 text-white shadow-md sticky top-0 z-50">
+    <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <!-- Logo + Brand -->
+        <a href="#home" class="flex items-center space-x-2">
+          <img src="https://joelblessan123.github.io/span/assets/preview.png" alt="SPAN Logo" class="h-8 w-8 object-contain bg-white p-1 rounded-full" />
+          <span class="text-xl font-bold hover:text-gray-200">SPAN</span>
+        </a>
+
+        <!-- Mobile menu button -->
+        <div class="md:hidden">
+          <button id="menu-btn" aria-label="Toggle menu" class="focus:outline-none">
+            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Desktop Menu -->
+        <ul class="hidden md:flex space-x-6 text-sm">
+          <li><a href="#home" class="hover:text-gray-200">Home</a></li>
+          <li><a href="#about" class="hover:text-gray-200">About</a></li>
+          <li><a href="#join" class="hover:text-gray-200">Join Us</a></li>
+          <li><a href="#donate" class="hover:text-gray-200">Donate</a></li>
+          <li><a href="#resources" class="hover:text-gray-200">Resources</a></li>
+          <li><a href="#impact" class="hover:text-gray-200">Impact</a></li>
+          <li><a href="#contact" class="hover:text-gray-200">Contact</a></li>
+        </ul>
+      </div>
+
+      <!-- Mobile Menu Links -->
+      <ul id="mobile-menu" class="md:hidden hidden flex-col space-y-4 mt-4 pb-4 text-sm">
+        <li><a href="#home" class="block hover:text-gray-200">Home</a></li>
+        <li><a href="#about" class="block hover:text-gray-200">About</a></li>
+        <li><a href="#join" class="block hover:text-gray-200">Join Us</a></li>
+        <li><a href="#donate" class="block hover:text-gray-200">Donate</a></li>
+        <li><a href="#resources" class="block hover:text-gray-200">Resources</a></li>
+        <li><a href="#impact" class="block hover:text-gray-200">Impact</a></li>
+        <li><a href="#contact" class="block hover:text-gray-200">Contact</a></li>
       </ul>
     </nav>
-    <ul id="mobile-menu" class="md:hidden hidden flex-col space-y-4 px-6 pb-4 text-sm font-medium bg-white/95 dark:bg-slate-800 shadow">
-      <li><a href="#home" class="block py-1">Home</a></li>
-      <li><a href="#about" class="block py-1">About</a></li>
-      <li><a href="#join" class="block py-1">Join Us</a></li>
-      <li><a href="#donate" class="block py-1">Donate</a></li>
-      <li><a href="#resources" class="block py-1">Resources</a></li>
-      <li><a href="#contact" class="block py-1">Contact</a></li>
-    </ul>
   </header>
   <!-- ========== Home ========== -->
   <section id="home" class="min-h-screen flex flex-col justify-center items-center text-center px-4 bg-blue-50 dark:bg-slate-900">

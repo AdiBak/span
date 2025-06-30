@@ -1,6 +1,6 @@
 var footer = `
     <div class="container">
-      <div class="row">
+      <div class="row p-3">
         <div class="col-md-6 mb-4 mb-md-0">
           <img src="/assets/images/index/logo-wide-light.svg" height="40" alt="SPAN Logo" class="mb-3">
           <p>Students for Patient Advocacy Nationwide - Empowering the next generation of healthcare advocates.</p>

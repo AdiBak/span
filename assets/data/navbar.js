@@ -15,7 +15,7 @@ var navbar = `
           <li class="nav-item"><a class="nav-link" href="#resources">Resources</a></li>
           <li class="nav-item"><a class="nav-link" href="#team">Our Team</a></li>
           <li class="nav-item"><a class="nav-link" href="#contact">Contact</a></li>
-          <li class="nav-item"><a class="btn btn-outline-light ms-2" href="#donate">Donate</a></li>
+          <li class="nav-item"><a class="nav-link" href="#donate">Donate</a></li>
         </ul>
       </div>
     </div>

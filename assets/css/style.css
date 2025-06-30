@@ -20,3 +20,48 @@
 .text-primary {
     color: #003049 !important;
 }
+
+
+html, body {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+
+.container, 
+.container-fluid {
+  max-width: 100%;
+  padding-right: 15px;
+  padding-left: 15px;
+}
+
+
+.full-width {
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+}
+
+.hero-section {
+  background-image: url('/assets/images/index/hero.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: scroll; /* Remove fixed attachment on mobile */
+  
+  /* Adjust height for mobile */
+  height: 100vh;
+  min-height: 500px; /* Prevent excessive shrinking */
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 768px) {
+  .hero-section {
+    background-size: contain; /* or 'cover' with adjusted position */
+    background-position: top center; /* Better framing on mobile */
+    background-attachment: scroll; /* Disable parallax on mobile */
+  }
+}

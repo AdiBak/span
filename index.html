@@ -63,14 +63,14 @@
   <script src="/assets/data/navbar.js"></script>
 
   <a id="home"></a>
-  <div class="bg-image p-3 p-md-5 m-md-3 text-center" style="background-image: url('/assets/images/index/hero.jpg'); background-position: center; background-repeat: no-repeat; background-attachment: fixed; background-size: cover; margin-bottom: 50px; height: 75vh; padding-top: 80px;">
+  <div class="hero-section bg-image p-3 p-md-5 m-md-3 text-center" style="background-image: url('/assets/images/index/hero.jpg'); background-position: center; background-repeat: no-repeat; background-attachment: fixed; background-size: cover; margin-bottom: 50px; height: 75vh; padding-top: 80px;">
     <div class="col-md-8 mx-auto d-flex flex-column justify-content-center" style="height: 80%;">
       <img width="70%" oncontextmenu="return false;" loading="lazy" class="text-white user-select-none animate__animated animate__fadeInDown mx-auto" src="/assets/images/index/logo-wide-light.svg" alt="SPAN Logo">
       <h1 class="text-white display-4 animate__animated animate__fadeInUp mt-4">Students for Patient Advocacy Nationwide</h1>
       <p class="text-white lead user-select-none animate__animated animate__fadeInUp">Empowering the next generation of healthcare advocates.</p>
       <div class="animate__animated animate__fadeInUp mt-4">
-        <a href="#join" class="btn btn-outline-light btn-lg me-2">Join Our Movement</a>
-        <a href="#donate" class="btn btn-outline-light btn-lg">Support Our Work</a>
+        <a href="#join" class="m-2 btn btn-outline-light btn-lg me-2">Join Our Movement</a>
+        <a href="#donate" class="m-2 btn btn-outline-light btn-lg">Support Our Work</a>
       </div>
     </div>
   </div>
@@ -135,10 +135,15 @@
 
   <a id="join"></a>
   <div class="row position-relative p-3 p-md-5 m-md-3 bg-light">
+      <iframe 
+        data-tally-src="https://tally.so/embed/3lXZjv?alignLeft=1&hideTitle=1&transparentBackground=1&dynamicHeight=1"
+        width="100%" height="600" frameborder="0" marginheight="0" marginwidth="0" title="Join SPAN"
+        class="w-full max-w-3xl">
+      </iframe>
+        <script src="https://tally.so/widgets/embed.js"></script>
     <div class="col-lg-8 mx-auto text-center">
       <h2 class="mb-4">Join Our Movement</h2>
       <p class="lead mb-5">Members of SPAN gain hands-on experience with policy work, lead national initiatives, receive mentorship from professionals, and join a network of ambitious student advocates. We're expanding across the U.S. and looking for dedicated students ready to transform the healthcare system.</p>
-      
       <div class="row g-4">
         <div class="col-md-4">
           <div class="card h-100 border-0 shadow-sm">
@@ -235,21 +240,21 @@
           </div>
         </div>
         <div class="col-md-6">
-          <!-- <form>
+            <form action="https://formspree.io/f/myzjdqab" method="POST">
             <div class="mb-3">
-              <label for="name" class="form-label">Your Name</label>
-              <input type="text" class="form-control" id="name" required>
+                <label for="name" class="form-label">Your Name</label>
+                <input type="text" class="form-control" id="name" name="name" required>
             </div>
             <div class="mb-3">
-              <label for="email" class="form-label">Your Email</label>
-              <input type="email" class="form-control" id="email" required>
+                <label for="email" class="form-label">Your Email</label>
+                <input type="email" class="form-control" id="email" name="email" required>
             </div>
             <div class="mb-3">
-              <label for="message" class="form-label">Your Message</label>
-              <textarea class="form-control" id="message" rows="4" required></textarea>
+                <label for="message" class="form-label">Your Message</label>
+                <textarea class="form-control" id="message" name="message" rows="4" required></textarea>
             </div>
             <button type="submit" class="btn btn-dark">Send Message</button>
-          </form> -->
+            </form>
         </div>
       </div>
     </div>

@@ -28,14 +28,6 @@ html, body {
 }
 
 
-.container, 
-.container-fluid {
-  max-width: 100%;
-  padding-right: 15px;
-  padding-left: 15px;
-}
-
-
 .full-width {
   width: 100vw;
   position: relative;

@@ -7,8 +7,15 @@ export var bills = [
   {
     name: "Texas HB 5294",
     position: OPPOSE,
-    description: "Co-led formal testimony efforts that helped block HB 5294 from becoming law.",
-    date: new Date("2025-06-25"),
+    description: "Submitted testimony to allow merit-based evaluation systems in Texas medical schools instead of banning pass/fail grading.",
+    date: new Date("2025-03-15"),
     proposal: "HB 5294.pdf",
+  },
+  {
+    name: "Texas SB 75",
+    position: SUPPORT_AMENDED,
+    description: "Submitted a proposal to strengthen the definition of “microgrid” to protect Texas’ energy leadership.",
+    date: new Date("2025-06-25"),
+    proposal: "/Texas/SB 75.pdf",
   },
 ];

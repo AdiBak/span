@@ -15,25 +15,33 @@ function renderBills(billArray) {
 
   container.innerHTML = "";
 
-  billArray.forEach(bill => {
-    const month = bill.date.toLocaleString('default', { month: 'long' });
-    const year = bill.date.getFullYear();
-    container.innerHTML += `
-      <div class="col-md-3">
-        <div class="card impact-card h-100 shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">${bill.name}</h5>
-            ${bill.position}
-            <p class="card-text">${bill.description}</p>
-            <p class="text-muted small">${month} ${year}</p>
-            <a href="/assets/proposals/${bill.proposal}" class="btn btn-outline-dark btn-sm" target="_blank" download>
-              Download Proposal
-            </a>
-          </div>
-        </div>
+  if (billArray.length === 0) {
+    container.innerHTML = `
+      <div class="col-12 text-center">
+        <p class="text-muted mt-5 fs-5">No results found. Try a different filter or search term.</p>
       </div>
     `;
-  });
+  } else {
+    billArray.forEach(bill => {
+      const month = bill.date.toLocaleString('default', { month: 'long' });
+      const year = bill.date.getFullYear();
+      container.innerHTML += `
+        <div class="col-md-3">
+          <div class="card impact-card h-100 shadow-sm">
+            <div class="card-body">
+              <h5 class="card-title">${bill.name}</h5>
+              ${bill.position}
+              <p class="card-text">${bill.description}</p>
+              <p class="text-muted small">${month} ${year}</p>
+              <a href="/assets/proposals/${bill.proposal}" class="btn btn-outline-dark btn-sm" target="_blank">
+                Download Proposal
+              </a>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+  }
 
   const counter = document.getElementById("proposals");
   if (counter) counter.textContent = billArray.length;

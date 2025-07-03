@@ -69,25 +69,32 @@
   </div>
   <div class="p-3 p-md-5 m-md-3 bg-light">
 <div class="container py-5">
-  <div class="row mb-4 align-items-center">
-    <div class="col-md-8 mb-3 mb-md-0">
-      <!-- Filter Buttons -->
-<div class="btn-group btn-filter-group" role="group">
-  <button id="filter-all" type="button" class="btn btn-outline-dark filter-btn active">All Bills</button>
-  <button id="filter-support" type="button" class="btn btn-outline-dark filter-btn">Support</button>
-  <button id="filter-support-amended" type="button" class="btn btn-outline-dark filter-btn">Support If Amended</button>
-  <button id="filter-oppose" type="button" class="btn btn-outline-dark filter-btn">Oppose</button>
-  <button id="filter-oppose-amended" type="button" class="btn btn-outline-dark filter-btn">Oppose Unless Amended</button>
-</div>
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
+        
+        <!-- Filter Buttons -->
+        <div class="btn-group btn-filter-group flex-wrap" role="group">
+          <button id="filter-all" type="button" class="btn btn-outline-dark filter-btn active">All Bills</button>
+          <button id="filter-support" type="button" class="btn btn-outline-dark filter-btn">Support</button>
+          <button id="filter-support-amended" type="button" class="btn btn-outline-dark filter-btn">Support If Amended</button>
+          <button id="filter-oppose" type="button" class="btn btn-outline-dark filter-btn">Oppose</button>
+          <button id="filter-oppose-amended" type="button" class="btn btn-outline-dark filter-btn">Oppose Unless Amended</button>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="col-12 col-md-4 px-0">
+          <input type="text" id="billSearch" class="form-control" placeholder="Search bills...">
+        </div>
+
+      </div>
     </div>
-    <div class="col-md-4">
-      <!-- Search Bar -->
-      <input type="text" id="billSearch" class="form-control" placeholder="Search bills...">
-    </div>
-<div id="billContainer" class="row g-4">
   </div>
-  </div>
+
+  <!-- Bill Cards Container -->
+  <div id="billContainer" class="row g-4"></div>
 </div>
+
 </div>
 
   <footer id="footerContainer" class="footer text-white py-5">

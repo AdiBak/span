@@ -5,21 +5,19 @@ var footer = `
           <img src="/assets/images/index/logo-wide-light.svg" height="40" alt="SPAN Logo" class="mb-3">
           <p>Students for Patient Advocacy Nationwide - Empowering the next generation of healthcare advocates.</p>
           <div class="mt-3">
-            <!-- <a href="#" class="text-white me-2"><i class="bi bi-twitter-x" style="font-size: 1.5rem;"></i></a> -->
-            <a href="https://www.linkedin.com/company/spanationwide/" class="text-white me-2"><i class="bi bi-linkedin" style="font-size: 1.5rem;"></i></a>
-            <a href="https://www.instagram.com/spanationwide/" class="text-white me-2"><i class="bi bi-instagram" style="font-size: 1.5rem;"></i></a>
-            <!-- <a href="#" class="text-white"><i class="bi bi-facebook" style="font-size: 1.5rem;"></i></a> -->
+          <a href="https://www.linkedin.com/company/spanationwide/" class="text-white me-2"><i class="bi bi-linkedin" style="font-size: 1.5rem;"></i></a>
+          <a href="https://www.instagram.com/spanationwide/" class="text-white me-2"><i class="bi bi-instagram" style="font-size: 1.5rem;"></i></a>
+          <a href="https://x.com/spanationwide" class="text-white me-2"><i class="bi bi-twitter-x" style="font-size: 1.5rem;"></i></a>
+          <a href="https://www.youtube.com/@spanationwide" class="text-white"><i class="bi bi-youtube" style="font-size: 1.5rem;"></i></a>
           </div>
         </div>
         <div class="col-md-6 mb-4 mb-md-0">
           <h5>Quick Links</h5>
           <ul class="list-unstyled">
-            <li class="mb-2"><a href="#home" class="text-white text-decoration-none">Home</a></li>
-            <li class="mb-2"><a href="#about" class="text-white text-decoration-none">About</a></li>
-            <li class="mb-2"><a href="#impact" class="text-white text-decoration-none">Impact</a></li>
-            <li class="mb-2"><a href="#join" class="text-white text-decoration-none">Join Us</a></li>
-            <li class="mb-2"><a href="#resources" class="text-white text-decoration-none">Resources</a></li>
-            <li class="mb-2"><a href="#team" class="text-white text-decoration-none">Our Team</a></li>
+            <li class="mb-2"><a href="/index.html" class="text-white text-decoration-none">Home</a></li>
+            <li class="mb-2"><a href="/our-story.html" class="text-white text-decoration-none">Our Story</a></li>
+            <li class="mb-2"><a href="/bills.html" class="text-white text-decoration-none">Bills</a></li>
+            <li class="mb-2"><a href="https://www.paypal.com/donate/?hosted_button_id=EXAMPLE" class="text-white text-decoration-none">Donate</a></li>
           </ul>
         </div>
         <!--

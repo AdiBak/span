@@ -9,7 +9,6 @@ function drawRegionsMap() {
     stateCounts[bill.state] = (stateCounts[bill.state] || 0) + 1;
   });
 
-  // Prepare data for GeoChart
   const dataArray = [['State', 'HasBill', { role: 'tooltip' }]];
   for (const [state, count] of Object.entries(stateCounts)) {
     const billText = count === 1 ? '1 bill impacted' : `${count} bills impacted`;
@@ -42,18 +41,28 @@ function drawRegionsMap() {
   const chart = new google.visualization.GeoChart(chartDiv);
   chart.draw(data, options);
 
-  // Change cursor to pointer on hover only for states with bills
+  // Track if currently hovering over a valid state with bills
+  let hoveringValidState = false;
+
   google.visualization.events.addListener(chart, 'regionMouseOver', (event) => {
     const hoveredRegion = event.region;
     const hasBills = Object.keys(stateCounts).some(state => getStateCode(state) === hoveredRegion);
-    chartDiv.style.cursor = hasBills ? 'pointer' : 'default';
+    if (hasBills) {
+      chartDiv.style.cursor = 'pointer';
+      hoveringValidState = true;
+    } else {
+      chartDiv.style.cursor = 'default';
+      hoveringValidState = false;
+    }
   });
 
   google.visualization.events.addListener(chart, 'regionMouseOut', () => {
-    chartDiv.style.cursor = 'default';
+    if (hoveringValidState) {
+      chartDiv.style.cursor = 'default';
+      hoveringValidState = false;
+    }
   });
 
-  // Click on state redirects to bills page with search query
   google.visualization.events.addListener(chart, 'regionClick', (event) => {
     const clickedRegion = event.region;
     const matchedState = Object.keys(stateCounts).find(state => getStateCode(state) === clickedRegion);

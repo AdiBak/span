@@ -26,4 +26,3 @@ members.forEach(function (member) {
 
 // Add the constructed HTML to the card container in the document
 document.getElementById("teamContainer").innerHTML = teamContainerHTML;
-document.getElementById("advocates").innerHTML = members.length;

@@ -67,11 +67,11 @@
                   <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
                      <!-- Filter Buttons -->
                      <div class="btn-group btn-filter-group flex-wrap" role="group">
-                        <button id="filter-all" type="button" class="btn btn-outline-dark filter-btn active">All Bills</button>
-                        <button id="filter-support" type="button" class="btn btn-outline-dark filter-btn">Support</button>
-                        <button id="filter-support-amended" type="button" class="btn btn-outline-dark filter-btn">Support If Amended</button>
-                        <button id="filter-oppose" type="button" class="btn btn-outline-dark filter-btn">Oppose</button>
-                        <button id="filter-oppose-amended" type="button" class="btn btn-outline-dark filter-btn">Oppose Unless Amended</button>
+                        <button type="button" class="btn btn-outline-dark filter-btn active" id="filter-all" data-filter="All">All</button>
+                        <button type="button" class="btn btn-outline-dark filter-btn" id="filter-support" data-filter="Support">Support</button>
+                        <button type="button" class="btn btn-outline-dark filter-btn" id="filter-support-amended" data-filter="Support If Amended">Support If Amended</button>
+                        <button type="button" class="btn btn-outline-dark filter-btn" id="filter-oppose" data-filter="Oppose">Oppose</button>
+                        <button type="button" class="btn btn-outline-dark filter-btn" id="filter-oppose-amended" data-filter="Oppose Unless Amended">Oppose Unless Amended</button>
                      </div>
                      <!-- Search Bar -->
                      <div class="col-12 col-md-4 px-0">
@@ -82,6 +82,7 @@
             </div>
             <!-- Bill Cards Container -->
             <div id="billContainer" class="row g-4"></div>
+            <div id="paginationContainer" class="mt-4"></div>
          </div>
       </div>
       <footer id="footerContainer" class="footer text-white py-5">

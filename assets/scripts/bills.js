@@ -1,4 +1,4 @@
-// Import bill data and constants
+// Import bill data
 import {
    bills,
    SUPPORT,
@@ -7,10 +7,10 @@ import {
    OPPOSE_AMENDED
 } from "/assets/data/bills.js";
 
-// Sort bills newest to oldest by date
+// Sort bills by newest
 bills.sort((a, b) => b.date - a.date);
 
-// Detect if on homepage
+// Page detection
 const currentPath = window.location.pathname;
 const isHomepage = currentPath === "/" || currentPath === "/index.html";
 
@@ -19,18 +19,16 @@ const ITEMS_PER_PAGE = 8;
 let currentPage = 1;
 let filteredBills = [...bills];
 
-// Format date as "Month YYYY"
+// Format dates
 function formatMonthYearUTC(date) {
-   const monthNames = [
-      "January", "February", "March", "April", "May", "June",
-      "July", "August", "September", "October", "November", "December"
-   ];
-   return `${monthNames[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+   const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+   return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
 
-// Render bills for the current page
+// Render bills on page
 function renderBillsPage(page) {
    const container = document.getElementById("billContainer");
+   const resultsCount = document.getElementById("resultsCount");
    if (!container) return;
 
    container.innerHTML = "";
@@ -39,43 +37,45 @@ function renderBillsPage(page) {
    const end = start + ITEMS_PER_PAGE;
    const billsToShow = filteredBills.slice(start, end);
 
+   if (resultsCount) {
+      if (filteredBills.length === 0) {
+         resultsCount.textContent = "";
+      } else {
+         resultsCount.textContent = `${filteredBills.length} result${filteredBills.length !== 1 ? 's' : ''} found`;
+      }
+   }
+
    if (billsToShow.length === 0) {
-      container.innerHTML = `
-      <div class="col-12 text-center">
-        <p class="text-muted mt-5 fs-5">No results found. Try a different filter or search term.</p>
-      </div>
-    `;
+      container.innerHTML = `<div class="col-12 text-center"><p class="text-muted mt-5 fs-5">No results found. Try a different filter or search term.</p></div>`;
    } else {
       billsToShow.forEach(bill => {
          const formattedDate = formatMonthYearUTC(bill.date);
          container.innerHTML += `
-        <div class="col-md-3">
-          <div class="card impact-card h-100 shadow-sm">
-            <div class="card-body">
-              <h5 class="card-title">
-                <span><img height="18" src="/assets/images/states/${bill.state}.svg"> ${bill.state} ${bill.name}</span>
-              </h5>
-              ${bill.position}
-              <p class="card-text">${bill.description}</p>
-              <p class="text-muted small">${formattedDate}</p>
-              <a href="/assets/proposals/${bill.state}/${bill.name}.pdf" class="btn btn-outline-dark btn-sm" target="_blank">
-                <i class="bi bi-file-pdf"></i> Download Proposal
-              </a>
-            </div>
-          </div>
-        </div>
-      `;
+            <div class="col-md-3">
+               <div class="card impact-card h-100 shadow-sm">
+                  <div class="card-body">
+                     <h5 class="card-title">
+                        <span><img height="18" src="/assets/images/states/${bill.state}.svg"> ${bill.state} ${bill.name}</span>
+                     </h5>
+                     ${bill.position}
+                     <p class="card-text">${bill.description}</p>
+                     <p class="text-muted small">${formattedDate}</p>
+                     <a href="/assets/proposals/${bill.state}/${bill.name}.pdf" class="btn btn-outline-dark btn-sm" target="_blank">
+                        <i class="bi bi-file-pdf"></i> Download Proposal
+                     </a>
+                  </div>
+               </div>
+            </div>`;
       });
    }
 
-   // Update total proposals count
    const proposalsElement = document.getElementById("proposals");
    if (proposalsElement) proposalsElement.textContent = bills.length;
 
    renderPagination();
 }
 
-// Render pagination controls
+// Pagination UI
 function renderPagination() {
    const container = document.getElementById("paginationContainer");
    if (!container) return;
@@ -86,33 +86,21 @@ function renderPagination() {
       return;
    }
 
-   let html = `
-    <nav aria-label="Page navigation">
-      <ul class="pagination justify-content-center">
-        <li class="page-item ${currentPage === 1 ? "disabled" : ""}">
-          <a class="page-link" href="#" data-page="${currentPage - 1}" aria-label="Previous">«</a>
-        </li>
-  `;
+   let html = `<nav><ul class="pagination justify-content-center">`;
+
+   html += `<li class="page-item ${currentPage === 1 ? "disabled" : ""}">
+      <a class="page-link" href="#" data-page="${currentPage - 1}">&laquo;</a></li>`;
 
    for (let i = 1; i <= totalPages; i++) {
-      html += `
-      <li class="page-item ${i === currentPage ? "active" : ""}">
-        <a class="page-link" href="#" data-page="${i}">${i}</a>
-      </li>
-    `;
+      html += `<li class="page-item ${i === currentPage ? "active" : ""}">
+         <a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
    }
 
-   html += `
-        <li class="page-item ${currentPage === totalPages ? "disabled" : ""}">
-          <a class="page-link" href="#" data-page="${currentPage + 1}" aria-label="Next">»</a>
-        </li>
-      </ul>
-    </nav>
-  `;
+   html += `<li class="page-item ${currentPage === totalPages ? "disabled" : ""}">
+      <a class="page-link" href="#" data-page="${currentPage + 1}">&raquo;</a></li></ul></nav>`;
 
    container.innerHTML = html;
 
-   // Add click handlers for pagination links
    container.querySelectorAll("a.page-link").forEach(link => {
       link.addEventListener("click", e => {
          e.preventDefault();
@@ -120,51 +108,33 @@ function renderPagination() {
          if (targetPage >= 1 && targetPage <= totalPages) {
             currentPage = targetPage;
             renderBillsPage(currentPage);
-            window.scrollTo({
-               top: 0,
-               behavior: "smooth"
-            });
+            window.scrollTo({ top: 0, behavior: "smooth" });
          }
       });
    });
 }
 
-// Filter and search state
+// Filter/search state
 let currentFilter = "All";
 let currentSearch = "";
 
-// Apply filter and search criteria
+// Apply filters
 function applyFilters() {
    filteredBills = bills.filter(bill => {
-      // Check search match
-      const searchLower = currentSearch.toLowerCase();
-      const matchesSearch =
-         bill.name.toLowerCase().includes(searchLower) ||
-         bill.description.toLowerCase().includes(searchLower) ||
-         bill.state.toLowerCase().includes(searchLower);
+      const matchesSearch = bill.name.toLowerCase().includes(currentSearch.toLowerCase()) ||
+         bill.description.toLowerCase().includes(currentSearch.toLowerCase()) ||
+         bill.state.toLowerCase().includes(currentSearch.toLowerCase());
 
-      // Filter by position if not "All"
-      if (currentFilter === "All") {
-         return matchesSearch;
-      }
+      if (currentFilter === "All") return matchesSearch;
 
-      let positionMatch = false;
-      switch (currentFilter) {
-         case "Support":
-            positionMatch = bill.position === SUPPORT;
-            break;
-         case "Support If Amended":
-            positionMatch = bill.position === SUPPORT_AMENDED;
-            break;
-         case "Oppose":
-            positionMatch = bill.position === OPPOSE;
-            break;
-         case "Oppose Unless Amended":
-            positionMatch = bill.position === OPPOSE_AMENDED;
-            break;
-      }
+      const matchMap = {
+         "Support": SUPPORT,
+         "Support If Amended": SUPPORT_AMENDED,
+         "Oppose": OPPOSE,
+         "Oppose Unless Amended": OPPOSE_AMENDED
+      };
 
-      return matchesSearch && positionMatch;
+      return matchesSearch && bill.position === matchMap[currentFilter];
    });
 
    currentPage = 1;
@@ -172,12 +142,11 @@ function applyFilters() {
 }
 
 // Setup filter buttons
-document.querySelectorAll(".filter-btn").forEach(btn => {
+const filterButtons = document.querySelectorAll(".filter-btn");
+filterButtons.forEach(btn => {
    btn.addEventListener("click", () => {
-      document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+      filterButtons.forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-
-      // Use data-filter attribute for easier matching
       currentFilter = btn.dataset.filter || "All";
       applyFilters();
    });
@@ -192,7 +161,7 @@ if (searchInput) {
    });
 }
 
-// Initial rendering
+// Initial load
 if (isHomepage) {
    filteredBills = bills.slice(0, 4);
    renderBillsPage(1);

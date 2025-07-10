@@ -22,6 +22,9 @@
 .text-primary {
   color: #003049 !important;
 }
+.bg-primary {
+  background-color: #003049 !important;
+}
 
 /* Hover on the SVG itself */
 .state-bg-image:hover {

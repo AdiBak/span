@@ -21,6 +21,9 @@ var navbar = `
           <a class="nav-link ${currentPath === "/bills.html" ? "active" : ""}" href="/bills.html">Bills</a>
         </li>
         <li class="nav-item">
+          <a class="nav-link ${currentPath === "/directory.html" ? "active" : ""}" href="/directory.html">Directory</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link" href="https://www.paypal.com/donate/?hosted_button_id=EXAMPLE">Donate</a>
         </li>
       </ul>

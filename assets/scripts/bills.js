@@ -1,4 +1,3 @@
-// Import bill data and constants
 import {
   bills,
   SUPPORT,
@@ -7,26 +6,20 @@ import {
   OPPOSE_AMENDED
 } from "/assets/data/bills.js";
 
-// Sort bills by newest date
 bills.sort((a, b) => b.date - a.date);
 
-// Count unique states for impact display
 const uniqueStates = new Set(bills.map(b => b.state));
 const uniqueStatesCount = uniqueStates.size;
 
-// Detect homepage
 const currentPath = window.location.pathname;
 const isHomepage = currentPath === "/" || currentPath === "/index.html";
 
-// Pagination setup
 const ITEMS_PER_PAGE = 8;
 let currentPage = 1;
 let filteredBills = [...bills];
 
-// Cache for loaded PDF texts
 const pdfTextCache = {};
 
-// Format date as "Month Year"
 function formatMonthYearUTC(date) {
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -35,8 +28,7 @@ function formatMonthYearUTC(date) {
   return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
 
-// Mapping of full state names to LegiScan codes
-const stateCodeMap = {
+export const stateCodeMap = {
   "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
   "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
   "Florida": "FL", "Georgia": "GA", "Hawaii": "HI", "Idaho": "ID",
@@ -52,19 +44,16 @@ const stateCodeMap = {
   "Wisconsin": "WI", "Wyoming": "WY"
 };
 
-// Clean bill name for URL: remove spaces and periods, uppercase
 function cleanBillNameForUrl(billName) {
   return billName.replace(/[.\s]/g, '').toUpperCase();
 }
 
-// Get LegiScan bill link using correct state code
 function getLegiScanLink(state, billName) {
   const code = stateCodeMap[state];
   const billId = cleanBillNameForUrl(billName);
   return code ? `https://legiscan.com/${code}/bill/${billId}` : "#";
 }
 
-// Load PDF text content using pdf.js (returns Promise<string>)
 async function getPdfText(url) {
   if (pdfTextCache[url]) return pdfTextCache[url];
   try {
@@ -74,8 +63,7 @@ async function getPdfText(url) {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
-      const pageText = textContent.items.map(item => item.str).join(" ");
-      fullText += pageText + " ";
+      fullText += textContent.items.map(item => item.str).join(" ") + " ";
     }
     pdfTextCache[url] = fullText;
     return fullText;
@@ -85,8 +73,16 @@ async function getPdfText(url) {
   }
 }
 
-// Render bills on the page
-function renderBillsPage(page) {
+async function pdfExists(url) {
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function renderBillsPage(page) {
   const container = document.getElementById("billContainer");
   const resultsCount = document.getElementById("resultsCount");
   if (!container) return;
@@ -108,47 +104,40 @@ function renderBillsPage(page) {
       <div class="col-12 text-center">
         <p class="text-muted mt-5 fs-5">No results found. Try a different filter or search term.</p>
       </div>`;
-  } else {
-billsToShow.forEach(bill => {
-  const formattedDate = formatMonthYearUTC(bill.date);
-  const legiscanLink = getLegiScanLink(bill.state, bill.name);
-  const hasPdf = bill.pdf && bill.pdf.trim() !== "";
-  const pdfLink = hasPdf ? `/assets/proposals/${bill.state}/${bill.pdf}` : "";
-
-  let cardHtml = `
-    <div class="col-md-3">
-      <div class="card impact-card h-100 shadow-sm position-relative overflow-hidden">
-        <div class="card-body position-relative">
-          <h5 class="card-title">
-            <span>${bill.state} ${bill.name}</span>
-          </h5>
-          ${bill.position}
-          <p class="card-text">${bill.description}</p>
-          <p class="text-muted small">${formattedDate}</p>
-  `;
-
-  if (hasPdf) {
-    cardHtml += `
-          <a href="${pdfLink}" class="btn btn-outline-dark btn-sm" target="_blank" rel="noopener">
-            <i class="bi bi-file-pdf"></i> Download Proposal
-          </a>
-    `;
+    renderPagination();  // Important: clear pagination if no results
+    return;
   }
 
-  cardHtml += `
-          <a href="${legiscanLink}" target="_blank" rel="noopener" aria-label="View full bill on LegiScan" 
-             style="position: absolute; top: 12px; right: 12px;">
-            <img class="state-image" src="/assets/images/states/${bill.state}.svg" alt="${bill.state} flag" style="width:40px; height:auto;" />
-          </a>
+  const cardsHtmlArray = await Promise.all(billsToShow.map(async bill => {
+    const formattedDate = formatMonthYearUTC(bill.date);
+    const legiscanLink = getLegiScanLink(bill.state, bill.name);
+    const pdfPath = `/assets/proposals/${bill.state}/${bill.name}.pdf`;
+    const hasPdf = await pdfExists(pdfPath);
+
+    return `
+      <div class="col-md-3">
+        <div class="card impact-card h-100 shadow-sm position-relative overflow-hidden">
+          <div class="card-body position-relative">
+            <h5 class="card-title">
+              <span>${bill.state} ${bill.name}</span>
+            </h5>
+            ${bill.position}
+            <p class="card-text">${bill.description}</p>
+            <p class="text-muted small">${formattedDate}</p>
+            ${hasPdf ? `<a href="${pdfPath}" class="btn btn-outline-dark btn-sm" target="_blank" rel="noopener">
+              <i class="bi bi-file-pdf"></i> Download Proposal
+            </a>` : ""}
+            <a href="${legiscanLink}" target="_blank" rel="noopener" aria-label="View full bill on LegiScan" 
+               style="position: absolute; top: 12px; right: 12px;">
+              <img class="state-image" src="/assets/images/states/${bill.state}.svg" alt="${bill.state} flag" style="width:40px; height:auto;" />
+            </a>
+          </div>
         </div>
       </div>
-    </div>
-  `;
+    `;
+  }));
 
-  container.innerHTML += cardHtml;
-});
-
-  } 
+  container.innerHTML = cardsHtmlArray.join("");
 
   const proposalsElement = document.getElementById("proposals");
   if (proposalsElement) proposalsElement.textContent = bills.length;
@@ -159,13 +148,14 @@ billsToShow.forEach(bill => {
   renderPagination();
 }
 
-// Pagination with ellipsis if >10 pages
 function renderPagination() {
   const container = document.getElementById("paginationContainer");
   if (!container) return;
 
   const totalPages = Math.ceil(filteredBills.length / ITEMS_PER_PAGE);
-  if (totalPages <= 1) {
+
+  // FIX: Clear pagination if no results or only one page
+  if (filteredBills.length === 0 || totalPages <= 1) {
     container.innerHTML = "";
     return;
   }
@@ -207,12 +197,12 @@ function renderPagination() {
   container.innerHTML = html;
 
   container.querySelectorAll("a.page-link").forEach(link => {
-    link.addEventListener("click", e => {
+    link.addEventListener("click", async e => {
       e.preventDefault();
       const targetPage = Number(link.getAttribute("data-page"));
       if (targetPage >= 1 && targetPage <= totalPages) {
         currentPage = targetPage;
-        renderBillsPage(currentPage);
+        await renderBillsPage(currentPage);
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     });
@@ -224,15 +214,12 @@ function renderPagination() {
   }
 }
 
-// Filter & search state
 let currentFilter = "All";
 let currentSearch = "";
 
-// Async filtering with PDF text searching, ignoring bill's state in PDF text
 async function applyFilters() {
   const searchLower = currentSearch.toLowerCase();
 
-  // Map for positions
   const matchMap = {
     "Support": SUPPORT,
     "Support If Amended": SUPPORT_AMENDED,
@@ -240,18 +227,17 @@ async function applyFilters() {
     "Oppose Unless Amended": OPPOSE_AMENDED
   };
 
-  // If empty search, filter just by position
   if (!searchLower) {
     filteredBills = bills.filter(bill => {
       if (currentFilter === "All") return true;
       return bill.position === matchMap[currentFilter];
     });
     currentPage = 1;
-    renderBillsPage(currentPage);
+    await renderBillsPage(currentPage);
     return;
   }
 
-  // Bills that match text fields directly
+  // Direct text matches
   const directMatches = bills.filter(bill => {
     return (
       bill.name.toLowerCase().includes(searchLower) ||
@@ -260,7 +246,6 @@ async function applyFilters() {
     );
   });
 
-  // Bills that don't match text fields — need PDF search
   const pdfSearchBills = bills.filter(bill => {
     return !(
       bill.name.toLowerCase().includes(searchLower) ||
@@ -269,13 +254,11 @@ async function applyFilters() {
     );
   });
 
-  // Filter direct matches by position
   let filteredDirect = directMatches.filter(bill => {
     if (currentFilter === "All") return true;
     return bill.position === matchMap[currentFilter];
   });
 
-  // Now asynchronously check PDFs for pdfSearchBills
   const filteredPdf = [];
   for (const bill of pdfSearchBills) {
     if (currentFilter !== "All" && bill.position !== matchMap[currentFilter]) continue;
@@ -283,7 +266,6 @@ async function applyFilters() {
     const pdfUrl = `/assets/proposals/${bill.state}/${bill.name}.pdf`;
     const pdfText = await getPdfText(pdfUrl);
 
-    // Remove bill's state name AND bill name before searching in PDF text
     let pdfTextClean = pdfText
       .replace(new RegExp(`\\b${bill.state}\\b`, "gi"), "")
       .replace(new RegExp(`\\b${bill.name}\\b`, "gi"), "");
@@ -295,10 +277,9 @@ async function applyFilters() {
 
   filteredBills = [...filteredDirect, ...filteredPdf];
   currentPage = 1;
-  renderBillsPage(currentPage);
+  await renderBillsPage(currentPage);
 }
 
-// Filter buttons event setup
 const filterButtons = document.querySelectorAll(".filter-btn");
 filterButtons.forEach(btn => {
   btn.addEventListener("click", async () => {
@@ -309,7 +290,6 @@ filterButtons.forEach(btn => {
   });
 });
 
-// Search input event setup
 const searchInput = document.getElementById("billSearch");
 if (searchInput) {
   searchInput.addEventListener("input", async e => {
@@ -317,7 +297,6 @@ if (searchInput) {
     await applyFilters();
   });
 
-  // Auto-focus and type into search on any key press outside inputs
   window.addEventListener("keydown", (e) => {
     const active = document.activeElement;
     if (
@@ -342,7 +321,6 @@ if (searchInput) {
   });
 }
 
-// Handle ?search= URL param
 const urlParams = new URLSearchParams(window.location.search);
 const query = urlParams.get("search");
 if (query && searchInput) {
@@ -350,7 +328,6 @@ if (query && searchInput) {
   currentSearch = query;
 }
 
-// Initial load
 if (isHomepage) {
   filteredBills = bills.slice(0, 4);
   renderBillsPage(1);

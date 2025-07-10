@@ -1,7 +1,7 @@
 // Import team data
-import {
-    members
-} from "/assets/data/team.js";
+import { members as allMembers } from "/assets/data/directory.js";
+
+const members = allMembers.slice(0, 4);
 
 // Render cards
 let teamContainerHTML = "";
@@ -14,7 +14,7 @@ members.forEach((member, index) => {
         <div class="card-body d-flex flex-column justify-content-between">
           <div>
             <h5 class="card-title">${member.firstName} ${member.lastName}</h5>
-            <p class="card-text text-muted">${member.position}<br>${member.location}</p>
+            <p class="card-text text-muted">${member.position}<br>${member.city}, ${member.state}</p>
           </div>
           <div class="btn-group mt-3" role="group">
             <button class="btn btn-outline-dark btn-sm w-50" data-index="${index}" data-bs-toggle="modal" data-bs-target="#bioModal">
@@ -40,7 +40,7 @@ document.querySelectorAll('[data-bs-target="#bioModal"]').forEach(button => {
 
         document.getElementById("bioModalImage").src = `/assets/images/team/${member.image}`;
         document.getElementById("bioModalLabel").textContent = `${member.firstName} ${member.lastName}`;
-        document.getElementById("bioModalSubLabel").textContent = `${member.position} • ${member.location}`;
+        document.getElementById("bioModalSubLabel").textContent = `${member.position} • ${member.city}, ${member.state}`;
         document.getElementById("bioModalBody").innerHTML = `<p>${member.bio}</p>`;
 
         const emailBtn = document.getElementById("bioModalEmail");

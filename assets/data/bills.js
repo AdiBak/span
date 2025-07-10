@@ -88,13 +88,6 @@ export var bills = [{
       date: new Date("2025-03-05"),
    },
    {
-      state: "Texas",
-      name: "HB 5294",
-      position: OPPOSE,
-      description: "Advocated preserving pass/fail grading to support Texas medical students’ well-being and residency competitiveness.",
-      date: new Date("2025-03-05"),
-   },
-   {
    state: "Ohio",
    name: "HB 104",
    position: SUPPORT,

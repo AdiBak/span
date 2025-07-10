@@ -48,8 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
   paginationContainer.className = "mt-3 d-flex justify-content-center";
   container.appendChild(paginationContainer);
 
-  const headers = ["Name", "School", "Location", "Email", "Role"];
-  const keys = ["name", "school", "location", "email", "role"];
+  const headers = ["Name", "Location", "Email", "Role"];
+  const keys = ["name", "location", "email", "role"];
 
   // Table Head
   const thead = document.createElement("thead");
@@ -67,7 +67,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // Format members data with profile images
   const membersData = members.map(m => ({
     name: `${m.firstName} ${m.lastName}`,
-    school: m.school || "",
     location: m.city && m.state ? `${m.city}, ${m.state}` : (m.location || ""),
     city: m.city || "",
     state: m.state || "",
@@ -180,7 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function getFilteredSortedData() {
     const filtered = membersData.filter(member =>
-      ["name", "school", "location", "role"].some(key =>
+      ["name", "location", "role"].some(key =>
         member[key].toLowerCase().includes(filterText)
       )
     );
@@ -247,14 +246,6 @@ document.addEventListener("DOMContentLoaded", () => {
       nameContainer.appendChild(nameSpan);
       tdName.appendChild(nameContainer);
       tr.appendChild(tdName);
-
-      const tdSchool = document.createElement("td");
-      tdSchool.textContent = member.school;
-      tdSchool.style.maxWidth = "150px";
-      tdSchool.style.overflow = "hidden";
-      tdSchool.style.textOverflow = "ellipsis";
-      tdSchool.style.whiteSpace = "nowrap";
-      tr.appendChild(tdSchool);
 
       const tdLocation = document.createElement("td");
       tdLocation.style.maxWidth = "140px";

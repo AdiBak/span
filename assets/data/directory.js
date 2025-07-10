@@ -50,7 +50,6 @@ export var members = [{
       city: "Columbus",
       state: "OH",
       email: "arnavgoyal5432@gmail.com",
-      image: "arnav-goyal.jpg",
-      bio: "Ben Kurian is a sophomore at Olentangy Liberty High School in Columbus, OH, and combines his talents as an internationally recognized filmmaker, accomplished musician, and skilled advocate to amplify youth voices in healthcare policy. At 15, he has over a decade of piano experience, seven years on violin, and growing expertise in music production. His award-winning documentary, <i>The Road to Vision Zero</i>, has earned recognition from senators, governors, and international leaders. In HOSA, Ben placed in the top 16 internationally in Biomedical Debate, reflecting his commitment to healthcare advocacy. Ben drives SPAN’s mission forward through outreach, social media, and creative engagement."
+      image: "arnav-goyal.jpg"
    },
 ];

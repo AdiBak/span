@@ -1,59 +1,31 @@
 .grow { 
-    transition: all .2s ease-in-out; 
+  transition: all .2s ease-in-out; 
 }
 .grow:hover { 
-    transform: scale(1.1); 
+  transform: scale(1.1); 
 }
 .impact-card {
-    transition: all .3s ease;
+  position: relative;
+  overflow: hidden;
+  transition: all .3s ease;
 }
 .impact-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
 }
 .navbar, .footer {
-    background-color: #003049;
+  background-color: #003049;
 }
 .text-white {
-    color: #fdf0d5 !important;
+  color: #fdf0d5 !important;
 }
 .text-primary {
-    color: #003049 !important;
+  color: #003049 !important;
 }
 
-
-html, body {
-  width: 100%;
-  overflow-x: hidden;
-}
-
-
-.full-width {
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  right: 50%;
-  margin-left: -50vw;
-  margin-right: -50vw;
-}
-
-.hero-section {
-  background-image: url('/assets/images/index/hero.jpg');
-  background-size: cover;
-  background-position: center center;
-  background-repeat: no-repeat;
-  background-attachment: scroll; /* Remove fixed attachment on mobile */
-  
-  /* Adjust height for mobile */
-  height: 100vh;
-  min-height: 500px; /* Prevent excessive shrinking */
-}
-
-/* Mobile-specific adjustments */
-@media (max-width: 768px) {
-  .hero-section {
-    background-size: contain; /* or 'cover' with adjusted position */
-    background-position: top center; /* Better framing on mobile */
-    background-attachment: scroll; /* Disable parallax on mobile */
-  }
+/* Hover on the SVG itself */
+.state-bg-image:hover {
+  filter: drop-shadow(0 0 5px #003049); /* Only drop shadow on hover */
+  opacity: 1;
+  transform: scale(1.2);
 }

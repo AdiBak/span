@@ -5,7 +5,7 @@ export var members = [{
       location: "Atlanta, GA",
       email: "vishpanchbhavi@gmail.com",
       image: "vishank-panchbhavi.jpg",
-      bio: "No bio yet!"
+      bio: "Vishank Panchbhavi is a freshman at Emory University and the co-founder and Collegiate Ambassador of SPAN. He has conducted research in transplant immunology and orthopedic evidence analysis through work in the Kloc Lab at Houston Methodist and Dr. Samir’s Lab at UTMB. His research has been published in the International Journal of Orthopaedic Surgery and presented at national and international conferences conferences including AAOS, AOFAS, IOACON, SOA, and the Houston Methodist Summer Science Symposium. Through SPAN, Vishank helps lead national student-led efforts in legislative advocacy, nonprofit collaboration, and healthcare education focused on patient-centered reform."
    },
    {
       firstName: "Shayan",
@@ -23,7 +23,7 @@ export var members = [{
       location: "Houston, TX",
       email: "joelvblessan@gmail.com",
       image: "joel-blessan.jpg",
-      bio: "No bio yet!"
+      bio: "Joel Blessan is a senior at Friendswood High School in Houston, Texas, and the co-founder and Policy Research Director of Students for Patient Advocacy Nationwide. He brings a strong academic background and a passion for healthcare policy and innovation. Joel has led projects in biomedical science, including a novel and successful non-invasive cholesterol detection system, as well as in digital media and marketing through his organization, The Inspired Media Solutions Company. A dedicated volunteer, he has contributed over 200 hours to youth leadership and community health initiatives. Joel is especially interested in the intersection of medicine and law and plays a key role in identifying the core policies and legislation that SPAN targets to improve patient outcomes nationwide."
    },
    {
       firstName: "Ben",

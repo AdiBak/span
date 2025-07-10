@@ -87,4 +87,25 @@ export var bills = [{
       description: "Advocated preserving pass/fail grading to support Texas medical students’ well-being and residency competitiveness.",
       date: new Date("2025-03-05"),
    },
+   // {
+   //    state: "Ohio",
+   //    name: "SB 137",
+   //    position: "",
+   //    description: "Description not available.",
+   //    date: new Date("2025-07-09"),
+   // },
+   // {
+   //    state: "Ohio",
+   //    name: "SB 170",
+   //    position: "",
+   //    description: "Description not available.",
+   //    date: new Date("2025-07-09"),
+   // },
+   // {
+   //    state: "Ohio",
+   //    name: "HB 263",
+   //    position: "",
+   //    description: "Description not available.",
+   //    date: new Date("2025-07-09"),
+   // },
 ];

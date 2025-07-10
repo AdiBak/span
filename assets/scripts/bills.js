@@ -35,6 +35,35 @@ function formatMonthYearUTC(date) {
   return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
 
+// Mapping of full state names to LegiScan codes
+const stateCodeMap = {
+  "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
+  "California": "CA", "Colorado": "CO", "Connecticut": "CT", "Delaware": "DE",
+  "Florida": "FL", "Georgia": "GA", "Hawaii": "HI", "Idaho": "ID",
+  "Illinois": "IL", "Indiana": "IN", "Iowa": "IA", "Kansas": "KS",
+  "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD",
+  "Massachusetts": "MA", "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS",
+  "Missouri": "MO", "Montana": "MT", "Nebraska": "NE", "Nevada": "NV",
+  "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM", "New York": "NY",
+  "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK",
+  "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC",
+  "South Dakota": "SD", "Tennessee": "TN", "Texas": "TX", "Utah": "UT",
+  "Vermont": "VT", "Virginia": "VA", "Washington": "WA", "West Virginia": "WV",
+  "Wisconsin": "WI", "Wyoming": "WY"
+};
+
+// Clean bill name for URL: remove spaces and periods, uppercase
+function cleanBillNameForUrl(billName) {
+  return billName.replace(/[.\s]/g, '').toUpperCase();
+}
+
+// Get LegiScan bill link using correct state code
+function getLegiScanLink(state, billName) {
+  const code = stateCodeMap[state];
+  const billId = cleanBillNameForUrl(billName);
+  return code ? `https://legiscan.com/${code}/bill/${billId}` : "#";
+}
+
 // Load PDF text content using pdf.js (returns Promise<string>)
 async function getPdfText(url) {
   if (pdfTextCache[url]) return pdfTextCache[url];
@@ -80,32 +109,47 @@ function renderBillsPage(page) {
         <p class="text-muted mt-5 fs-5">No results found. Try a different filter or search term.</p>
       </div>`;
   } else {
-    billsToShow.forEach(bill => {
-      const formattedDate = formatMonthYearUTC(bill.date);
-      container.innerHTML += `
-        <div class="col-md-3">
-          <div class="card impact-card h-100 shadow-sm">
-            <div class="card-body">
-              <h5 class="card-title">
-                <span>
-                  <img height="18" src="/assets/images/states/${bill.state}.svg" alt="${bill.state} flag"> 
-                  ${bill.state} ${bill.name}
-                </span>
-              </h5>
-              ${bill.position}
-              <p class="card-text">${bill.description}</p>
-              <p class="text-muted small">${formattedDate}</p>
-              <a href="/assets/proposals/${bill.state}/${bill.name}.pdf" 
-                 class="btn btn-outline-dark btn-sm" target="_blank" rel="noopener">
-                <i class="bi bi-file-pdf"></i> Download Proposal
-              </a>
-            </div>
-          </div>
-        </div>`;
-    });
+billsToShow.forEach(bill => {
+  const formattedDate = formatMonthYearUTC(bill.date);
+  const legiscanLink = getLegiScanLink(bill.state, bill.name);
+  const hasPdf = bill.pdf && bill.pdf.trim() !== "";
+  const pdfLink = hasPdf ? `/assets/proposals/${bill.state}/${bill.pdf}` : "";
+
+  let cardHtml = `
+    <div class="col-md-3">
+      <div class="card impact-card h-100 shadow-sm position-relative overflow-hidden">
+        <div class="card-body position-relative">
+          <h5 class="card-title">
+            <span>${bill.state} ${bill.name}</span>
+          </h5>
+          ${bill.position}
+          <p class="card-text">${bill.description}</p>
+          <p class="text-muted small">${formattedDate}</p>
+  `;
+
+  if (hasPdf) {
+    cardHtml += `
+          <a href="${pdfLink}" class="btn btn-outline-dark btn-sm" target="_blank" rel="noopener">
+            <i class="bi bi-file-pdf"></i> Download Proposal
+          </a>
+    `;
   }
 
-  // Update impact counters
+  cardHtml += `
+          <a href="${legiscanLink}" target="_blank" rel="noopener" aria-label="View full bill on LegiScan" 
+             style="position: absolute; top: 12px; right: 12px;">
+            <img class="state-image" src="/assets/images/states/${bill.state}.svg" alt="${bill.state} flag" style="width:40px; height:auto;" />
+          </a>
+        </div>
+      </div>
+    </div>
+  `;
+
+  container.innerHTML += cardHtml;
+});
+
+  } 
+
   const proposalsElement = document.getElementById("proposals");
   if (proposalsElement) proposalsElement.textContent = bills.length;
 
@@ -239,10 +283,12 @@ async function applyFilters() {
     const pdfUrl = `/assets/proposals/${bill.state}/${bill.name}.pdf`;
     const pdfText = await getPdfText(pdfUrl);
 
-    // Remove bill's state name before searching in PDF text
-    const pdfTextWithoutState = pdfText.replace(new RegExp(`\\b${bill.state}\\b`, "gi"), "");
+    // Remove bill's state name AND bill name before searching in PDF text
+    let pdfTextClean = pdfText
+      .replace(new RegExp(`\\b${bill.state}\\b`, "gi"), "")
+      .replace(new RegExp(`\\b${bill.name}\\b`, "gi"), "");
 
-    if (pdfTextWithoutState.toLowerCase().includes(searchLower)) {
+    if (pdfTextClean.toLowerCase().includes(searchLower)) {
       filteredPdf.push(bill);
     }
   }

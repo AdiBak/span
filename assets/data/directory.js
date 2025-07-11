@@ -77,4 +77,19 @@ export var members = [{
       image: "arnav-goyal.jpg",
       notes: ""
    },
+   {
+      firstName: "Arjun",
+      lastName: "Pandya",
+      position: "Records & Data Manager",
+      active: true,
+      startDate: new Date("2025-07-11"),
+      DOB: new Date("2010-08-28"),
+      school: "Olentangy High School",
+      city: "Columbus",
+      state: "OH",
+      email: "arjunupandya0@gmail.com",
+      phone: 2204653662,
+      image: "arjun-pandya.jpg",
+      notes: ""
+   },
 ];

@@ -20,9 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const container = document.getElementById("directoryContainer");
   if (!container) return;
 
-  // Create Search Input
   const searchContainer = document.createElement("div");
-  searchContainer.className = "d-flex flex-column flex-md-row gap-3 mb-3 align-items-center";
+  searchContainer.className = "d-flex justify-content-end mb-3";
   container.appendChild(searchContainer);
 
   const filterInput = document.createElement("input");
@@ -32,7 +31,6 @@ document.addEventListener("DOMContentLoaded", () => {
   filterInput.style.maxWidth = "400px";
   searchContainer.appendChild(filterInput);
 
-  // Create responsive table wrapper and table
   const responsiveWrapper = document.createElement("div");
   responsiveWrapper.className = "table-responsive";
   container.appendChild(responsiveWrapper);
@@ -42,18 +40,16 @@ document.addEventListener("DOMContentLoaded", () => {
   table.style.minWidth = "600px";
   responsiveWrapper.appendChild(table);
 
-  // Pagination container
   const paginationContainer = document.createElement("div");
   paginationContainer.id = "paginationContainer";
   paginationContainer.className = "mt-3 d-flex justify-content-center";
   container.appendChild(paginationContainer);
 
   const headers = ["Name", "Location", "Email", "Role"];
-  const keys = ["name", "location", "email", "role"];
+  const keys = ["name", "school", "location", "email", "role"];
 
-  // Table Head
   const thead = document.createElement("thead");
-  thead.className = "bg-primary text-white";
+  thead.className = "bg-white text-dark";
   table.appendChild(thead);
 
   const trHead = document.createElement("tr");
@@ -64,18 +60,17 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentPage = 1;
   let filterText = "";
 
-  // Format members data with profile images
   const membersData = members.map(m => ({
     name: `${m.firstName} ${m.lastName}`,
+    school: m.school || "",
     location: m.city && m.state ? `${m.city}, ${m.state}` : (m.location || ""),
     city: m.city || "",
     state: m.state || "",
     email: m.email || "",
     role: m.position || "",
-    image: m.image || "default.png" // Default image if none provided
+    image: m.image || "default.png"
   }));
 
-  // Build table headers with sort buttons
   headers.forEach((headerText, i) => {
     const th = document.createElement("th");
     th.style.userSelect = "none";
@@ -84,70 +79,43 @@ document.addEventListener("DOMContentLoaded", () => {
     th.style.padding = "0.5rem 0.75rem";
 
     const headerContainer = document.createElement("div");
-    headerContainer.className = "d-flex flex-column";
-
-    const sortContainer = document.createElement("div");
-    sortContainer.style.display = "flex";
-    sortContainer.style.alignItems = "center";
-    sortContainer.style.justifyContent = "space-between";
-    sortContainer.style.gap = "0.5rem";
+    headerContainer.className = "d-flex align-items-center justify-content-between";
 
     const labelSpan = document.createElement("span");
     labelSpan.textContent = headerText;
-    labelSpan.style.flexGrow = "1";
     labelSpan.style.overflow = "hidden";
     labelSpan.style.textOverflow = "ellipsis";
     labelSpan.style.whiteSpace = "nowrap";
-    sortContainer.appendChild(labelSpan);
+    headerContainer.appendChild(labelSpan);
 
-    if (keys[i] !== "email") { // Don't add sort for email column
-      const sortButtons = document.createElement("div");
-      sortButtons.className = "d-flex flex-column";
-      sortButtons.style.gap = "0.1rem";
-
-      const sortAscBtn = document.createElement("button");
-      sortAscBtn.className = "btn btn-sm p-0";
-      sortAscBtn.style.color = "white";
-      sortAscBtn.style.opacity = "0.7";
-      sortAscBtn.innerHTML = `<i class="bi bi-caret-up-fill" style="font-size:0.7rem;"></i>`;
-      sortAscBtn.title = `Sort ${headerText} A-Z`;
-      sortAscBtn.setAttribute("aria-label", `Sort ${headerText} A-Z`);
-      sortAscBtn.addEventListener("click", () => {
-        currentSortKey = keys[i];
-        sortAsc = true;
+    if (keys[i] !== "email") {
+      const sortBtn = document.createElement("button");
+      sortBtn.className = "btn btn-sm p-0 ms-2";
+      sortBtn.style.color = "#6c757d"; // Default muted gray-blue
+      sortBtn.style.background = "transparent";
+      sortBtn.style.border = "none";
+      sortBtn.innerHTML = `<i class="bi bi-arrow-down-up"></i>`;
+      sortBtn.title = `Sort ${headerText}`;
+      sortBtn.setAttribute("aria-label", `Sort ${headerText}`);
+      sortBtn.addEventListener("click", () => {
+        if (currentSortKey === keys[i]) {
+          sortAsc = !sortAsc;
+        } else {
+          currentSortKey = keys[i];
+          sortAsc = true;
+        }
         currentPage = 1;
         updateSortIndicators();
         renderTableBody();
         renderPagination();
       });
-
-      const sortDescBtn = document.createElement("button");
-      sortDescBtn.className = "btn btn-sm p-0";
-      sortDescBtn.style.color = "white";
-      sortDescBtn.style.opacity = "0.7";
-      sortDescBtn.innerHTML = `<i class="bi bi-caret-down-fill" style="font-size:0.7rem;"></i>`;
-      sortDescBtn.title = `Sort ${headerText} Z-A`;
-      sortDescBtn.setAttribute("aria-label", `Sort ${headerText} Z-A`);
-      sortDescBtn.addEventListener("click", () => {
-        currentSortKey = keys[i];
-        sortAsc = false;
-        currentPage = 1;
-        updateSortIndicators();
-        renderTableBody();
-        renderPagination();
-      });
-
-      sortButtons.appendChild(sortAscBtn);
-      sortButtons.appendChild(sortDescBtn);
-      sortContainer.appendChild(sortButtons);
+      headerContainer.appendChild(sortBtn);
     }
 
-    headerContainer.appendChild(sortContainer);
     th.appendChild(headerContainer);
     trHead.appendChild(th);
   });
 
-  // Table Body
   const tbody = document.createElement("tbody");
   table.appendChild(tbody);
 
@@ -155,31 +123,25 @@ document.addEventListener("DOMContentLoaded", () => {
     const ths = thead.querySelectorAll("th");
     ths.forEach((th, i) => {
       if (keys[i] === "email") return;
-      
-      const sortButtons = th.querySelector("div.d-flex.flex-column");
-      if (!sortButtons) return;
-      
-      const [ascBtn, descBtn] = sortButtons.querySelectorAll("button");
-      
-      // Reset all buttons
-      ascBtn.style.opacity = "0.7";
-      descBtn.style.opacity = "0.7";
-      
+
+      const sortBtn = th.querySelector("button");
+      if (!sortBtn) return;
+
+      sortBtn.style.color = "#777";
+      sortBtn.innerHTML = `<i class="bi bi-arrow-down-up"></i>`;
+
       if (keys[i] === currentSortKey) {
-        if (sortAsc) {
-          ascBtn.style.opacity = "1";
-          ascBtn.style.transform = "scale(1.2)";
-        } else {
-          descBtn.style.opacity = "1";
-          descBtn.style.transform = "scale(1.2)";
-        }
+        sortBtn.style.color = "#0d6efd"; // Bootstrap primary blue
+        sortBtn.innerHTML = sortAsc
+          ? `<i class="bi bi-arrow-up"></i>`
+          : `<i class="bi bi-arrow-down"></i>`;
       }
     });
   }
 
   function getFilteredSortedData() {
     const filtered = membersData.filter(member =>
-      ["name", "location", "role"].some(key =>
+      ["name", "school", "email", "location", "role"].some(key =>
         member[key].toLowerCase().includes(filterText)
       )
     );
@@ -197,7 +159,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderTableBody() {
     tbody.innerHTML = "";
-
     const filteredData = getFilteredSortedData();
 
     if (filteredData.length === 0) {
@@ -217,76 +178,54 @@ document.addEventListener("DOMContentLoaded", () => {
     pageItems.forEach(member => {
       const tr = document.createElement("tr");
 
-      // Name cell with profile image
       const tdName = document.createElement("td");
-      tdName.style.minWidth = "120px";
-      tdName.style.maxWidth = "180px";
-      
       const nameContainer = document.createElement("div");
-      nameContainer.style.display = "flex";
-      nameContainer.style.alignItems = "center";
-      nameContainer.style.gap = "8px";
-      
+      nameContainer.className = "d-flex align-items-center gap-2";
+
       const profileImg = document.createElement("img");
       profileImg.src = `/assets/images/team/${member.image}`;
-      profileImg.alt = `${member.name}'s profile picture`;
+      profileImg.alt = `${member.name}'s profile`;
       profileImg.style.width = "32px";
       profileImg.style.height = "32px";
       profileImg.style.borderRadius = "50%";
       profileImg.style.objectFit = "cover";
       profileImg.style.border = "1px solid #ddd";
-      
+
       const nameSpan = document.createElement("span");
       nameSpan.textContent = member.name;
-      nameSpan.style.overflow = "hidden";
-      nameSpan.style.textOverflow = "ellipsis";
-      nameSpan.style.whiteSpace = "nowrap";
-      
+
       nameContainer.appendChild(profileImg);
       nameContainer.appendChild(nameSpan);
       tdName.appendChild(nameContainer);
       tr.appendChild(tdName);
 
       const tdLocation = document.createElement("td");
-      tdLocation.style.maxWidth = "140px";
-      tdLocation.style.overflow = "hidden";
-      tdLocation.style.textOverflow = "ellipsis";
-      tdLocation.style.whiteSpace = "nowrap";
-
       const abbr = member.state.toUpperCase();
-      const fullStateName = stateAbbrToFullName[abbr] || null;
+      const fullStateName = stateAbbrToFullName[abbr] || "";
       const flagSrc = fullStateName
         ? `/assets/images/states/${fullStateName}.svg`
         : "/assets/images/states/placeholder.svg";
 
-      const img = document.createElement("img");
-      img.src = flagSrc;
-      img.alt = `${abbr} flag`;
-      img.style.height = "18px";
-      img.style.width = "auto";
-      img.style.verticalAlign = "middle";
-      img.style.marginRight = "6px";
+      const flagImg = document.createElement("img");
+      flagImg.src = flagSrc;
+      flagImg.alt = `${abbr} flag`;
+      flagImg.style.height = "18px";
+      flagImg.style.marginRight = "6px";
 
-      tdLocation.appendChild(img);
+      tdLocation.appendChild(flagImg);
       tdLocation.appendChild(document.createTextNode(member.location));
       tr.appendChild(tdLocation);
 
       const tdEmail = document.createElement("td");
-      tdEmail.style.minWidth = "50px";
-      const aEmail = document.createElement("a");
-      aEmail.href = `mailto:${member.email}`;
-      aEmail.className = "btn btn-sm btn-outline-dark";
-      aEmail.setAttribute("aria-label", `Email ${member.name}`);
-      aEmail.innerHTML = `<i class="bi bi-envelope"></i> Email`;
-      tdEmail.appendChild(aEmail);
+      const emailBtn = document.createElement("a");
+      emailBtn.href = `mailto:${member.email}`;
+      emailBtn.className = "btn btn-sm btn-outline-dark";
+      emailBtn.innerHTML = `<i class="bi bi-envelope"></i> Email`;
+      tdEmail.appendChild(emailBtn);
       tr.appendChild(tdEmail);
 
       const tdRole = document.createElement("td");
       tdRole.textContent = member.role;
-      tdRole.style.maxWidth = "120px";
-      tdRole.style.overflow = "hidden";
-      tdRole.style.textOverflow = "ellipsis";
-      tdRole.style.whiteSpace = "nowrap";
       tr.appendChild(tdRole);
 
       tbody.appendChild(tr);
@@ -303,65 +242,32 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    let html = `<nav aria-label="Member directory pagination"><ul class="pagination pagination-sm justify-content-center">`;
+    let html = `<nav><ul class="pagination pagination-sm justify-content-center">`;
 
     html += `<li class="page-item ${currentPage === 1 ? "disabled" : ""}">
-      <button class="page-link" data-page="${currentPage - 1}" aria-label="Previous">
-        <i class="bi bi-chevron-left"></i>
-      </button></li>`;
+      <button class="page-link" data-page="${currentPage - 1}"><i class="bi bi-chevron-left"></i></button></li>`;
 
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) {
-        html += pageLink(i);
-      }
-    } else {
-      html += pageLink(1);
-
-      if (currentPage > 3) {
-        html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-      }
-
-      const start = Math.max(2, currentPage - 1);
-      const end = Math.min(totalPages - 1, currentPage + 1);
-      for (let i = start; i <= end; i++) {
-        html += pageLink(i);
-      }
-
-      if (currentPage < totalPages - 2) {
-        html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-      }
-
-      html += pageLink(totalPages);
+    for (let i = 1; i <= totalPages; i++) {
+      html += `<li class="page-item ${i === currentPage ? "active" : ""}">
+        <button class="page-link" data-page="${i}">${i}</button></li>`;
     }
 
     html += `<li class="page-item ${currentPage === totalPages ? "disabled" : ""}">
-      <button class="page-link" data-page="${currentPage + 1}" aria-label="Next">
-        <i class="bi bi-chevron-right"></i>
-      </button></li>`;
+      <button class="page-link" data-page="${currentPage + 1}"><i class="bi bi-chevron-right"></i></button></li>`;
 
     html += `</ul></nav>`;
-
     paginationContainer.innerHTML = html;
 
     paginationContainer.querySelectorAll("button.page-link").forEach(btn => {
+      const page = Number(btn.getAttribute("data-page"));
       btn.addEventListener("click", () => {
-        const targetPage = Number(btn.getAttribute("data-page"));
-        if (targetPage >= 1 && targetPage <= totalPages) {
-          currentPage = targetPage;
-          renderTableBody();
-          renderPagination();
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }
+        currentPage = page;
+        renderTableBody();
+        renderPagination();
       });
     });
-
-    function pageLink(pageNum) {
-      return `<li class="page-item ${pageNum === currentPage ? "active" : ""}">
-        <button class="page-link" data-page="${pageNum}">${pageNum}</button></li>`;
-    }
   }
 
-  // Search input listener
   filterInput.addEventListener("input", e => {
     filterText = e.target.value.trim().toLowerCase();
     currentPage = 1;
@@ -369,7 +275,12 @@ document.addEventListener("DOMContentLoaded", () => {
     renderPagination();
   });
 
-  // Auto-focus and auto-type on any key press outside inputs/textareas/contenteditable
+  const ITEMS_PER_PAGE = 10;
+
+  updateSortIndicators();
+  renderTableBody();
+  renderPagination();
+    // Autofocus and auto-type into search bar on any key press outside input
   window.addEventListener("keydown", e => {
     const active = document.activeElement;
     if (
@@ -379,13 +290,12 @@ document.addEventListener("DOMContentLoaded", () => {
     ) {
       filterInput.focus();
 
-      if (e.key.length === 1) {
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
         const start = filterInput.selectionStart || 0;
         const end = filterInput.selectionEnd || 0;
         const val = filterInput.value;
         filterInput.value = val.slice(0, start) + e.key + val.slice(end);
         filterInput.selectionStart = filterInput.selectionEnd = start + 1;
-
         filterInput.dispatchEvent(new Event("input"));
       }
 
@@ -393,10 +303,4 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  const ITEMS_PER_PAGE = 10;
-
-  // Initial render
-  updateSortIndicators();
-  renderTableBody();
-  renderPagination();
 });

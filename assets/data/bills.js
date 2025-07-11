@@ -88,24 +88,24 @@ export var bills = [{
       date: new Date("2025-03-05"),
    },
    {
-   state: "Ohio",
-   name: "HB 104",
-   position: SUPPORT,
-   description: "Supported designation of Cardiovascular Health Awareness Day to promote prevention and public health education.",
-   date: new Date("2025-07-10")
+      state: "Ohio",
+      name: "HB 104",
+      position: SUPPORT,
+      description: "Supported designation of Cardiovascular Health Awareness Day to promote prevention and public health education.",
+      date: new Date("2025-07-10"),
    },
    {
-   state: "Ohio",
-   name: "SB 137",
-   position: SUPPORT,
-   description: "Advocated for hospitals to provide free naloxone kits and training at discharge to prevent repeat opioid overdoses.",
-   date: new Date("2025-07-10")
+      state: "Ohio",
+      name: "SB 137",
+      position: SUPPORT,
+      description: "Advocated for hospitals to provide free naloxone kits and training at discharge to prevent repeat opioid overdoses.",
+      date: new Date("2025-07-10"),
    },
    {
-   state: "Ohio",
-   name: "SB 170",
-   position: SUPPORT,
-   description: "Supported expanded access to personalized investigational treatments for patients with severe or terminal illnesses.",
-   date: new Date("2025-07-10")
+      state: "Ohio",
+      name: "SB 170",
+      position: SUPPORT,
+      description: "Supported expanded access to personalized investigational treatments for patients with severe or terminal illnesses.",
+      date: new Date("2025-07-10"),
    },
 ];

@@ -1,0 +1,58 @@
+.school-carousel-container {
+  overflow: hidden;
+  padding: 2rem 0;
+  position: relative;
+}
+
+.school-carousel-track {
+  display: flex;
+  gap: 1.5rem; /* Reduced gap for tighter layout */
+  animation: scrollLinear 60s linear infinite;
+  will-change: transform;
+}
+
+.school-logo-item {
+  flex: 0 0 auto;
+  min-width: 200px; /* Slightly narrower for better flow */
+  display: flex;
+  justify-content: center;
+}
+
+.school-logo {
+  height: 100px;
+  object-fit: contain;
+  filter: grayscale(100%);
+  opacity: 0.7;
+  transition: all 0.3s ease;
+}
+
+.school-logo:hover {
+  filter: grayscale(0%);
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+@keyframes scrollLinear {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .school-carousel-track {
+    gap: 1rem;
+    animation-duration: 40s;
+  }
+
+  .school-logo {
+    height: 60px;
+  }
+
+  .school-logo-item {
+    min-width: 160px;
+  }
+}

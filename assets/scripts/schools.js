@@ -17,9 +17,12 @@ function renderSchoolCarousel() {
   const carousel = document.getElementById("schoolCarousel");
   if (!carousel) return;
 
-  const sortedSchools = [...schools].sort((a, b) =>
-    a.school.localeCompare(b.school)
-  );
+  const sortedSchools = [...schools];
+
+  // Sort schools alphabetically by name
+  // const sortedSchools = [...schools].sort((a, b) =>
+  //   a.school.localeCompare(b.school)
+  // );
 
   const repeatCount = 4;
   let html = "";

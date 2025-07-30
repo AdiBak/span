@@ -18,6 +18,7 @@ var footer = `
             <li class="mb-2"><a href="/our-story.html" class="text-white text-decoration-none">Our Story</a></li>
             <li class="mb-2"><a href="/bills.html" class="text-white text-decoration-none">Bills</a></li>
             <li class="mb-2"><a href="/directory.html" class="text-white text-decoration-none">Directory</a></li>
+            <li class="mb-2"><a href="/blog.html" class="text-white text-decoration-none">Blog</a></li>
             <!-- <li class="mb-2"><a href="https://www.paypal.com/donate/?hosted_button_id=EXAMPLE" target="_blank" class="text-white text-decoration-none">Donate</a></li> -->
           </ul>
         </div>
@@ -44,7 +45,7 @@ var footer = `
       </div>
       <hr class="my-4">
       <div class="text-center">
-        <p class="mb-0">© 2025 SPAN – Students for Patient Advocacy Nationwide. All rights reserved.</p>
+        <p class="mb-0">© ${new Date().getFullYear()} SPAN – Students for Patient Advocacy Nationwide. All rights reserved.</p>
       </div>
     </div>
 `;

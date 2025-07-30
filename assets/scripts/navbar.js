@@ -22,7 +22,10 @@ var navbar = `
         </li>
         <li class="nav-item">
           <a class="nav-link ${currentPath === "/directory.html" ? "active" : ""}" href="/directory.html">Directory</a>
-
+        </li>
+        <li class="nav-item">
+          <a class="nav-link ${currentPath === "/blog.html" ? "active" : ""}" href="/blog.html">Blog</a>
+        </li>
       </ul>
     </div>
   </div>

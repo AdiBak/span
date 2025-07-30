@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentSortKey = "name";
   let sortAsc = true;
 
-  const membersData = members.map(m => ({
+  const membersData = members.filter(m => m.active).map(m => ({
     name: `${m.firstName} ${m.lastName}`,
     school: m.school || "",
     location: m.city && m.state ? `${m.city}, ${m.state}` : (m.location || ""),

@@ -1,7 +1,7 @@
 export var members = [{
       firstName: "Vishank",
       lastName: "Panchbhavi",
-      position: "Collegiate Ambassador",
+      position: "Executive Director",
       tier: 1,
       active: true,
       startDate: new Date("2025-03-12"),
@@ -12,13 +12,13 @@ export var members = [{
       email: "vishpanchbhavi@gmail.com",
       phone: 4095090031,
       image: "vishank-panchbhavi.jpg",
-      bio: "Vishank Panchbhavi is a freshman at Emory University and the co-founder and Collegiate Ambassador of SPAN. He has conducted research in transplant immunology and orthopedic evidence analysis through work in the Kloc Lab at Houston Methodist and Dr. Samir’s Lab at UTMB. His research has been published in the International Journal of Orthopaedic Surgery and presented at national and international conferences conferences including AAOS, AOFAS, IOACON, SOA, and the Houston Methodist Summer Science Symposium. Through SPAN, Vishank helps lead national student-led efforts in legislative advocacy, nonprofit collaboration, and healthcare education focused on patient-centered reform.",
+      bio: "Vishank Panchbhavi is a freshman at Emory University and a co-founder of SPAN. He has conducted research in transplant immunology and orthopedic evidence analysis through work in the Kloc Lab at Houston Methodist and Dr. Samir’s Lab at UTMB. His research has been published in the International Journal of Orthopaedic Surgery and presented at national and international conferences conferences including AAOS, AOFAS, IOACON, SOA, and the Houston Methodist Summer Science Symposium. Through SPAN, Vishank helps lead national student-led efforts in legislative advocacy, nonprofit collaboration, and healthcare education focused on patient-centered reform.",
       notes: ""
    },
    {
       firstName: "Shayan",
       lastName: "Saqib",
-      position: "High School Ambassador",
+      position: "Executive Director",
       tier: 1,
       active: true,
       startDate: new Date("2025-03-12"),
@@ -35,7 +35,7 @@ export var members = [{
    {
       firstName: "Joel",
       lastName: "Blessan",
-      position: "Policy Research Director",
+      position: "Executive Director",
       tier: 1,
       active: true,
       startDate: new Date("2025-03-12"),
@@ -46,13 +46,13 @@ export var members = [{
       email: "joelvblessan@gmail.com",
       phone: 8326277795,
       image: "joel-blessan.jpg",
-      bio: "Joel Blessan is a senior at Friendswood High School in Houston, Texas, and the co-founder and Policy Research Director of Students for Patient Advocacy Nationwide. He brings a strong academic background and a passion for healthcare policy and innovation. Joel has led projects in biomedical science, including a novel and successful non-invasive cholesterol detection system, as well as in digital media and marketing through his organization, The Inspired Media Solutions Company. A dedicated volunteer, he has contributed over 200 hours to youth leadership and community health initiatives. Joel is especially interested in the intersection of medicine and law and plays a key role in identifying the core policies and legislation that SPAN targets to improve patient outcomes nationwide.",
+      bio: "Joel Blessan is a senior at Friendswood High School in Houston, Texas, and a co-founder of Students for Patient Advocacy Nationwide. He brings a strong academic background and a passion for healthcare policy and innovation. Joel has led projects in biomedical science, including a novel and successful non-invasive cholesterol detection system, as well as in digital media and marketing through his organization, The Inspired Media Solutions Company. A dedicated volunteer, he has contributed over 200 hours to youth leadership and community health initiatives. Joel is especially interested in the intersection of medicine and law and plays a key role in identifying the core policies and legislation that SPAN targets to improve patient outcomes nationwide.",
       notes: ""
    },
    {
       firstName: "Ben",
       lastName: "Kurian",
-      position: "Outreach Director",
+      position: "Executive Director",
       tier: 1,
       active: true,
       startDate: new Date("2025-06-25"),
@@ -114,22 +114,22 @@ export var members = [{
       image: "rayyan-malik.jpg",
       notes: ""
    },
-   // {
-   //    firstName: "Shreyas",
-   //    lastName: "Bishnu",
-   //    position: "Policy Analyst",
-   //    tier: 3,
-   //    active: true,
-   //    startDate: new Date("2025-07-26"),
-   //    DOB: new Date("2009-09-21"),
-   //    school: "Clear Lake High School",
-   //    city: "Houston",
-   //    state: "TX",
-   //    email: "shreyasvishnu@yahoo.com",
-   //    phone: null,
-   //    image: "shreyas-bishnu.jpg",
-   //    notes: ""
-   // },
+   {
+      firstName: "Shreyas",
+      lastName: "Bishnu",
+      position: "Policy Analyst",
+      tier: 3,
+      active: false,
+      startDate: new Date("2025-07-26"),
+      DOB: new Date("2009-09-21"),
+      school: "Clear Lake High School",
+      city: "Houston",
+      state: "TX",
+      email: "shreyasvishnu@yahoo.com",
+      phone: null,
+      image: "shreyas-bishnu.jpg",
+      notes: "Doesn't have phone number. Worried about public involvement with politics because of parents' green card status. (7/29/25)"
+   },
    {
       firstName: "Ashita",
       lastName: "Virani",
@@ -145,5 +145,21 @@ export var members = [{
       phone: 8322263713,
       image: "ashita-virani.jpg",
       notes: ""
+   },
+   {
+      firstName: "Vahin",
+      lastName: "Dubey",
+      position: "Student Advocate",
+      tier: 3,
+      active: true,
+      startDate: new Date("2025-07-28"),
+      DOB: new Date("2010-06-18"),
+      school: "Olentangy Liberty High School",
+      city: "Columbus",
+      state: "OH",
+      email: "vahin.dubey@gmail.com",
+      phone: 6143560469,
+      image: "vahin-dubey.jpg",
+      notes: "Find a role (7/29/25)"
    },
 ];

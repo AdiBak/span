@@ -1,6 +1,6 @@
 // Import resource data
 import {
-   resources
+    resources
 } from "/assets/data/resources.js";
 
 // String to store HTML for displaying resource cards
@@ -8,7 +8,7 @@ var resourceContainerHTML = "";
 
 // Construct HTML for each card using forEach loop
 resources.forEach(function (resource) {
-   resourceContainerHTML += `
+    resourceContainerHTML += `
     <div class="col-md-6">
         <div class="impact-card card h-100">
             <div class="card-body">

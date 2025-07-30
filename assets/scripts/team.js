@@ -7,7 +7,7 @@ const members = allMembers.slice(0, 4);
 let teamContainerHTML = "";
 
 members.forEach((member, index) => {
-    teamContainerHTML += `
+  teamContainerHTML += `
     <div class="col-md-4 col-lg-3">
       <div class="card h-100 border-0 shadow-sm text-center">
         <img src="/assets/images/team/${member.image}" class="card-img-top rounded-circle w-75 mx-auto mt-4" alt="${member.firstName} ${member.lastName}">
@@ -34,17 +34,17 @@ document.getElementById("teamContainer").innerHTML = teamContainerHTML;
 
 // Modal population
 document.querySelectorAll('[data-bs-target="#bioModal"]').forEach(button => {
-    button.addEventListener("click", (e) => {
-        const index = e.currentTarget.getAttribute("data-index");
-        const member = members[index];
+  button.addEventListener("click", (e) => {
+    const index = e.currentTarget.getAttribute("data-index");
+    const member = members[index];
 
-        document.getElementById("bioModalImage").src = `/assets/images/team/${member.image}`;
-        document.getElementById("bioModalLabel").textContent = `${member.firstName} ${member.lastName}`;
-        document.getElementById("bioModalSubLabel").textContent = `${member.position} • ${member.city}, ${member.state}`;
-        document.getElementById("bioModalBody").innerHTML = `<p>${member.bio}</p>`;
+    document.getElementById("bioModalImage").src = `/assets/images/team/${member.image}`;
+    document.getElementById("bioModalLabel").textContent = `${member.firstName} ${member.lastName}`;
+    document.getElementById("bioModalSubLabel").textContent = `${member.position} • ${member.city}, ${member.state}`;
+    document.getElementById("bioModalBody").innerHTML = `<p>${member.bio}</p>`;
 
-        const emailBtn = document.getElementById("bioModalEmail");
-        emailBtn.href = `mailto:${member.email}`;
-        emailBtn.innerHTML = `<i class="bi bi-envelope"></i> Email ${member.firstName}`;
-    });
+    const emailBtn = document.getElementById("bioModalEmail");
+    emailBtn.href = `mailto:${member.email}`;
+    emailBtn.innerHTML = `<i class="bi bi-envelope"></i> Email ${member.firstName}`;
+  });
 });

@@ -45,10 +45,10 @@ function generateCardHtml(item, isFeatured) {
           <h5 class="card-title">${item.title}</h5>
           <p class="card-text text-muted mb-2">
             <small>${new Date(item.pubDate).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "long",
-              day: "numeric"
-            })} · ${authorName}</small>
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  })} · ${authorName}</small>
           </p>
           <p class="card-text">${item.content.replace(/<[^>]*>?/gm, '').slice(0, 150)}…</p>
           <a href="${item.link}" target="_blank" class="btn btn-dark mt-auto">Read More</a>

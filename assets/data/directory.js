@@ -160,21 +160,21 @@ export var members = [{
    image: "ashita-virani.jpg",
    notes: ""
 },
-{
-   firstName: "Vahin",
-   lastName: "Dubey",
-   position: "Student Advocate",
-   tier: 3,
-   active: true,
-   startDate: new Date("2025-07-28"),
-   DOB: new Date("2010-06-18"),
-   school: "Olentangy Liberty High School",
-   city: "Columbus",
-   state: "OH",
-   email: "vahin.dubey@gmail.com",
-   phone: 6143560469,
-   instagram: "https://www.instagram.com/vahindubey/",
-   image: "vahin-dubey.jpg",
-   notes: "Find a role (7/29/25)"
-},
+// {
+//    firstName: "Vahin",
+//    lastName: "Dubey",
+//    position: "Student Advocate",
+//    tier: 3,
+//    active: true,
+//    startDate: new Date("2025-07-28"),
+//    DOB: new Date("2010-06-18"),
+//    school: "Olentangy Liberty High School",
+//    city: "Columbus",
+//    state: "OH",
+//    email: "vahin.dubey@gmail.com",
+//    phone: 6143560469,
+//    instagram: "https://www.instagram.com/vahindubey/",
+//    image: "vahin-dubey.jpg",
+//    notes: "Find a role (7/29/25)"
+// },
 ];

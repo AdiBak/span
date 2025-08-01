@@ -71,26 +71,40 @@
    <nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top">
    </nav>
    <a id="home"></a>
-   <div class="hero-section bg-image p-3 p-md-5 m-md-3 text-center"
-      style="background-image: url('/assets/images/index/hero.jpg'); background-position: center; background-repeat: no-repeat; background-size: cover; margin-bottom: 50px; height: 75vh; padding-top: 80px;">
-      <div class="col-md-8 mx-auto d-flex flex-column justify-content-center" style="height: 80%;">
-         <img width="70%" oncontextmenu="return false;" loading="lazy"
-            class="my-4 text-white user-select-none animate__animated animate__fadeInDown mx-auto"
-            src="/assets/images/index/logo-wide-light.svg" alt="SPAN Logo">
-         <h1 class="text-white display-4 animate__animated animate__fadeInUp my-4">Students for Patient Advocacy
-            Nationwide</h1>
-         <p class="text-white lead user-select-none animate__animated animate__fadeInUp">Empowering the next generation
-            of healthcare advocates.</p>
-         <div class="animate__animated animate__fadeInUp mt-4">
-            <a href="#join" class="m-2 btn btn-outline-light btn-lg me-2">Join Our Movement</a>
-            <a href="#impact" class="m-2 btn btn-outline-light btn-lg">Our Impact</a>
+<section class="hero-section position-relative text-center text-white d-flex align-items-center justify-content-center"
+   style="height: 90vh;">
+   <div class="parallax-bg"></div>
+   <div class="container position-relative z-1">
+      <div class="row justify-content-center">
+         <div class="col-lg-9">
+            <img src="/assets/images/index/logo-wide-light.svg"
+               alt="SPAN Logo"
+               loading="lazy"
+               oncontextmenu="return false;"
+               class="img-fluid mb-4 animate__animated animate__fadeInDown"
+               style="max-width: 80%;">
+            <h1 class="display-4 fw-bold animate__animated animate__fadeInUp mb-3">Students for Patient Advocacy Nationwide</h1>
+            <p class="lead animate__animated animate__fadeInUp mb-4">
+               Empowering the next generation of healthcare advocates.
+            </p>
+            <div class="d-flex flex-wrap justify-content-center gap-3 animate__animated animate__fadeInUp">
+               <a href="#join" class="btn btn-outline-light btn-lg px-4 shadow-sm">Join Our Movement</a>
+               <a href="#impact" class="btn btn-outline-light btn-lg px-4">See Our Impact</a>
+            </div>
          </div>
       </div>
    </div>
+
+   <!-- Chevron Scroll Indicator -->
+   <a href="#about" class="mb-3 scroll-indicator position-absolute bottom-0 start-50 translate-middle-x text-white text-decoration-none">
+      <i class="bi bi-chevron-down fs-1 animate__animated animate__bounce animate__infinite"></i>
+   </a>
+</section>
+
    <a id="about"></a>
    <div class="row position-relative overflow-hidden p-3 p-md-5 m-md-3 bg-light">
       <div class="col-sm-6 p-lg-5 my-5 animate__animated animate__fadeInLeft">
-         <h3 class="text-primary">About</h3>
+         <h3 class="text-primary fw-bold">About</h3>
          <img class="mb-3" height="50vh" src="/assets/images/index/logo-wide-dark.svg">
          <p class="lead">
             SPAN is a national, student-led coalition focused on advocating for patient-centered healthcare reform. The
@@ -116,8 +130,9 @@
    <a id="bills"></a>
    <div class="p-3 p-md-5 m-md-3 bg-light">
       <div class="container">
-         <h2 class="text-center mb-5">Recent Bills</h2>
-         <div id="billContainer" class="row g-4">
+         <h2 class="text-center display-5 fw-bold">Recent Bills</h2>
+                  <p class="lead text-center mb-5">Explore the legislation we're tracking right now.</p>
+         <div id="billContainer" class="row mt-5 g-4">
          </div>
       </div>
       <div class="text-center mt-5">
@@ -127,7 +142,7 @@
    <a id="schools"></a>
    <div class="p-3 p-md-5 m-md-3 bg-light">
       <div class="container">
-         <h2 class="text-center mb-5">Student Involvement</h2>
+         <h2 class="text-center display-5 fw-bold">Student Involvement</h2>
          <p class="lead text-center mb-5">We're proud to partner with student advocates from these institutions.</p>
 
          <!-- Logo Carousel -->
@@ -147,10 +162,12 @@
    <a id="impact"></a>
    <section class="py-5 bg-light">
       <div class="container">
-         <h2 class="text-center mb-5">Our Impact</h2>
+         <h2 class="text-center display-5 fw-bold">Our Impact</h2>
+                                    <p class="lead text-center mb-5">See where SPAN is making a difference.
+
 
          <!-- Map Section -->
-         <div class="row justify-content-center mb-5">
+         <div class="row justify-content-center">
             <div class="col-lg-10">
                <div id="regions_div"></div>
             </div>
@@ -199,7 +216,11 @@
 
    <a id="join"></a>
    <div class="row position-relative p-3 p-md-5 m-md-3 bg-light">
-      <h2 class="mb-4 text-center">Join Our Movement</h2>
+         <h2 class="text-center display-5 fw-bold">Join Our Movement</h2>
+                           <p class="lead text-center mb-5">Ready to make a difference? Learn how you can take the first step with SPAN.
+
+</p>
+
       <div class="col-md-6 mx-auto align-items-center">
          <p class="lead mb-5"><br><br>Members of SPAN gain hands-on experience with policy work, lead national
             initiatives, receive mentorship from professionals, and join a network of ambitious student advocates. We're
@@ -257,22 +278,24 @@
            </div>
          </div>
          </div> -->
-   <a id="resources"></a>
+   <!-- <a id="resources"></a>
    <div class="p-3 p-md-5 m-md-3 bg-light">
       <div class="container">
          <h2 class="text-center mb-5">Resources</h2>
          <div id="resourceContainer" class="row g-4">
          </div>
       </div>
-   </div>
+   </div> -->
 
-   <script type="module" src="/assets/scripts/schools.js"></script>
+   <script defer type="module" src="/assets/scripts/schools.js"></script>
 
    <a id="team"></a>
    <div class="p-3 p-md-5 m-md-3 bg-light">
       <div class="container">
-         <h2 class="text-center mb-5">Founding Team</h2>
-         <div id="teamContainer" class="row g-4 justify-content-center">
+         <h2 class="text-center display-5 fw-bold">Founding Team</h2>
+                  <p class="lead text-center mb-5">Meet the students who launched SPAN and continue to lead its mission forward.</p>
+
+         <div id="teamContainer" class="mt-5 row g-4 justify-content-center">
          </div>
          <div class="text-center mt-5">
             <a href="/directory.html" class="btn btn-dark btn-lg px-5 mb-4"><i class="bi bi-people-fill"></i> View
@@ -293,7 +316,7 @@
       <div class="container">
          <div class="row">
             <div class="col-md-6 p-3">
-               <h2 class="mb-4">Get in Touch</h2>
+         <h2 class="display-5 fw-bold">Get in Touch</h2>
                <p class="lead">Have questions or want to get involved? Reach out to us!</p>
                <div class="mt-5">
                   <h5><i class="bi bi-envelope-fill me-2 text-primary"></i> <a class="link-dark"

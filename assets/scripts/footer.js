@@ -7,6 +7,7 @@ var footer = `
           <div class="mt-3">
           <a href="https://www.linkedin.com/company/spanationwide/" target="_blank" class="text-white me-2"><i class="bi bi-linkedin" style="font-size: 1.5rem;"></i></a>
           <a href="https://www.instagram.com/spanationwide_/" target="_blank" class="text-white me-2"><i class="bi bi-instagram" style="font-size: 1.5rem;"></i></a>
+          <a href="https://www.tiktok.com/@spanationwide" target="_blank" class="text-white"><i class="bi bi-tiktok" style="font-size: 1.5rem;"></i></a>
           <a href="https://x.com/spanationwide" target="_blank" class="text-white me-2"><i class="bi bi-twitter-x" style="font-size: 1.5rem;"></i></a>
           <a href="https://www.youtube.com/@spanationwide" target="_blank" class="text-white"><i class="bi bi-youtube" style="font-size: 1.5rem;"></i></a>
           </div>

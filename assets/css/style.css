@@ -32,3 +32,60 @@
   opacity: 1;
   transform: scale(1.2);
 }
+
+
+   .hero-section {
+   overflow: hidden;
+   position: relative;
+   z-index: 0;
+}
+
+.parallax-bg {
+   position: absolute;
+   top: 0;
+   left: 0;
+   width: 100%;
+   height: 130%;
+   background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.05)), url('/assets/images/index/hero.jpg') center/cover no-repeat;
+   background-attachment: fixed;
+   z-index: -1;
+}
+
+.scroll-indicator {
+   bottom: 30px;
+   opacity: 0.8;
+   transition: opacity 0.3s;
+}
+
+.scroll-indicator:hover {
+   opacity: 1;
+}
+
+.hero-section h1,
+.hero-section p {
+   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.subpage-hero {
+   height: 20vh;
+   min-height: 300px;
+   background-color: #000;
+   overflow: hidden;
+   position: relative;
+   z-index: 0;
+}
+
+.subpage-hero .parallax-bg {
+   position: absolute;
+   top: 0;
+   left: 0;
+   width: 100%;
+   height: 150%;
+   background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.05)), url('/assets/images/index/hero.jpg') center/cover no-repeat;
+   background-attachment: fixed;
+   z-index: -1;
+}
+
+.subpage-hero h1, .subpage-hero p {
+   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}

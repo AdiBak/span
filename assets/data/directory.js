@@ -177,4 +177,24 @@ export var members = [{
 //    image: "vahin-dubey.jpg",
 //    notes: "Find a role (7/29/25)"
 // },
+
+{
+   firstName: "Peyton",
+   lastName: "Hoang",
+   position: "Student Advocate",
+   tier: 2,
+   active: true,
+   startDate: new Date("2025-08-01"),
+   DOB: new Date("2008-06-18"),
+   school: "Friendswood Highschool",
+   city: "Houston",
+   state: "TX",
+   email: "peytonhoang9@gmail.com",
+   phone: 8328050574,
+   linkedin: "",
+   instagram: "https://www.instagram.com/peytonh111/",
+   image: "peyton-hoang.jpg",
+   notes: ""
+},
+
 ];

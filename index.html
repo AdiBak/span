@@ -36,7 +36,9 @@
    <link href="/assets/bootstrap/css/bootstrap.min.css" rel="stylesheet">
    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
    <script src="/assets/bootstrap/js/bootstrap.bundle.min.js"></script>
-   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+   <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+   <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
    <link rel="stylesheet" href="/assets/css/schools.css">
    <link href="assets/css/style.css" rel="stylesheet">
@@ -68,6 +70,9 @@
 </head>
 
 <body>
+   <script>
+      AOS.init();
+   </script>
    <nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top">
    </nav>
    <a id="home"></a>
@@ -81,13 +86,15 @@
                alt="SPAN Logo"
                loading="lazy"
                oncontextmenu="return false;"
-               class="img-fluid mb-4 animate__animated animate__fadeInDown"
+               class="img-fluid mb-4"
+               data-aos="fade-down"
+               data-aos-duration="1000"
                style="max-width: 80%;">
-            <h1 class="display-4 fw-bold animate__animated animate__fadeInUp mb-3">Students for Patient Advocacy Nationwide</h1>
-            <p class="lead animate__animated animate__fadeInUp mb-4">
+            <h1 class="display-4 fw-bold mb-3" data-aos="fade-up" data-aos-duration="1000">Students for Patient Advocacy Nationwide</h1>
+            <p class="lead mb-4" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
                Empowering the next generation of healthcare advocates.
             </p>
-            <div class="d-flex flex-wrap justify-content-center gap-3 animate__animated animate__fadeInUp">
+            <div class="d-flex flex-wrap justify-content-center gap-3" data-aos="fade" data-aos-duration="2000" data-aos-delay="1000">
                <a href="#join" class="btn btn-outline-light btn-lg px-4 shadow-sm">Join Our Movement</a>
                <a href="#impact" class="btn btn-outline-light btn-lg px-4">See Our Impact</a>
             </div>
@@ -97,13 +104,18 @@
 
    <!-- Chevron Scroll Indicator -->
    <a href="#about" class="mb-3 scroll-indicator position-absolute bottom-0 start-50 translate-middle-x text-white text-decoration-none">
-      <i class="bi bi-chevron-down fs-1 animate__animated animate__bounce animate__infinite"></i>
+      <i class="bi bi-chevron-down fs-1" 
+   data-aos="fade-up" 
+   data-aos-easing="ease-in-out" 
+   data-aos-duration="1000" 
+   data-aos-delay="200"
+   data-aos-anchor-placement="top-center"></i>
    </a>
 </section>
 
    <a id="about"></a>
    <div class="row position-relative overflow-hidden p-3 p-md-5 m-md-3 bg-light">
-      <div class="col-sm-6 p-lg-5 my-5 animate__animated animate__fadeInLeft">
+      <div class="col-sm-6 p-lg-5 my-5" data-aos="fade-right" data-aos-duration="1000">
          <h3 class="text-primary fw-bold">About</h3>
          <img class="mb-3" height="50vh" src="/assets/images/index/logo-wide-dark.svg">
          <p class="lead">
@@ -118,7 +130,7 @@
             <a href="#join" class="btn btn-dark">Get Involved</a>
          </div>
       </div>
-      <div class="col-sm-6 p-lg-5 my-5 text-center animate__animated animate__fadeInRight">
+      <div class="col-sm-6 p-lg-5 my-5 text-center" data-aos="fade-left" data-aos-duration="1000">
          <!-- <img oncontextmenu="return false;" loading="lazy" class="rounded img-fluid shadow" src="/assets/images/index/capitol.jpg" alt="Texas Capitol building"> -->
          <div class="ratio ratio-16x9 mx-auto shadow rounded-4 overflow-hidden" style="max-width: 720px;">
             <iframe src="https://www.youtube.com/embed/t9-e2QdTz78?si=BEsUERLbWJlZcdGH" title="Introducing SPAN."
@@ -130,23 +142,23 @@
    <a id="bills"></a>
    <div class="p-3 p-md-5 m-md-3 bg-light">
       <div class="container">
-         <h2 class="text-center display-5 fw-bold">Recent Bills</h2>
-                  <p class="lead text-center mb-5">Explore the legislation we're tracking right now.</p>
-         <div id="billContainer" class="row mt-5 g-4">
+         <h2 class="text-center display-5 fw-bold" data-aos="fade" data-aos-duration="1000">Recent Bills</h2>
+                  <p class="lead text-center mb-5" data-aos="fade" data-aos-duration="1000">Explore the legislation we're tracking right now.</p>
+         <div id="billContainer" class="row mt-5 g-4" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
          </div>
       </div>
-      <div class="text-center mt-5">
+      <div class="text-center mt-5" data-aos="fade" data-aos-duration="1000" data-aos-delay="500">
          <a href="/bills.html" class="btn btn-dark btn-lg px-5 mb-4"><i class="bi bi-file-text"></i> View all Bills</a>
       </div>
    </div>
    <a id="schools"></a>
    <div class="p-3 p-md-5 m-md-3 bg-light">
       <div class="container">
-         <h2 class="text-center display-5 fw-bold">Student Involvement</h2>
-         <p class="lead text-center mb-5">We're proud to partner with student advocates from these institutions.</p>
+         <h2 class="text-center display-5 fw-bold" data-aos="fade" data-aos-duration="1000">Student Involvement</h2>
+         <p class="lead text-center mb-5" data-aos="fade" data-aos-duration="1000">We're proud to partner with student advocates from these institutions.</p>
 
          <!-- Logo Carousel -->
-         <div class="school-carousel-container position-relative">
+         <div class="school-carousel-container position-relative" data-aos="fade" data-aos-duration="1000" data-aos-delay="200">
             <div class="school-carousel-track" id="schoolCarousel">
                <!-- Logos will be dynamically inserted here -->
             </div>
@@ -162,22 +174,22 @@
    <a id="impact"></a>
    <section class="py-5 bg-light">
       <div class="container">
-         <h2 class="text-center display-5 fw-bold">Our Impact</h2>
-                                    <p class="lead text-center mb-5">See where SPAN is making a difference.
+         <h2 class="text-center display-5 fw-bold" data-aos="fade" data-aos-duration="1000">Our Impact</h2>
+                                    <p class="lead text-center mb-5" data-aos="fade" data-aos-duration="1000">See where SPAN is making a difference.
 
 
          <!-- Map Section -->
-         <div class="row justify-content-center">
+         <div class="row justify-content-center" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
             <div class="col-lg-10">
                <div id="regions_div"></div>
             </div>
          </div>
 
          <!-- Stats Cards -->
-         <div class="row g-4 justify-content-center text-center">
+         <div class="row g-4 justify-content-center text-center" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="600">
             <!-- Proposals Submitted -->
             <div class="col-sm-6 col-lg-4">
-               <div class="card h-100 border-0 shadow-sm">
+               <div class="impact-card card h-100 border-0 shadow-sm">
                   <div class="card-body py-4">
                      <i class="bi bi-file-earmark-text-fill text-primary fs-2 mb-3"></i>
                      <h3 id="proposals"></h3>
@@ -189,7 +201,7 @@
 
             <!-- States Targeted -->
             <div class="col-sm-6 col-lg-4">
-               <div class="card h-100 border-0 shadow-sm">
+               <div class="impact-card card h-100 border-0 shadow-sm">
                   <div class="card-body py-4">
                      <i class="bi bi-globe-americas text-success fs-2 mb-3"></i>
                      <h3 id="statesTargeted"></h3>
@@ -201,7 +213,7 @@
 
             <!-- Lawmakers Engaged -->
             <div class="col-sm-6 col-lg-4">
-               <div class="card h-100 border-0 shadow-sm">
+               <div class="impact-card card h-100 border-0 shadow-sm">
                   <div class="card-body py-4">
                      <i class="bi bi-people-fill text-danger fs-2 mb-3"></i>
                      <h3>100+</h3>
@@ -216,16 +228,16 @@
 
    <a id="join"></a>
    <div class="row position-relative p-3 p-md-5 m-md-3 bg-light">
-         <h2 class="text-center display-5 fw-bold">Join Our Movement</h2>
-                           <p class="lead text-center mb-5">Ready to make a difference? Learn how you can take the first step with SPAN.
+         <h2 class="text-center display-5 fw-bold" data-aos="fade" data-aos-duration="1000">Join Our Movement</h2>
+                           <p class="lead text-center mb-5" data-aos="fade" data-aos-duration="1000">Ready to make a difference? Learn how you can take the first step with SPAN.
 
 </p>
 
-      <div class="col-md-6 mx-auto align-items-center">
+      <div class="col-md-6 mx-auto align-items-center" data-aos="fade-right" data-aos-delay="500" data-aos-duration="1000">
          <p class="lead mb-5"><br><br>Members of SPAN gain hands-on experience with policy work, lead national
             initiatives, receive mentorship from professionals, and join a network of ambitious student advocates. We're
             expanding across the U.S. and looking for dedicated students ready to transform the healthcare system.</p>
-         <div class="animate__animated animate__fadeInRight">
+         <div>
             <img height="auto" oncontextmenu="return false;" loading="lazy" class="rounded img-fluid shadow"
                src="/assets/images/index/capitol.jpg" alt="Texas Capitol building">
          </div>
@@ -238,7 +250,7 @@
             <script src="https://tally.so/widgets/embed.js"></script> 
             <iframe src="https://docs.google.com/forms/d/e/1FAIpQLSfaeYJhDwZaar4LgNZeJx9oruJLVJ7klBanu0lh_UgLydKHBQ/viewform?embedded=true" width="100%" height="100%" frameborder="0" marginheight="0" marginwidth="0">Loading…</iframe>
             </div> -->
-      <div class="col-md-6 mx-auto text-center">
+      <div class="col-md-6 mx-auto text-center" data-aos="fade-left" data-aos-delay="500" data-aos-duration="1000">
          <div style="padding: 1rem; max-width: 600px; margin: auto;">
             <iframe
                src="https://docs.google.com/forms/d/e/1FAIpQLSfaeYJhDwZaar4LgNZeJx9oruJLVJ7klBanu0lh_UgLydKHBQ/viewform?embedded=true"
@@ -292,12 +304,12 @@
    <a id="team"></a>
    <div class="p-3 p-md-5 m-md-3 bg-light">
       <div class="container">
-         <h2 class="text-center display-5 fw-bold">Founding Team</h2>
-                  <p class="lead text-center mb-5">Meet the students who launched SPAN and continue to lead its mission forward.</p>
+         <h2 class="text-center display-5 fw-bold" data-aos="fade" data-aos-duration="1000">Founding Team</h2>
+                  <p class="lead text-center mb-5" data-aos="fade" data-aos-duration="1000">Meet the students who launched SPAN and continue to lead its mission forward.</p>
 
-         <div id="teamContainer" class="mt-5 row g-4 justify-content-center">
+         <div id="teamContainer" class="mt-5 row g-4 justify-content-center" data-aos="fade-up" data-aos-delay="200" data-aos-duration="1000">
          </div>
-         <div class="text-center mt-5">
+         <div class="text-center mt-5" data-aos="fade" data-aos-duration="1000" data-aos-delay="500">
             <a href="/directory.html" class="btn btn-dark btn-lg px-5 mb-4"><i class="bi bi-people-fill"></i> View
                Directory</a>
          </div>
@@ -315,7 +327,7 @@
    <div class="p-3 p-md-5 m-md-3 bg-light">
       <div class="container">
          <div class="row">
-            <div class="col-md-6 p-3">
+            <div class="col-md-6 p-3" data-aos="fade-right" data-aos-duration="1000" data-aos-delay="200">
          <h2 class="display-5 fw-bold">Get in Touch</h2>
                <p class="lead">Have questions or want to get involved? Reach out to us!</p>
                <div class="mt-5">
@@ -325,7 +337,7 @@
                      Headquarters:<br><br>2644 Clifford St,<br>Alvin, TX, 77511</h5>
                </div>
             </div>
-            <div class="col-md-6 p-3">
+            <div class="col-md-6 p-3" data-aos="fade-left" data-aos-duration="1000" data-aos-delay="200">
                <form action="https://formspree.io/f/myzjdqab" method="POST">
                   <div class="mb-3">
                      <label for="name" class="form-label">Your Name</label>

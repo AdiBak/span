@@ -116,7 +116,7 @@ async function renderBillsPage(page) {
 
     return `
       <div class="col-md-3">
-        <div class="card impact-card h-100 shadow-sm position-relative overflow-hidden">
+        <div class="animate__animated animate__fadeIn card impact-card h-100 shadow-sm position-relative overflow-hidden">
           <div class="card-body position-relative">
             <h5 class="card-title">
               <span>${bill.state} ${bill.name}</span>
@@ -218,8 +218,14 @@ let currentFilter = "All";
 let currentSearch = "";
 
 async function applyFilters() {
-  const searchLower = currentSearch.toLowerCase();
+  const spinner = document.getElementById("loadingSpinner");
+  const container = document.getElementById("billContainer");
 
+  // Show spinner, hide bills
+  if (spinner) spinner.style.display = "block";
+  if (container) container.style.display = "none";
+
+  const searchLower = currentSearch.toLowerCase();
   const matchMap = {
     "Support": SUPPORT,
     "Support If Amended": SUPPORT_AMENDED,
@@ -234,51 +240,52 @@ async function applyFilters() {
     });
     currentPage = 1;
     await renderBillsPage(currentPage);
-    return;
-  }
+  } else {
+    const directMatches = bills.filter(bill => {
+      return (
+        bill.name.toLowerCase().includes(searchLower) ||
+        bill.description.toLowerCase().includes(searchLower) ||
+        bill.state.toLowerCase().includes(searchLower)
+      );
+    });
 
-  // Direct text matches
-  const directMatches = bills.filter(bill => {
-    return (
-      bill.name.toLowerCase().includes(searchLower) ||
-      bill.description.toLowerCase().includes(searchLower) ||
-      bill.state.toLowerCase().includes(searchLower)
-    );
-  });
+    const pdfSearchBills = bills.filter(bill => {
+      return !(
+        bill.name.toLowerCase().includes(searchLower) ||
+        bill.description.toLowerCase().includes(searchLower) ||
+        bill.state.toLowerCase().includes(searchLower)
+      );
+    });
 
-  const pdfSearchBills = bills.filter(bill => {
-    return !(
-      bill.name.toLowerCase().includes(searchLower) ||
-      bill.description.toLowerCase().includes(searchLower) ||
-      bill.state.toLowerCase().includes(searchLower)
-    );
-  });
+    let filteredDirect = directMatches.filter(bill => {
+      if (currentFilter === "All") return true;
+      return bill.position === matchMap[currentFilter];
+    });
 
-  let filteredDirect = directMatches.filter(bill => {
-    if (currentFilter === "All") return true;
-    return bill.position === matchMap[currentFilter];
-  });
+    const filteredPdf = [];
+    for (const bill of pdfSearchBills) {
+      if (currentFilter !== "All" && bill.position !== matchMap[currentFilter]) continue;
+      const pdfUrl = `/assets/proposals/${bill.state}/${bill.name}.pdf`;
+      const pdfText = await getPdfText(pdfUrl);
+      const pdfTextClean = pdfText
+        .replace(new RegExp(`\\b${bill.state}\\b`, "gi"), "")
+        .replace(new RegExp(`\\b${bill.name}\\b`, "gi"), "");
 
-  const filteredPdf = [];
-  for (const bill of pdfSearchBills) {
-    if (currentFilter !== "All" && bill.position !== matchMap[currentFilter]) continue;
-
-    const pdfUrl = `/assets/proposals/${bill.state}/${bill.name}.pdf`;
-    const pdfText = await getPdfText(pdfUrl);
-
-    let pdfTextClean = pdfText
-      .replace(new RegExp(`\\b${bill.state}\\b`, "gi"), "")
-      .replace(new RegExp(`\\b${bill.name}\\b`, "gi"), "");
-
-    if (pdfTextClean.toLowerCase().includes(searchLower)) {
-      filteredPdf.push(bill);
+      if (pdfTextClean.toLowerCase().includes(searchLower)) {
+        filteredPdf.push(bill);
+      }
     }
+
+    filteredBills = [...filteredDirect, ...filteredPdf];
+    currentPage = 1;
+    await renderBillsPage(currentPage);
   }
 
-  filteredBills = [...filteredDirect, ...filteredPdf];
-  currentPage = 1;
-  await renderBillsPage(currentPage);
+  // Hide spinner, show bills
+  if (spinner) spinner.style.display = "none";
+  if (container) container.style.display = "flex"; // assuming it's a Bootstrap row
 }
+
 
 const filterButtons = document.querySelectorAll(".filter-btn");
 filterButtons.forEach(btn => {

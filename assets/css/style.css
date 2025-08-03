@@ -89,3 +89,11 @@
 .subpage-hero h1, .subpage-hero p {
    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
 }
+
+#regions_div {
+  transition: transform 0.3s ease-in-out;
+}
+
+#regions_div:hover {
+  transform: scale(1.01);
+}

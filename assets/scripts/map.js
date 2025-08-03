@@ -11,8 +11,8 @@ function drawRegionsMap() {
 
   const dataArray = [['State', 'HasBill', { role: 'tooltip' }]];
   for (const [state, count] of Object.entries(stateCounts)) {
-    const billText = count === 1 ? '1 bill impacted' : `${count} bills impacted`;
-    dataArray.push([state, 1, billText]);
+    const tooltip = count === 1 ? '1 bill impacted' : `${count} bills impacted`;
+    dataArray.push([state, 1, tooltip]);
   }
 
   const data = google.visualization.arrayToDataTable(dataArray);
@@ -22,16 +22,18 @@ function drawRegionsMap() {
     displayMode: 'regions',
     resolution: 'provinces',
     backgroundColor: 'transparent',
-    defaultColor: '#f8f9fa',
-    datalessRegionColor: '#f8f9fa',
+    defaultColor: '#e9ecef', // Bootstrap light gray
+    datalessRegionColor: '#f8f9fa', // Soft fallback color
     colorAxis: {
       values: [0, 1],
-      colors: ['#f8f9fa', '#003049'], // light → Bootstrap navy
+      colors: ['#f8f9fa', '#003049'], // match SPAN brand navy
     },
     tooltip: {
       isHtml: false,
       textStyle: {
-        fontName: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+        fontName: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+        fontSize: 14,
+        color: '#212529'
       }
     },
     legend: 'none',
@@ -41,40 +43,29 @@ function drawRegionsMap() {
   const chart = new google.visualization.GeoChart(chartDiv);
   chart.draw(data, options);
 
-  // Track if currently hovering over a valid state with bills
-  let hoveringValidState = false;
-
+  // Interactivity — cursor change + click behavior
   google.visualization.events.addListener(chart, 'regionMouseOver', (event) => {
-    const hoveredRegion = event.region;
-    const hasBills = Object.keys(stateCounts).some(state => getStateCode(state) === hoveredRegion);
-    if (hasBills) {
-      chartDiv.style.cursor = 'pointer';
-      hoveringValidState = true;
-    } else {
-      chartDiv.style.cursor = 'default';
-      hoveringValidState = false;
-    }
+    const regionCode = event.region;
+    const hasBills = Object.keys(stateCounts).some(state => getStateCode(state) === regionCode);
+    chartDiv.style.cursor = hasBills ? 'pointer' : 'default';
   });
 
   google.visualization.events.addListener(chart, 'regionMouseOut', () => {
-    if (hoveringValidState) {
-      chartDiv.style.cursor = 'default';
-      hoveringValidState = false;
-    }
+    chartDiv.style.cursor = 'default';
   });
 
   google.visualization.events.addListener(chart, 'regionClick', (event) => {
-    const clickedRegion = event.region;
-    const matchedState = Object.keys(stateCounts).find(state => getStateCode(state) === clickedRegion);
+    const regionCode = event.region;
+    const matchedState = Object.keys(stateCounts).find(state => getStateCode(state) === regionCode);
     if (matchedState) {
-      const encodedState = encodeURIComponent(matchedState);
-      window.location.href = `/bills.html?search=${encodedState}`;
+      const encoded = encodeURIComponent(matchedState);
+      window.location.href = `/bills.html?search=${encoded}`;
     }
   });
 }
 
 function getStateCode(stateName) {
-  const map = {
+  const states = {
     'Alabama': 'US-AL', 'Alaska': 'US-AK', 'Arizona': 'US-AZ', 'Arkansas': 'US-AR',
     'California': 'US-CA', 'Colorado': 'US-CO', 'Connecticut': 'US-CT', 'Delaware': 'US-DE',
     'Florida': 'US-FL', 'Georgia': 'US-GA', 'Hawaii': 'US-HI', 'Idaho': 'US-ID',
@@ -89,7 +80,7 @@ function getStateCode(stateName) {
     'Vermont': 'US-VT', 'Virginia': 'US-VA', 'Washington': 'US-WA', 'West Virginia': 'US-WV',
     'Wisconsin': 'US-WI', 'Wyoming': 'US-WY', 'District of Columbia': 'US-DC'
   };
-  return map[stateName];
+  return states[stateName];
 }
 
 window.addEventListener('resize', drawRegionsMap);

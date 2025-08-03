@@ -9,7 +9,7 @@ let teamContainerHTML = "";
 members.forEach((member, index) => {
   teamContainerHTML += `
     <div class="col-md-4 col-lg-3">
-      <div class="card h-100 border-0 shadow-sm text-center">
+      <div class="impact-card card h-100 border-0 shadow-sm text-center">
         <img src="/assets/images/team/${member.image}" class="card-img-top rounded-circle w-75 mx-auto mt-4" alt="${member.firstName} ${member.lastName}">
         <div class="card-body d-flex flex-column justify-content-between">
           <div>

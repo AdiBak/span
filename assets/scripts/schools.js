@@ -1,4 +1,8 @@
-import { schools } from "/assets/data/schools.js";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+const SUPABASE_URL = "https://qujzohvrbfsouakzocps.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1anpvaHZyYmZzb3Vha3pvY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNjQ2NzUsImV4cCI6MjA2OTk0MDY3NX0.Yl-vCGhkx4V_3HARGp2bwR-auSuZksP_77xgUoJop1k";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 function handleSchoolClick(schoolName) {
   if (window.location.pathname.includes("directory.html")) {
@@ -13,16 +17,23 @@ function handleSchoolClick(schoolName) {
   }
 }
 
-function renderSchoolCarousel() {
+async function renderSchoolCarousel() {
   const carousel = document.getElementById("schoolCarousel");
   if (!carousel) return;
 
-  const sortedSchools = [...schools];
+  // Fetch school data from Supabase
+  const { data: schools, error } = await supabase
+    .from("schools")
+    .select("school_name, school_image");
 
-  // Sort schools alphabetically by name
-  // const sortedSchools = [...schools].sort((a, b) =>
-  //   a.school.localeCompare(b.school)
-  // );
+  if (error) {
+    console.error("Failed to fetch schools from Supabase:", error);
+    return;
+  }
+
+  const sortedSchools = [...schools].sort((a, b) =>
+    a.school_name.localeCompare(b.school_name)
+  );
 
   const repeatCount = 4;
   let html = "";
@@ -31,12 +42,12 @@ function renderSchoolCarousel() {
     for (const school of sortedSchools) {
       html += `
         <div class="school-logo-item">
-          <img src="/assets/images/schools/${school.image}"
-               alt="${school.school}"
+          <img src="https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/schools-images/${school.school_image}"
+               alt="${school.school_name}"
                class="school-logo"
-               title="View ${school.school} members"
+               title="View ${school.school_name} members"
                loading="lazy"
-               data-school="${school.school}"
+               data-school="${school.school_name}"
                tabindex="0">
         </div>
       `;

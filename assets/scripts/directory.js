@@ -25,32 +25,53 @@ document.addEventListener("DOMContentLoaded", async () => {
   const container = document.getElementById("directoryContainer");
   if (!container) return;
 
+  // Add loading spinner
+  const spinner = document.createElement("div");
+  spinner.id = "loadingSpinner";
+  spinner.className = "text-center my-5";
+  spinner.innerHTML = `
+             <div role="status" id="loadingSpinner" class="text-center my-5">
+  <div class="spinner-border text-secondary" role="status" style="width: 3rem; height: 3rem;">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+  <p class="mt-2 text-muted">Loading results…</p>
+</div>
+  `;
+  container.appendChild(spinner);
+
   const ITEMS_PER_PAGE = 10;
   let currentPage = 1;
   let filterText = "";
   let currentSortKey = "name";
   let sortAsc = true;
+  let membersData = [];
 
-  const { data, error } = await supabase
-    .from("members")
-    .select("*")
-    .eq("active", true);
+  try {
+    const { data, error } = await supabase
+      .from("members")
+      .select("*")
+      .eq("active", true);
 
-  if (error || !data) {
+    if (error) throw error;
+    
+    membersData = data.map(m => ({
+      name: `${m.first_name} ${m.last_name}`,
+      school: m.school_name || "",
+      location: m.city && m.state ? `${m.city}, ${m.state}` : "",
+      city: m.city || "",
+      state: m.state || "",
+      email: m.email || "",
+      role: m.role || "",
+      image: m.image || "default.jpg"
+    }));
+
+    // Remove spinner after data is loaded
+    spinner.remove();
+  } catch (error) {
+    spinner.remove();
     container.innerHTML = `<div class="alert alert-danger">Failed to load member data.</div>`;
     return;
   }
-
-  const membersData = data.map(m => ({
-    name: `${m.first_name} ${m.last_name}`,
-    school: m.school_name || "",
-    location: m.city && m.state ? `${m.city}, ${m.state}` : "",
-    city: m.city || "",
-    state: m.state || "",
-    email: m.email || "",
-    role: m.role || "",
-    image: m.image || "default.jpg"
-  }));
 
   const searchContainer = document.createElement("div");
   searchContainer.className = "d-flex justify-content-end mb-3";
@@ -65,7 +86,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   searchContainer.appendChild(filterInput);
 
   const responsiveWrapper = document.createElement("div");
-  responsiveWrapper.className = "table-responsive";
+  responsiveWrapper.className = "table-responsive animate__animated animate__fadeIn";
   container.appendChild(responsiveWrapper);
 
   const table = document.createElement("table");

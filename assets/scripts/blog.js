@@ -49,9 +49,9 @@ function generateCardHtml(item, isFeatured) {
   const lowerContent = item.content.toLowerCase();
 
   if (lowerContent.includes("ashita virani")) {
-    authorName = `<a class='text-muted' style='text-decoration: none;' href='/directory.html?search=Ashita+Virani'><img style='border-radius: 50%;' src='/assets/images/team/ashita-virani.jpg' height='16px'> Ashita Virani</a>`;
+    authorName = `<a class='text-muted' style='text-decoration: none;' href='/directory.html?search=Ashita+Virani'><img style='border-radius: 50%;' src='https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/ashita-virani.jpg' height='16px'> Ashita Virani</a>`;
   } else if (lowerContent.includes("arnav goyal")) {
-    authorName = `<a class='text-muted' style='text-decoration: none;' href='/directory.html?search=Arnav+Goyal'><img style='border-radius: 50%;' src='/assets/images/team/arnav-goyal.jpg' height='16px'> Arnav Goyal</a>`;
+    authorName = `<a class='text-muted' style='text-decoration: none;' href='/directory.html?search=Arnav+Goyal'><img style='border-radius: 50%;' src='https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/arnav-goyal.jpg' height='16px'> Arnav Goyal</a>`;
   }
 
   return `

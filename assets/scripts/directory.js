@@ -1,4 +1,9 @@
-import { members } from "/assets/data/directory.js";
+// Load Supabase client
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+const SUPABASE_URL = "https://qujzohvrbfsouakzocps.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1anpvaHZyYmZzb3Vha3pvY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNjQ2NzUsImV4cCI6MjA2OTk0MDY3NX0.Yl-vCGhkx4V_3HARGp2bwR-auSuZksP_77xgUoJop1k";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const stateAbbrToFullName = {
   AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas",
@@ -16,7 +21,7 @@ const stateAbbrToFullName = {
   WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia"
 };
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const container = document.getElementById("directoryContainer");
   if (!container) return;
 
@@ -26,15 +31,25 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentSortKey = "name";
   let sortAsc = true;
 
-  const membersData = members.filter(m => m.active).map(m => ({
-    name: `${m.firstName} ${m.lastName}`,
-    school: m.school || "",
-    location: m.city && m.state ? `${m.city}, ${m.state}` : (m.location || ""),
+  const { data, error } = await supabase
+    .from("members")
+    .select("*")
+    .eq("active", true);
+
+  if (error || !data) {
+    container.innerHTML = `<div class="alert alert-danger">Failed to load member data.</div>`;
+    return;
+  }
+
+  const membersData = data.map(m => ({
+    name: `${m.first_name} ${m.last_name}`,
+    school: m.school_name || "",
+    location: m.city && m.state ? `${m.city}, ${m.state}` : "",
     city: m.city || "",
     state: m.state || "",
     email: m.email || "",
-    role: m.position || "",
-    image: m.image || "default.png"
+    role: m.role || "",
+    image: m.image || "default.jpg"
   }));
 
   const searchContainer = document.createElement("div");
@@ -159,7 +174,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const nameWrap = document.createElement("div");
       nameWrap.className = "d-flex align-items-center gap-2";
       const img = document.createElement("img");
-      img.src = `/assets/images/team/${member.image}`;
+      img.src = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images//${member.image}`;
       img.style.width = img.style.height = "32px";
       img.style.borderRadius = "50%";
       img.style.objectFit = "cover";

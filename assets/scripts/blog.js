@@ -1,5 +1,4 @@
-const rssFeedUrl = "";
-// const rssFeedUrl = "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Frss.app%2Ffeeds%2FLHabasf5wvz3Xm9Q.xml";
+const rssFeedUrl = "https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fmedium.com%2Ffeed%2F%40spanationwide";
 const ITEMS_PER_PAGE = 5; // Show 1 featured + 5 normal per page
 let currentPage = 1;
 let blogData = [];
@@ -25,16 +24,34 @@ function renderBlogs() {
 }
 
 function generateCardHtml(item, isFeatured) {
+  // Extract image
   const imgMatch = item.description.match(/<img[^>]+src="([^">]+)"/);
   const image = imgMatch ? imgMatch[1] : "https://via.placeholder.com/600x338?text=No+Image";
 
+  // Format date to America/New_York timezone
+  const estDate = new Date(item.pubDate.replace(' ', 'T') + 'Z');
+  const formattedDate = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  }).format(estDate);
+
+  // Clean content: remove <figcaption> and HTML tags
+  const cleanContent = item.content
+    .replace(/<figcaption>.*?<\/figcaption>/gs, '') // Remove figcaptions
+    .replace(/<[^>]*>?/gm, '') // Remove all HTML tags
+    .trim()
+    .slice(0, 150) + "…";
+
+  // Detect author
   let authorName = "<a class='text-muted' style='text-decoration: none;' href='/index.html'>SPAN</a>";
-  const authorMatch = item.content.match(/Author:\s*(.+?)</i);
-  if (authorMatch) authorName = authorMatch[1].trim();
-  else if (item.title.toLowerCase().includes("arnav")) {
-    authorName = `<a class='text-muted' style='text-decoration: none;' href='/directory.html?search=Arnav+Goyal'><img style='border-radius: 50%;' src='/assets/images/team/arnav-goyal.jpg' height='16px'> Arnav Goyal</a>`;
-  } else if (item.title.toLowerCase().includes("ashita")) {
+  const lowerContent = item.content.toLowerCase();
+
+  if (lowerContent.includes("ashita virani")) {
     authorName = `<a class='text-muted' style='text-decoration: none;' href='/directory.html?search=Ashita+Virani'><img style='border-radius: 50%;' src='/assets/images/team/ashita-virani.jpg' height='16px'> Ashita Virani</a>`;
+  } else if (lowerContent.includes("arnav goyal")) {
+    authorName = `<a class='text-muted' style='text-decoration: none;' href='/directory.html?search=Arnav+Goyal'><img style='border-radius: 50%;' src='/assets/images/team/arnav-goyal.jpg' height='16px'> Arnav Goyal</a>`;
   }
 
   return `
@@ -44,13 +61,9 @@ function generateCardHtml(item, isFeatured) {
         <div class="card-body d-flex flex-column">
           <h5 class="card-title">${item.title}</h5>
           <p class="card-text text-muted mb-2">
-            <small>${new Date(item.pubDate).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric"
-  })} · ${authorName}</small>
+            <small>${formattedDate} · ${authorName}</small>
           </p>
-          <p class="card-text">${item.content.replace(/<[^>]*>?/gm, '').slice(0, 150)}…</p>
+          <p class="card-text">${cleanContent}</p>
           <a href="${item.link}" target="_blank" class="btn btn-dark mt-auto">Read More</a>
         </div>
       </div>
@@ -97,10 +110,11 @@ function renderPagination() {
   paginationContainer.appendChild(nav);
 }
 
+// Fetch and render blogs
 fetch(rssFeedUrl)
   .then(res => res.json())
   .then(data => {
-    blogData = data.items.filter(item => item.link.includes("/pulse/"));
+    blogData = data.items;
     if (!blogData.length) {
       document.getElementById("blog-section").innerHTML =
         "<p>No blog posts available at this time.</p>";

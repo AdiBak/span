@@ -177,7 +177,6 @@ export var members = [{
 //    image: "vahin-dubey.jpg",
 //    notes: "Find a role (7/29/25)"
 // },
-
 {
    firstName: "Peyton",
    lastName: "Hoang",
@@ -186,7 +185,7 @@ export var members = [{
    active: true,
    startDate: new Date("2025-08-01"),
    DOB: new Date("2008-06-18"),
-   school: "Friendswood Highschool",
+   school: "Friendswood High School",
    city: "Houston",
    state: "TX",
    email: "peytonhoang9@gmail.com",
@@ -196,5 +195,4 @@ export var members = [{
    image: "peyton-hoang.jpg",
    notes: ""
 },
-
-];
+]; 

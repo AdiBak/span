@@ -5,18 +5,16 @@
    <meta charset="UTF-8">
    <meta name="viewport" content="width=device-width, initial-scale=1.0">
    <title>Bills | SPAN - Students for Patient Advocacy Nationwide</title>
-   <!-- Google Tag Manager -->
+
+   <!-- Google Tag Manager (kept async) -->
    <script async src="https://www.googletagmanager.com/gtag/js?id=G-7QY6SHLJDL"></script>
    <script>
       window.dataLayer = window.dataLayer || [];
-
-      function gtag() {
-         dataLayer.push(arguments);
-      }
+      function gtag() { dataLayer.push(arguments); }
       gtag('js', new Date());
       gtag('config', 'G-7QY6SHLJDL');
    </script>
-   <!-- End Google Tag Manager -->
+
    <!-- SEO -->
    <link rel="sitemap" type="application/xml" title="Sitemap" href="https://spanationwide/sitemap.xml" />
    <script type="application/ld+json">
@@ -32,38 +30,31 @@
          ]
       }
    </script>
-   <!-- CDN -->
-   <link href="/assets/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+
+   <!-- Styles (kept both CSS files; no duplicates) -->
+   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-   <script src="/assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+   <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
-      <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
-   <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.9.179/pdf.min.js"></script>
-   <link href="assets/css/style.css" rel="stylesheet">
-   <!-- End CDN -->
-   <link rel="icon" type="image/svg+xml" href="assets/images/index/logo-icon-dark.ico"
-      media="(prefers-color-scheme: light)">
-   <link rel="icon" type="image/svg+xml" href="assets/images/index/logo-icon-light.ico"
-      media="(prefers-color-scheme: dark)">
-   <link rel="stylesheet" href="/assets/css/style.css">
-   <link rel="canonical" href="https://spanationwide.org/bills">
+   <link href="/assets/css/style.css" rel="stylesheet">
+
+   <!-- Favicon & canonical + social tags -->
+   <link rel="icon" type="image/svg+xml" href="assets/images/index/logo-icon-dark.ico" media="(prefers-color-scheme: light)">
+   <link rel="icon" type="image/svg+xml" href="assets/images/index/logo-icon-light.ico" media="(prefers-color-scheme: dark)">
+   <link rel="canonical" href="https://spanationwide.org">
    <meta name="robots" content="index, follow">
-   <!-- OpenGraph Meta Tags -->
    <meta property="og:type" content="website">
    <meta property="og:title" content="Bills | SPAN - Students for Patient Advocacy Nationwide">
    <meta property="og:description" content="Tracking our advocacy efforts across state and federal policy.">
    <meta property="og:image" content="/assets/images/index/preview.jpg">
    <meta property="og:url" content="https://spanationwide.org">
    <meta property="og:site_name" content="SPAN">
-   <!-- End OpenGraph Meta Tags -->
-   <!-- Twitter Meta Tags -->
    <meta name="twitter:title" content="Bills | SPAN - Students for Patient Advocacy Nationwide">
    <meta name="twitter:description" content="Tracking our advocacy efforts across state and federal policy.">
    <meta name="twitter:image" content="/assets/images/index/preview.jpg">
    <meta name="twitter:site" content="@spanationwide">
    <meta name="twitter:creator" content="@spanationwide">
-   <!-- End Twitter Meta Tags -->
+
 </head>
 
 <body>
@@ -121,17 +112,20 @@
 
    <footer id="footerContainer" class="footer text-white py-5"></footer>
 
-   <!-- Scripts (deferred) -->
-   <script defer src="/assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+   <!-- SCRIPTS - defer so parsing isn't blocked. Keep order important: bootstrap -> navbar -> module app scripts -> footer -->
+   <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
    <script defer src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
    <script defer src="/assets/scripts/navbar.js"></script>
    <script defer type="module" src="/assets/scripts/bills.js"></script>
    <script defer src="/assets/scripts/footer.js"></script>
-   
-   <!-- Initialize AOS -->
+
+   <!-- Initialize AOS after DOM is ready and the library has been parsed -->
    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-         if (window.AOS) AOS.init();
+      document.addEventListener('DOMContentLoaded', function () {
+         if (window.AOS && typeof AOS.init === 'function') {
+            AOS.init();
+         }
       });
    </script>
 </body>

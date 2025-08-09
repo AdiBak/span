@@ -1,46 +1,58 @@
-// Load Supabase client
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
 const SUPABASE_URL = "https://qujzohvrbfsouakzocps.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1anpvaHZyYmZzb3Vha3pvY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNjQ2NzUsImV4cCI6MjA2OTk0MDY3NX0.Yl-vCGhkx4V_3HARGp2bwR-auSuZksP_77xgUoJop1k";
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const ITEMS_PER_PAGE = 8;
+
 let bills = [];
 let filteredBills = [];
 let currentPage = 1;
 let currentFilter = "All";
 let currentSearch = "";
 
-function formatMonthYearUTC(dateStr) {
-  const date = new Date(dateStr);
-  const months = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
-  return `${months[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+// Cache DOM elements once
+const container = document.getElementById("billContainer");
+const resultsCount = document.getElementById("resultsCount");
+const paginationContainer = document.getElementById("paginationContainer");
+const proposalsElem = document.getElementById("proposals");
+const statesElem = document.getElementById("statesTargeted");
+const spinner = document.getElementById("loadingSpinner");
+const searchInput = document.getElementById("billSearch");
+
+// Month names constant outside function
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
+function formatMonthYearUTC(date) {
+  // date is Date object here, not string
+  return `${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
 
 function getPositionBadge(position) {
-  switch (position) {
-    case "Support":
-      return `<span class="badge bg-success mb-2">Support</span>`;
-    case "Oppose":
-      return `<span class="badge bg-danger mb-2">Oppose</span>`;
-    case "Support If Amended":
-      return `<span class="badge bg-warning text-dark mb-2">Support If Amended</span>`;
-    case "Oppose Unless Amended":
-      return `<span class="badge bg-warning text-dark mb-2">Oppose Unless Amended</span>`;
-    default:
-      return `<span class="badge bg-secondary mb-2">${position}</span>`;
-  }
+  const badgeClasses = {
+    "Support": "bg-success",
+    "Oppose": "bg-danger",
+    "Support If Amended": "bg-warning text-dark",
+    "Oppose Unless Amended": "bg-warning text-dark",
+  };
+  const cls = badgeClasses[position] || "bg-secondary";
+  return `<span class="badge ${cls} mb-2">${position}</span>`;
 }
 
+const pdfExistenceCache = new Map();
 async function pdfExists(url) {
+  if (pdfExistenceCache.has(url)) return pdfExistenceCache.get(url);
   try {
-    const response = await fetch(url, { method: "HEAD" });
-    return response.ok;
+    const res = await fetch(url, { method: "HEAD" });
+    pdfExistenceCache.set(url, res.ok);
+    return res.ok;
   } catch {
+    pdfExistenceCache.set(url, false);
     return false;
   }
 }
@@ -51,22 +63,15 @@ async function fetchBills() {
     console.error("Failed to load bills:", error);
     return;
   }
-
-  bills = data.map(b => ({
-    ...b,
-    bill_date: new Date(b.bill_date),
-  }));
-
+  bills = data.map(b => ({ ...b, bill_date: new Date(b.bill_date) }));
   bills.sort((a, b) => b.bill_date - a.bill_date);
   filteredBills = [...bills];
 }
 
 async function renderBillsPage(page) {
-  const container = document.getElementById("billContainer");
-  const resultsCount = document.getElementById("resultsCount");
   if (!container) return;
-
   container.innerHTML = "";
+
   const start = (page - 1) * ITEMS_PER_PAGE;
   const billsToShow = filteredBills.slice(start, start + ITEMS_PER_PAGE);
 
@@ -85,11 +90,14 @@ async function renderBillsPage(page) {
     return;
   }
 
-  const cardsHtml = await Promise.all(billsToShow.map(async bill => {
-    const formattedDate = formatMonthYearUTC(bill.bill_date);
+  // Fetch all PDF checks concurrently but cached
+  const pdfChecks = await Promise.all(billsToShow.map(bill => {
     const pdfPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${bill.state}/${bill.name}.pdf`;
-    const hasPdf = await pdfExists(pdfPath);
+    return pdfExists(pdfPath).then(exists => ({ bill, pdfPath, exists }));
+  }));
 
+  container.innerHTML = pdfChecks.map(({ bill, pdfPath, exists }) => {
+    const formattedDate = formatMonthYearUTC(bill.bill_date);
     return `
       <div class="col-md-3">
         <div class="animate__animated animate__fadeIn card impact-card h-100 shadow-sm position-relative overflow-hidden">
@@ -98,7 +106,7 @@ async function renderBillsPage(page) {
             ${getPositionBadge(bill.position)}
             <p class="card-text">${bill.description}</p>
             <p class="text-muted small">${formattedDate}</p>
-            ${hasPdf ? `<a href="${pdfPath}" class="btn btn-outline-dark btn-sm" target="_blank" rel="noopener">
+            ${exists ? `<a href="${pdfPath}" class="btn btn-outline-dark btn-sm" target="_blank" rel="noopener">
               <i class="bi bi-file-pdf"></i> Download Proposal
             </a>` : ""}
             <a href="${bill.legiscan_link}" target="_blank" rel="noopener" aria-label="View full bill on LegiScan"
@@ -109,30 +117,30 @@ async function renderBillsPage(page) {
           </div>
         </div>
       </div>`;
-  }));
+  }).join("");
 
-  container.innerHTML = cardsHtml.join("");
-
-  const proposalsElem = document.getElementById("proposals");
   if (proposalsElem) proposalsElem.textContent = bills.length;
-
-  const statesElem = document.getElementById("statesTargeted");
   if (statesElem) statesElem.textContent = new Set(bills.map(b => b.state)).size;
 
   renderPagination();
 }
 
 function renderPagination() {
-  const container = document.getElementById("paginationContainer");
-  if (!container) return;
+  if (!paginationContainer) return;
 
   const totalPages = Math.ceil(filteredBills.length / ITEMS_PER_PAGE);
-  if (!filteredBills.length || totalPages <= 1) {
-    container.innerHTML = "";
+  if (filteredBills.length === 0 || totalPages <= 1) {
+    paginationContainer.innerHTML = "";
     return;
   }
 
+  const pageLink = i => `
+    <li class="page-item ${i === currentPage ? "active" : ""}">
+      <a class="page-link" href="#" data-page="${i}">${i}</a>
+    </li>`;
+
   let html = `<nav><ul class="pagination justify-content-center">`;
+
   html += `<li class="page-item ${currentPage === 1 ? "disabled" : ""}">
     <a class="page-link" href="#" data-page="${currentPage - 1}" aria-label="Previous">&laquo;</a></li>`;
 
@@ -142,45 +150,43 @@ function renderPagination() {
   } else {
     html += pageLink(1);
     if (currentPage > 4) html += `<li class="page-item disabled"><span class="page-link">…</span></li>`;
+
     const start = Math.max(2, currentPage - 2);
     const end = Math.min(totalPages - 1, currentPage + 2);
+
     for (let i = start; i <= end; i++) html += pageLink(i);
+
     if (currentPage < totalPages - 3) html += `<li class="page-item disabled"><span class="page-link">…</span></li>`;
     html += pageLink(totalPages);
   }
 
   html += `<li class="page-item ${currentPage === totalPages ? "disabled" : ""}">
     <a class="page-link" href="#" data-page="${currentPage + 1}" aria-label="Next">&raquo;</a></li>`;
-  html += `</ul></nav>`;
-  container.innerHTML = html;
 
-  container.querySelectorAll("a.page-link").forEach(link => {
+  html += `</ul></nav>`;
+  paginationContainer.innerHTML = html;
+
+  paginationContainer.querySelectorAll("a.page-link").forEach(link => {
     link.addEventListener("click", async e => {
       e.preventDefault();
-      const p = Number(link.getAttribute("data-page"));
-      if (p >= 1 && p <= totalPages) {
+      const p = Number(link.dataset.page);
+      if (p >= 1 && p <= totalPages && p !== currentPage) {
         currentPage = p;
         await renderBillsPage(p);
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     });
   });
-
-  function pageLink(i) {
-    return `<li class="page-item ${i === currentPage ? "active" : ""}">
-      <a class="page-link" href="#" data-page="${i}">${i}</a></li>`;
-  }
 }
 
 async function applyFilters() {
-  const spinner = document.getElementById("loadingSpinner");
-  const container = document.getElementById("billContainer");
   if (spinner) spinner.style.display = "block";
   if (container) container.style.display = "none";
 
   const searchLower = currentSearch.toLowerCase();
+
   filteredBills = bills.filter(b => {
-    const matchesSearch =
+    const matchesSearch = 
       b.name.toLowerCase().includes(searchLower) ||
       b.description.toLowerCase().includes(searchLower) ||
       b.state.toLowerCase().includes(searchLower);
@@ -197,9 +203,16 @@ async function applyFilters() {
   if (container) container.style.display = "flex";
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  const searchInput = document.getElementById("billSearch");
+// Debounce helper for search input to reduce rapid calls
+function debounce(fn, delay = 300) {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => fn(...args), delay);
+  };
+}
 
+document.addEventListener("DOMContentLoaded", async () => {
   document.querySelectorAll(".filter-btn").forEach(btn => {
     btn.addEventListener("click", async () => {
       document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
@@ -210,10 +223,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   if (searchInput) {
-    searchInput.addEventListener("input", async e => {
+    searchInput.addEventListener("input", debounce(async e => {
       currentSearch = e.target.value.trim();
       await applyFilters();
-    });
+    }, 250));
   }
 
   const urlParams = new URLSearchParams(window.location.search);

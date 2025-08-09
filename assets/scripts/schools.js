@@ -31,9 +31,8 @@ async function renderSchoolCarousel() {
     return;
   }
 
-  const sortedSchools = [...schools].sort((a, b) =>
-    a.school_name.localeCompare(b.school_name)
-  );
+  const sortedSchools = [...schools].sort((a, b) => a.display_order - b.display_order);
+
 
   const repeatCount = 4;
   let html = "";

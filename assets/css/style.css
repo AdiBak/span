@@ -1,9 +1,6 @@
-.grow { 
-  transition: all .2s ease-in-out; 
-}
-.grow:hover { 
-  transform: scale(1.1); 
-}
+.grow { transition: all .2s ease-in-out; }
+.grow:hover { transform: scale(1.1); }
+
 .impact-card {
   position: relative;
   overflow: hidden;
@@ -13,6 +10,7 @@
   transform: translateY(-5px);
   box-shadow: 0 10px 20px rgba(0,0,0,0.1);
 }
+
 .navbar, .footer {
   background-color: #003049;
 }
@@ -96,4 +94,9 @@
 
 #regions_div:hover {
   transform: scale(1.01);
+}
+
+@keyframes scrollLinear {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
 }

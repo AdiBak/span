@@ -70,31 +70,37 @@
 </head>
 
 <body>
-         <script>
-      AOS.init();
-   </script>
-   <nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top">
-   </nav>
-<section class="subpage-hero d-flex align-items-center text-white text-center position-relative">
-   <div class="parallax-bg"></div>
-   <div class="container position-relative z-1">
-      <h1 class="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Directory</h1>
-      <p class="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-         All of our student advocates.
-      </p>
-   </div>
-</section>
-   <div class="p-3 p-md-5 m-md-3 bg-light">
-      <div id="directoryContainer" class="py-3">
+      <nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top"></nav>
 
+   <section class="subpage-hero d-flex align-items-center text-white text-center position-relative">
+      <div class="parallax-bg" aria-hidden="true"></div>
+      <div class="container position-relative z-1">
+         <h1 class="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Directory</h1>
+         <p class="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
+            Meet our network of student advocates across the nation.
+         </p>
       </div>
-   </div>
-   </div>
-   <footer id="footerContainer" class="footer text-white py-5">
-   </footer>
+   </section>
+
+   <main class="p-3 p-md-5 m-md-3 bg-light">
+      <div id="directoryContainer" class="py-3"></div>
+   </main>
+
+   <footer id="footerContainer" class="footer text-white py-5"></footer>
+
+   <!-- Scripts (deferred) -->
+   <script defer src="/assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+   <script defer src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
    <script defer src="/assets/scripts/navbar.js"></script>
    <script defer type="module" src="/assets/scripts/directory.js"></script>
    <script defer src="/assets/scripts/footer.js"></script>
+   
+   <!-- Initialize AOS -->
+   <script>
+      document.addEventListener('DOMContentLoaded', function() {
+         if (window.AOS) AOS.init();
+      });
+   </script>
 </body>
 
 </html>

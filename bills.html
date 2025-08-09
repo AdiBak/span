@@ -67,65 +67,73 @@
 </head>
 
 <body>
-      <script>
-      AOS.init();
-   </script>
-   <nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top">
-   </nav>
-<section class="subpage-hero d-flex align-items-center text-white text-center position-relative">
-   <div class="parallax-bg"></div>
-   <div class="container position-relative z-1">
-      <h1 class="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Bills</h1>
-      <p class="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-         Tracking our advocacy efforts across state and federal policy.
-      </p>
-   </div>
-</section>
+     <nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top"></nav>
 
-   <div class="p-3 p-md-5 m-md-3 bg-light">
+   <section class="subpage-hero d-flex align-items-center text-white text-center position-relative">
+      <div class="parallax-bg" aria-hidden="true"></div>
+      <div class="container position-relative z-1">
+         <h1 class="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Bills</h1>
+         <p class="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
+            Tracking our advocacy efforts across state and federal policy.
+         </p>
+      </div>
+   </section>
+
+   <main class="p-3 p-md-5 m-md-3 bg-light">
       <div class="container py-5">
          <div class="row mb-4">
             <div class="col-12">
-               <div
-                  class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
+               <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
                   <!-- Filter Buttons -->
                   <div class="btn-group btn-filter-group flex-wrap" role="group">
-                     <button type="button" class="btn btn-outline-dark filter-btn active" id="filter-all"
-                        data-filter="All">All</button>
-                     <button type="button" class="btn btn-outline-dark filter-btn" id="filter-support"
-                        data-filter="Support">Support</button>
-                     <button type="button" class="btn btn-outline-dark filter-btn" id="filter-support-amended"
-                        data-filter="Support If Amended">Support If Amended</button>
-                     <button type="button" class="btn btn-outline-dark filter-btn" id="filter-oppose"
-                        data-filter="Oppose">Oppose</button>
-                     <button type="button" class="btn btn-outline-dark filter-btn" id="filter-oppose-amended"
-                        data-filter="Oppose Unless Amended">Oppose Unless Amended</button>
+                     <button type="button" class="btn btn-outline-dark filter-btn active" data-filter="All">All</button>
+                     <button type="button" class="btn btn-outline-dark filter-btn" data-filter="Support">Support</button>
+                     <button type="button" class="btn btn-outline-dark filter-btn" data-filter="Support If Amended">Support If Amended</button>
+                     <button type="button" class="btn btn-outline-dark filter-btn" data-filter="Oppose">Oppose</button>
+                     <button type="button" class="btn btn-outline-dark filter-btn" data-filter="Oppose Unless Amended">Oppose Unless Amended</button>
                   </div>
                   <!-- Search Bar -->
                   <div class="col-12 col-md-4 px-0">
-                     <input type="text" id="billSearch" class="form-control" placeholder="Search bills...">
+                     <input type="text" id="billSearch" class="form-control" placeholder="Search bills..." aria-label="Search bills">
                   </div>
                </div>
             </div>
          </div>
-         <!-- Bill Cards Container -->
+         
+         <!-- Results -->
          <p id="resultsCount" class="text-muted mb-3"></p>
-         <div id="billContainer" class="row g-4"></div>
+         
+         <!-- Loading Spinner -->
          <div id="loadingSpinner" class="text-center my-5" style="display:none;">
-  <div class="spinner-border text-secondary" role="status" style="width: 3rem; height: 3rem;">
-    <span class="visually-hidden">Loading...</span>
-  </div>
-  <p class="mt-2 text-muted">Loading results…</p>
-</div>
-
+            <div class="spinner-border text-secondary" role="status" style="width: 3rem; height: 3rem;">
+               <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading results…</p>
+         </div>
+         
+         <!-- Bill Cards Container -->
+         <div id="billContainer" class="row g-4"></div>
+         
+         <!-- Pagination -->
          <div id="paginationContainer" class="mt-4"></div>
       </div>
-   </div>
-   <footer id="footerContainer" class="footer text-white py-5">
-   </footer>
+   </main>
+
+   <footer id="footerContainer" class="footer text-white py-5"></footer>
+
+   <!-- Scripts (deferred) -->
+   <script defer src="/assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+   <script defer src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
    <script defer src="/assets/scripts/navbar.js"></script>
    <script defer type="module" src="/assets/scripts/bills.js"></script>
    <script defer src="/assets/scripts/footer.js"></script>
+   
+   <!-- Initialize AOS -->
+   <script>
+      document.addEventListener('DOMContentLoaded', function() {
+         if (window.AOS) AOS.init();
+      });
+   </script>
 </body>
 
 </html>

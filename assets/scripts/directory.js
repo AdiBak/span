@@ -1,4 +1,3 @@
-// Load Supabase client
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
 const SUPABASE_URL = "https://qujzohvrbfsouakzocps.supabase.co";
@@ -25,19 +24,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   const container = document.getElementById("directoryContainer");
   if (!container) return;
 
-  // Add loading spinner
-  const spinner = document.createElement("div");
-  spinner.id = "loadingSpinner";
-  spinner.className = "text-center my-5";
-  spinner.innerHTML = `
-             <div role="status" id="loadingSpinner" class="text-center my-5">
-  <div class="spinner-border text-secondary" role="status" style="width: 3rem; height: 3rem;">
-    <span class="visually-hidden">Loading...</span>
-  </div>
-  <p class="mt-2 text-muted">Loading results…</p>
-</div>
+  // Loading state
+  container.innerHTML = `
+    <div class="text-center my-5 py-5">
+      <div class="spinner-border text-secondary" role="status" style="width: 3rem; height: 3rem;">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-3 text-muted">Loading directory...</p>
+    </div>
   `;
-  container.appendChild(spinner);
 
   const ITEMS_PER_PAGE = 10;
   let currentPage = 1;
@@ -47,283 +42,280 @@ document.addEventListener("DOMContentLoaded", async () => {
   let membersData = [];
 
   try {
-    const { data, error } = await supabase
-      .from("members")
-      .select("*")
-      .eq("active", true);
-
+    const { data, error } = await supabase.from("members").select("*").eq("active", true);
     if (error) throw error;
-    
-    membersData = data.map(m => ({
-      name: `${m.first_name} ${m.last_name}`,
-      school: m.school_name || "",
-      location: m.city && m.state ? `${m.city}, ${m.state}` : "",
-      city: m.city || "",
-      state: m.state || "",
-      email: m.email || "",
-      role: m.role || "",
-      image: m.image || "default.jpg"
+
+    membersData = data.map(m => {
+      const firstName = (m.first_name || "").trim();
+      const lastName = (m.last_name || "").trim();
+      return {
+        firstName,
+        lastName,
+        name: (firstName || lastName) ? `${firstName} ${lastName}`.trim() : m.email || "",
+        school: m.school_name || "",
+        city: m.city || "",
+        state: m.state || "",
+        location: (m.city && m.state) ? `${m.city}, ${m.state}` : (m.city || m.state || ""),
+        email: m.email || "",
+        role: m.role || "",
+        image: m.image || "default.jpg"
+      };
+    }).sort(sortByName);
+
+    renderUI();
+  } catch (error) {
+    container.innerHTML = `
+      <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle-fill"></i> Failed to load member data. Please try again later.
+      </div>
+    `;
+    console.error("Directory load error:", error);
+  }
+
+  function sortByName(a, b) {
+    const lastA = (a.lastName || a.name.split(" ").slice(-1)[0] || "").toLowerCase();
+    const lastB = (b.lastName || b.name.split(" ").slice(-1)[0] || "").toLowerCase();
+    if (lastA === lastB) {
+      const firstA = (a.firstName || a.name.split(" ").slice(0, -1).join(" ") || "").toLowerCase();
+      const firstB = (b.firstName || b.name.split(" ").slice(0, -1).join(" ") || "").toLowerCase();
+      return firstA.localeCompare(firstB);
+    }
+    return lastA.localeCompare(lastB);
+  }
+
+  function renderUI() {
+    container.innerHTML = `
+      <div class="mb-4 d-flex justify-content-end">
+        <input type="search" id="directorySearch" class="form-control" placeholder="Search by name, school, or location..." style="max-width: 400px;">
+      </div>
+      <div class="table-responsive">
+        <table class="animate__animated animate__fadeIn table table-striped table-hover align-middle" style="min-width: 600px">
+          <thead class="bg-white text-dark">
+            <tr>
+              <th><span>Name</span> <button data-key="name" class="btn btn-sm p-0 ms-2 sort-btn"><i class="bi bi-arrow-down-up"></i></button></th>
+              <th><span>Location</span> <button data-key="location" class="btn btn-sm p-0 ms-2 sort-btn"><i class="bi bi-arrow-down-up"></i></button></th>
+              <th>Email</th>
+              <th><span>Role</span> <button data-key="role" class="btn btn-sm p-0 ms-2 sort-btn"><i class="bi bi-arrow-down-up"></i></button></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="paginationContainer" class="mt-3 d-flex justify-content-center"></div>
+    `;
+
+    const searchInput = container.querySelector("#directorySearch");
+    const tbody = container.querySelector("tbody");
+    const paginationContainer = container.querySelector("#paginationContainer");
+    const sortButtons = container.querySelectorAll(".sort-btn");
+    const sortableKeys = ["name", "location", "role"];
+
+    sortButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.key;
+        if (key && sortableKeys.includes(key)) {
+          if (currentSortKey === key) {
+            sortAsc = !sortAsc;
+          } else {
+            currentSortKey = key;
+            sortAsc = true;
+          }
+          currentPage = 1;
+          updateSortIndicators();
+          renderTable();
+        }
+      });
+    });
+
+    // Debounce function to limit render calls during typing
+    function debounce(fn, delay = 300) {
+      let timeout;
+      return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => fn(...args), delay);
+      };
+    }
+
+    searchInput.addEventListener("input", debounce(e => {
+      filterText = e.target.value.trim().toLowerCase();
+      currentPage = 1;
+      updateURL();
+      renderTable();
     }));
 
-    // Remove spinner after data is loaded
-    spinner.remove();
-  } catch (error) {
-    spinner.remove();
-    container.innerHTML = `<div class="alert alert-danger">Failed to load member data.</div>`;
-    return;
-  }
-
-  const searchContainer = document.createElement("div");
-  searchContainer.className = "d-flex justify-content-end mb-3";
-  container.appendChild(searchContainer);
-
-  const filterInput = document.createElement("input");
-  filterInput.id = "directorySearch";
-  filterInput.type = "search";
-  filterInput.placeholder = "Search members...";
-  filterInput.className = "form-control";
-  filterInput.style.maxWidth = "400px";
-  searchContainer.appendChild(filterInput);
-
-  const responsiveWrapper = document.createElement("div");
-  responsiveWrapper.className = "table-responsive animate__animated animate__fadeIn";
-  container.appendChild(responsiveWrapper);
-
-  const table = document.createElement("table");
-  table.className = "table table-striped table-hover align-middle";
-  table.style.minWidth = "600px";
-  responsiveWrapper.appendChild(table);
-
-  const paginationContainer = document.createElement("div");
-  paginationContainer.id = "paginationContainer";
-  paginationContainer.className = "mt-3 d-flex justify-content-center";
-  container.appendChild(paginationContainer);
-
-  const headers = ["Name", "Location", "Email", "Role"];
-  const keys = ["name", "location", "email", "role"];
-
-  const thead = document.createElement("thead");
-  thead.className = "bg-white text-dark";
-  const trHead = document.createElement("tr");
-  thead.appendChild(trHead);
-  table.appendChild(thead);
-
-  keys.forEach((key, i) => {
-    const th = document.createElement("th");
-    const container = document.createElement("div");
-    container.className = "d-flex align-items-center justify-content-between";
-    const label = document.createElement("span");
-    label.textContent = headers[i];
-    container.appendChild(label);
-    if (key !== "email") {
-      const btn = document.createElement("button");
-      btn.className = "btn btn-sm p-0 ms-2";
-      btn.style.background = "transparent";
-      btn.style.border = "none";
-      btn.innerHTML = `<i class="bi bi-arrow-down-up"></i>`;
-      btn.addEventListener("click", () => {
-        currentSortKey = key;
-        sortAsc = !sortAsc;
-        currentPage = 1;
-        updateSortIndicators();
-        render();
-      });
-      container.appendChild(btn);
-    }
-    th.appendChild(container);
-    trHead.appendChild(th);
-  });
-
-  const tbody = document.createElement("tbody");
-  table.appendChild(tbody);
-
-  function updateSortIndicators() {
-    thead.querySelectorAll("th").forEach((th, i) => {
-      const key = keys[i];
-      const btn = th.querySelector("button");
-      if (!btn) return;
-      if (key === currentSortKey) {
-        btn.innerHTML = sortAsc
-          ? `<i class="bi bi-arrow-up"></i>`
-          : `<i class="bi bi-arrow-down"></i>`;
-        btn.style.color = "#0d6efd";
-      } else {
-        btn.innerHTML = `<i class="bi bi-arrow-down-up"></i>`;
-        btn.style.color = "#777";
-      }
-    });
-  }
-
-  function getFilteredData() {
-    const search = filterText.toLowerCase();
-    return membersData.filter(member =>
-      ["name", "school", "location", "email", "role"].some(field =>
-        member[field].toLowerCase().includes(search)
-      )
-    ).sort((a, b) => {
-      const valA = (a[currentSortKey] || "").toLowerCase();
-      const valB = (b[currentSortKey] || "").toLowerCase();
-      return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
-    });
-  }
-
-  function render() {
-    const data = getFilteredData();
-    tbody.innerHTML = "";
-
-    if (!data.length) {
-      const row = document.createElement("tr");
-      const cell = document.createElement("td");
-      cell.colSpan = 4;
-      cell.className = "text-center text-muted py-4";
-      cell.textContent = filterText
-        ? `No results found for "${filterInput.value}"`
-        : "No members available.";
-      row.appendChild(cell);
-      tbody.appendChild(row);
-      paginationContainer.innerHTML = "";
-      return;
-    }
-
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    const pageItems = data.slice(start, start + ITEMS_PER_PAGE);
-
-    pageItems.forEach(member => {
-      const tr = document.createElement("tr");
-
-      const tdName = document.createElement("td");
-      const nameWrap = document.createElement("div");
-      nameWrap.className = "d-flex align-items-center gap-2";
-      const img = document.createElement("img");
-      img.src = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images//${member.image}`;
-      img.style.width = img.style.height = "32px";
-      img.style.borderRadius = "50%";
-      img.style.objectFit = "cover";
-      nameWrap.appendChild(img);
-      nameWrap.appendChild(document.createTextNode(member.name));
-      tdName.appendChild(nameWrap);
-      tr.appendChild(tdName);
-
-      const tdLoc = document.createElement("td");
-      const fullState = stateAbbrToFullName[member.state.toUpperCase()] || "";
-      const flag = document.createElement("img");
-      flag.src = fullState
-        ? `/assets/images/states/${fullState}.svg`
-        : "/assets/images/states/placeholder.svg";
-      flag.style.height = "18px";
-      flag.style.marginRight = "6px";
-      tdLoc.appendChild(flag);
-      tdLoc.appendChild(document.createTextNode(member.location));
-      tr.appendChild(tdLoc);
-
-      const tdEmail = document.createElement("td");
-      if (member.email) {
-        const emailLink = document.createElement("a");
-        emailLink.href = `mailto:${member.email}`;
-        emailLink.className = "btn btn-sm btn-outline-dark";
-        emailLink.innerHTML = `<i class="bi bi-envelope"></i> Email`;
-        tdEmail.appendChild(emailLink);
-      }
-      tr.appendChild(tdEmail);
-
-      const tdRole = document.createElement("td");
-      tdRole.textContent = member.role;
-      tr.appendChild(tdRole);
-
-      tbody.appendChild(tr);
-    });
-
-    renderPagination(data.length);
-  }
-
-  function renderPagination(totalItems) {
-    paginationContainer.innerHTML = "";
-    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
-    if (totalPages <= 1) return;
-
-    const nav = document.createElement("nav");
-    const ul = document.createElement("ul");
-    ul.className = "pagination pagination-sm";
-
-    const addBtn = (label, disabled, page) => {
-      const li = document.createElement("li");
-      li.className = `page-item ${disabled ? "disabled" : ""}`;
-      const btn = document.createElement("button");
-      btn.className = "page-link";
-      btn.innerHTML = label;
-      if (!disabled) {
-        btn.addEventListener("click", () => {
-          currentPage = page;
-          render();
-        });
-      }
-      li.appendChild(btn);
-      ul.appendChild(li);
-    };
-
-    addBtn(`<i class="bi bi-chevron-left"></i>`, currentPage === 1, currentPage - 1);
-    for (let i = 1; i <= totalPages; i++) {
-      const li = document.createElement("li");
-      li.className = `page-item ${i === currentPage ? "active" : ""}`;
-      const btn = document.createElement("button");
-      btn.className = "page-link";
-      btn.textContent = i;
-      btn.addEventListener("click", () => {
-        currentPage = i;
-        render();
-      });
-      li.appendChild(btn);
-      ul.appendChild(li);
-    }
-    addBtn(`<i class="bi bi-chevron-right"></i>`, currentPage === totalPages, currentPage + 1);
-
-    nav.appendChild(ul);
-    paginationContainer.appendChild(nav);
-  }
-
-  function handleSchoolSearch(schoolName) {
-    filterInput.value = schoolName;
-    filterText = schoolName.toLowerCase();
-    currentPage = 1;
-    updateURL(schoolName);
-    render();
-    container.scrollIntoView({ behavior: 'smooth' });
-  }
-
-  function updateURL(text) {
-    const url = new URL(window.location);
-    if (text) url.searchParams.set("search", text);
-    else url.searchParams.delete("search");
-    window.history.pushState({}, "", url);
-  }
-
-  document.addEventListener("schoolSearch", (e) => {
-    handleSchoolSearch(e.detail.school);
-  });
-
-  filterInput.addEventListener("input", (e) => {
-    filterText = e.target.value.trim().toLowerCase();
-    currentPage = 1;
-    updateURL(filterText);
-    render();
-  });
-
-  function initSearchFromURL() {
-    const params = new URLSearchParams(window.location.search);
-    const search = params.get("search");
-    if (search) {
-      filterInput.value = search;
-      filterText = search.toLowerCase();
-      currentPage = 1;
-    }
-  }
-
-  window.addEventListener("popstate", () => {
+    updateSortIndicators();
     initSearchFromURL();
-    render();
-  });
+    renderTable();
 
-  initSearchFromURL();
-  updateSortIndicators();
-  render();
+    function updateSortIndicators() {
+      sortButtons.forEach(btn => {
+        const key = btn.dataset.key;
+        if (key === currentSortKey) {
+          btn.innerHTML = sortAsc ? `<i class="bi bi-arrow-up"></i>` : `<i class="bi bi-arrow-down"></i>`;
+          btn.style.color = "#0d6efd";
+        } else {
+          btn.innerHTML = `<i class="bi bi-arrow-down-up"></i>`;
+          btn.style.color = "#777";
+        }
+      });
+    }
+
+    function getFilteredData() {
+      if (!filterText) return [...membersData]; // shallow copy to avoid side effects
+
+      return membersData.filter(member =>
+        ["name", "school", "location", "email", "role"].some(field =>
+          (member[field] || "").toLowerCase().includes(filterText)
+        )
+      );
+    }
+
+    function renderTable() {
+      const data = getFilteredData();
+
+      data.sort((a, b) => {
+        if (currentSortKey === "name") {
+          return sortAsc ? sortByName(a, b) : sortByName(b, a);
+        }
+        const valA = (a[currentSortKey] || "").toLowerCase();
+        const valB = (b[currentSortKey] || "").toLowerCase();
+        return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
+      });
+
+      tbody.innerHTML = "";
+
+      if (!data.length) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="4" class="text-center text-muted py-4">
+              ${filterText ? `No results found for "${filterText}"` : "No members available."}
+            </td>
+          </tr>
+        `;
+        paginationContainer.innerHTML = "";
+        return;
+      }
+
+      const start = (currentPage - 1) * ITEMS_PER_PAGE;
+      const pageItems = data.slice(start, start + ITEMS_PER_PAGE);
+
+      // Use DocumentFragment to minimize reflows
+      const fragment = document.createDocumentFragment();
+
+      for (const member of pageItems) {
+        const fullState = stateAbbrToFullName[(member.state || "").toUpperCase()] || "";
+        const stateFlagSrc = fullState
+          ? `/assets/images/states/${fullState}.svg`
+          : `/assets/images/states/placeholder.svg`;
+        const stateFlagAlt = fullState ? `${fullState} flag` : "Location";
+
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <img src="https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/${member.image}" 
+                   alt="${member.name}" width="32" height="32" class="rounded-circle object-fit-cover">
+              ${member.name}
+            </div>
+          </td>
+          <td>
+            <img src="${stateFlagSrc}" height="18" style="margin-right:6px" alt="${stateFlagAlt}">
+            ${member.location}
+          </td>
+          <td>
+            ${member.email ? `<a href="mailto:${member.email}" class="btn btn-sm btn-outline-dark"><i class="bi bi-envelope"></i> Email</a>` : ""}
+          </td>
+          <td>${member.role}</td>
+        `;
+
+        fragment.appendChild(tr);
+      }
+      tbody.appendChild(fragment);
+
+      renderPagination(data.length);
+    }
+
+    function renderPagination(totalItems) {
+      const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+      if (totalPages <= 1) {
+        paginationContainer.innerHTML = "";
+        return;
+      }
+
+      let html = `
+        <nav>
+          <ul class="pagination pagination-sm justify-content-center">
+            <li class="page-item ${currentPage === 1 ? "disabled" : ""}">
+              <button class="page-link" aria-label="Previous" ${currentPage === 1 ? "disabled" : ""}>
+                <i class="bi bi-chevron-left"></i>
+              </button>
+            </li>
+      `;
+
+      for (let i = 1; i <= totalPages; i++) {
+        html += `
+          <li class="page-item ${i === currentPage ? "active" : ""}">
+            <button class="page-link" aria-current="${i === currentPage ? "page" : ""}">${i}</button>
+          </li>
+        `;
+      }
+
+      html += `
+            <li class="page-item ${currentPage === totalPages ? "disabled" : ""}">
+              <button class="page-link" aria-label="Next" ${currentPage === totalPages ? "disabled" : ""}>
+                <i class="bi bi-chevron-right"></i>
+              </button>
+            </li>
+          </ul>
+        </nav>
+      `;
+
+      paginationContainer.innerHTML = html;
+
+      // Event delegation for pagination buttons
+      paginationContainer.querySelector("ul").onclick = (e) => {
+        const btn = e.target.closest("button");
+        if (!btn || btn.disabled) return;
+
+        if (btn.parentElement.classList.contains("disabled") || btn.parentElement.classList.contains("active")) return;
+
+        if (btn.getAttribute("aria-label") === "Previous" && currentPage > 1) {
+          currentPage--;
+          renderTable();
+        } else if (btn.getAttribute("aria-label") === "Next" && currentPage < totalPages) {
+          currentPage++;
+          renderTable();
+        } else {
+          const pageNum = Number(btn.textContent);
+          if (!isNaN(pageNum) && pageNum !== currentPage) {
+            currentPage = pageNum;
+            renderTable();
+          }
+        }
+      };
+    }
+
+    function updateURL() {
+      const url = new URL(window.location);
+      if (filterText) url.searchParams.set("search", filterText);
+      else url.searchParams.delete("search");
+      window.history.pushState({}, "", url);
+    }
+
+    function initSearchFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      const search = params.get("search");
+      if (search) {
+        filterText = search.toLowerCase();
+        searchInput.value = search;
+        currentPage = 1;
+      }
+    }
+
+    window.addEventListener("popstate", () => {
+      initSearchFromURL();
+      renderTable();
+    });
+  }
 });

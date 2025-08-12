@@ -13,6 +13,8 @@ let currentPage = 1;
 let currentFilter = "All";
 let currentSearch = "";
 
+let members = []; // cache all members from supabase
+
 // Cache DOM elements once
 const container = document.getElementById("billContainer");
 const resultsCount = document.getElementById("resultsCount");
@@ -22,14 +24,17 @@ const statesElem = document.getElementById("statesTargeted");
 const spinner = document.getElementById("loadingSpinner");
 const searchInput = document.getElementById("billSearch");
 
-// Month names constant outside function
+// Modal elements for collaborators
+const collaboratorModal = document.getElementById("collaboratorModal");
+const collaboratorModalBody = document.getElementById("collaboratorModalBody");
+const collaboratorModalLabel = document.getElementById("collaboratorModalLabel");
+
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
 
 function formatMonthYearUTC(date) {
-  // date is Date object here, not string
   return `${MONTHS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
 }
 
@@ -55,6 +60,107 @@ async function pdfExists(url) {
     pdfExistenceCache.set(url, false);
     return false;
   }
+}
+
+// Fetch all members from supabase once
+async function fetchMembers() {
+  const { data, error } = await supabase.from("members").select("*");
+  if (error) {
+    console.error("Failed to load members:", error);
+    members = [];
+  } else {
+    members = data || [];
+  }
+}
+
+// Helper to find member by full name (case-insensitive)
+function findMemberByName(fullName) {
+  const lowerName = fullName.trim().toLowerCase();
+  return members.find(m => {
+    const memberFullName = `${m.first_name} ${m.last_name}`.toLowerCase();
+    return memberFullName === lowerName;
+  });
+}
+
+// Create HTML for collaborator avatars, with overlap and +X if needed
+function createCollaboratorAvatars(collaboratorNames, billIndex) {
+  if (!Array.isArray(collaboratorNames) || collaboratorNames.length === 0) return "";
+
+  const maxToShow = 3;
+  // Sort collaboratorNames by last name, then pick top maxToShow
+  const sortedNames = [...collaboratorNames].sort((a, b) => {
+    const aLast = a.trim().split(" ").slice(-1)[0].toLowerCase();
+    const bLast = b.trim().split(" ").slice(-1)[0].toLowerCase();
+    return aLast.localeCompare(bLast);
+  });
+
+  const toShowNames = sortedNames.slice(0, maxToShow);
+  const collaborators = toShowNames.map(name => findMemberByName(name)).filter(Boolean);
+
+  const extraCount = collaboratorNames.length - maxToShow;
+
+  const avatarsHtml = collaborators.map((collab, i) => {
+    return `<img
+      src="https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/${collab.image}"
+      alt="${collab.first_name} ${collab.last_name}"
+      title="${collab.first_name} ${collab.last_name}"
+      class="collaborator-avatar"
+      style="z-index:${100 - i}"
+      data-bill-index="${billIndex}"
+      data-collaborator-name="${collab.first_name} ${collab.last_name}"
+    />`;
+  }).join("");
+
+  const extraHtml = extraCount > 0 ? `
+    <div
+      class="collaborator-avatar collaborator-extra"
+      style="z-index:95; display:flex; justify-content:center; align-items:center; background:#6c757d; color:white; font-size:0.75rem; font-weight:bold; border-radius:50%; cursor:pointer; margin-left:-10px;"
+      data-bill-index="${billIndex}"
+    >
+      +${extraCount}
+    </div>` : "";
+
+  return `<div class="collaborator-group" data-bill-index="${billIndex}" style="display:flex; align-items:center; cursor:pointer;">
+    ${avatarsHtml}
+    ${extraHtml}
+  </div>`;
+}
+
+// Show modal with full collaborator info for bill
+function setupCollaboratorClickListeners() {
+  const groups = container.querySelectorAll(".collaborator-group");
+  groups.forEach(group => {
+    group.onclick = e => {
+      e.preventDefault();
+      const billIndex = Number(group.dataset.billIndex);
+      if (isNaN(billIndex)) return;
+
+      // Calculate actual bill index in filteredBills array
+      const globalBillIndex = (currentPage - 1) * ITEMS_PER_PAGE + billIndex;
+      const bill = filteredBills[globalBillIndex];
+      if (!bill || !Array.isArray(bill.bill_collaborators)) return;
+
+      // Map collaborator names to member objects (filtering out missing)
+      let fullCollaborators = bill.bill_collaborators
+        .map(name => findMemberByName(name))
+        .filter(Boolean);
+
+      // *** Sort fullCollaborators alphabetically by last name ***
+      fullCollaborators.sort((a, b) => a.last_name.toLowerCase().localeCompare(b.last_name.toLowerCase()));
+
+      collaboratorModalLabel.innerHTML = `<img class="state-image" src="/assets/images/states/${bill.state}.svg"
+               alt="${bill.state} flag" style="width:20px; height:auto;" /> ${bill.state} ${bill.name} Collaborators`;
+      collaboratorModalBody.innerHTML = fullCollaborators.map(collab => `
+        <div class="d-flex align-items-center px-3 mb-2">
+          <a href="/directory.html?search=${collab.first_name}+${collab.last_name}"><img src="https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/${collab.image}" alt="${collab.first_name} ${collab.last_name}" class="collaborator-avatar me-2" style="width:40px; height:40px; border:2px solid #ddd;"></a>
+          <span>${collab.first_name} ${collab.last_name}</span>
+        </div>
+      `).join("") || "<p>No collaborators info found.</p>";
+
+      const modal = new bootstrap.Modal(collaboratorModal);
+      modal.show();
+    };
+  });
 }
 
 async function fetchBills() {
@@ -96,8 +202,12 @@ async function renderBillsPage(page) {
     return pdfExists(pdfPath).then(exists => ({ bill, pdfPath, exists }));
   }));
 
-  container.innerHTML = pdfChecks.map(({ bill, pdfPath, exists }) => {
+  container.innerHTML = pdfChecks.map(({ bill, pdfPath, exists }, idx) => {
     const formattedDate = formatMonthYearUTC(bill.bill_date);
+
+    // collaborators is an array of collaborator names in the bill, e.g., ["Ben Kurian", "Aayush Pande"]
+    const collaboratorsHtml = createCollaboratorAvatars(bill.bill_collaborators, idx);
+
     return `
       <div class="col-md-3">
         <div class="animate__animated animate__fadeIn card impact-card h-100 shadow-sm position-relative overflow-hidden">
@@ -105,10 +215,17 @@ async function renderBillsPage(page) {
             <h5 class="card-title"><span>${bill.state} ${bill.name}</span></h5>
             ${getPositionBadge(bill.position)}
             <p class="card-text">${bill.description}</p>
-            <p class="text-muted small">${formattedDate}</p>
-            ${exists ? `<a href="${pdfPath}" class="btn btn-outline-dark btn-sm" target="_blank" rel="noopener">
-              <i class="bi bi-file-pdf"></i> Download Proposal
-            </a>` : ""}
+
+            <p class="text-muted small mb-2">${formattedDate}</p>
+            ${exists ? `
+              <div class="d-flex justify-content-between align-items-center mb-2 collaborators-download-row">
+                <a href="${pdfPath}" class="btn btn-outline-dark btn-sm" target="_blank" rel="noopener" style="white-space: nowrap;">
+                  <i class="bi bi-file-pdf"></i> Proposal PDF
+                </a>
+                ${collaboratorsHtml ? `<div class="collaborators-inline">${collaboratorsHtml}</div>` : ""}
+              </div>
+            ` : (collaboratorsHtml ? `<div class="mb-2 collaborators-inline">${collaboratorsHtml}</div>` : "")}
+
             <a href="${bill.legiscan_link}" target="_blank" rel="noopener" aria-label="View full bill on LegiScan"
                style="position: absolute; top: 12px; right: 12px;">
               <img class="state-image" src="/assets/images/states/${bill.state}.svg"
@@ -123,6 +240,8 @@ async function renderBillsPage(page) {
   if (statesElem) statesElem.textContent = new Set(bills.map(b => b.state)).size;
 
   renderPagination();
+
+  setupCollaboratorClickListeners();
 }
 
 function renderPagination() {
@@ -236,6 +355,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     currentSearch = q;
   }
 
+  // Fetch members first, then bills
+  await fetchMembers();
   await fetchBills();
 
   if (window.location.pathname === "/" || window.location.pathname === "/index.html") {

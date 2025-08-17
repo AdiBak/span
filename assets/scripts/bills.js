@@ -261,7 +261,7 @@ function renderPagination() {
   let html = `<nav><ul class="pagination justify-content-center">`;
 
   html += `<li class="page-item ${currentPage === 1 ? "disabled" : ""}">
-    <a class="page-link" href="#" data-page="${currentPage - 1}" aria-label="Previous">&laquo;</a></li>`;
+    <a class="page-link" href="#" data-page="${currentPage - 1}" aria-label="Previous"><i class="bi bi-chevron-left"></i></a></li>`;
 
   const maxDisplay = 10;
   if (totalPages <= maxDisplay) {
@@ -280,7 +280,7 @@ function renderPagination() {
   }
 
   html += `<li class="page-item ${currentPage === totalPages ? "disabled" : ""}">
-    <a class="page-link" href="#" data-page="${currentPage + 1}" aria-label="Next">&raquo;</a></li>`;
+    <a class="page-link" href="#" data-page="${currentPage + 1}" aria-label="Next"><i class="bi bi-chevron-right"></i></a></li>`;
 
   html += `</ul></nav>`;
   paginationContainer.innerHTML = html;

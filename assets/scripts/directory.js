@@ -245,7 +245,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       let html = `
         <nav>
-          <ul class="pagination pagination-sm justify-content-center">
+          <ul class="pagination justify-content-center">
             <li class="page-item ${currentPage === 1 ? "disabled" : ""}">
               <button class="page-link" aria-label="Previous" ${currentPage === 1 ? "disabled" : ""}>
                 <i class="bi bi-chevron-left"></i>

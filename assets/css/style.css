@@ -152,3 +152,35 @@ html, body {
   border-radius: 6px; */
 }
 
+/* Match Bootstrap btn-outline-dark style for pagination */
+.pagination .page-item .page-link {
+  color: #212529;               /* dark text */
+  background-color: #fff;       /* white background */
+  border: 1px solid #212529;    /* dark border always visible */
+}
+
+.pagination .page-item .page-link:hover {
+  color: #fff;                  
+  background-color: #212529;    /* dark background on hover */
+  border-color: #212529;
+}
+
+.pagination .page-item.active .page-link {
+  color: #fff;
+  background-color: #212529;    /* dark fill when active */
+  border-color: #212529;
+}
+
+.pagination .page-item.disabled .page-link {
+  color: #6c757d;               /* muted text */
+  background-color: #fff;       
+  border: 1px solid #212529;    /* keep dark outline on disabled */
+  pointer-events: none;         /* disable clicking */
+  opacity: 0.65;                /* slight fade to indicate disabled */
+}
+
+/* Remove default blue focus ring and replace with dark outline */
+.pagination .page-item .page-link:focus {
+  box-shadow: 0 0 0 0.25rem rgba(33, 37, 41, 0.25); /* dark translucent ring */
+  outline: none; /* ensure no default browser outline */
+}

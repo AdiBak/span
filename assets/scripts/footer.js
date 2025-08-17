@@ -23,26 +23,6 @@ var footer = `
             <!-- <li class="mb-2"><a href="https://www.paypal.com/donate/?hosted_button_id=EXAMPLE" target="_blank" class="text-white text-decoration-none">Donate</a></li> -->
           </ul>
         </div>
-        <!--
-        <div class="col-md-3 mb-4 mb-md-0">
-          <h5>Legal</h5>
-          <ul class="list-unstyled">
-            <li class="mb-2"><a href="#" class="text-white text-decoration-none">Privacy Policy</a></li>
-            <li class="mb-2"><a href="#" class="text-white text-decoration-none">Terms of Service</a></li>
-            <li class="mb-2"><a href="#" class="text-white text-decoration-none">Donor Policy</a></li>
-          </ul>
-        </div>
-        <div class="col-md-3">
-          <h5>Newsletter</h5>
-          <p>Stay updated with our latest advocacy work.</p>
-          <form class="mt-3">
-            <div class="input-group mb-3">
-              <input type="email" class="form-control" placeholder="Your Email" required>
-              <button class="btn btn-dark" type="submit">Subscribe</button>
-            </div>
-          </form>
-        </div>
-        -->
       </div>
       <hr class="my-4">
       <div class="text-center">

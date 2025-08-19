@@ -257,44 +257,55 @@ async function generateSpanCard(password, timestamp) {
   y += 60;
   if (currentMember.start_date) ctx.fillText(`Member since ${formatDate(currentMember.start_date)}`, textX, y);
 
-// Right half: QR Code with a "liquid glass" rounded box
-  if (typeof QRCode !== 'undefined') {
-    const qrSize = 600;
-    const qrX = leftW + (leftW - qrSize) / 2;
-    const qrY = (canvas.height - qrSize) / 2 + 75;
+// QR Code on right half with liquid glass box (old logic + new styling)
+if (typeof QRCode !== 'undefined') {
+  const qrSize = 600; // keep old working size
+  const qrX = leftW + (leftW - qrSize) / 2; 
+  const qrY = (canvas.height - qrSize) / 2 + 75;
 
-    // draw rounded translucent box behind QR
-    const boxPadding = 40;
-    const boxX = qrX - boxPadding;
-    const boxY = qrY - boxPadding;
-    const boxW = qrSize + boxPadding*2;
-    const boxH = qrSize + boxPadding*2;
+  // Draw translucent rounded box (liquid glass style)
+  const boxPadding = 40;
+  const boxX = qrX - boxPadding;
+  const boxY = qrY - boxPadding;
+  const boxW = qrSize + boxPadding * 2;
+  const boxH = qrSize + boxPadding * 2;
 
-    ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    const r = 50; // border radius
-    ctx.moveTo(boxX + r, boxY);
-    ctx.lineTo(boxX + boxW - r, boxY);
-    ctx.quadraticCurveTo(boxX + boxW, boxY, boxX + boxW, boxY + r);
-    ctx.lineTo(boxX + boxW, boxY + boxH - r);
-    ctx.quadraticCurveTo(boxX + boxW, boxY + boxH, boxX + boxW - r, boxY + boxH);
-    ctx.lineTo(boxX + r, boxY + boxH);
-    ctx.quadraticCurveTo(boxX, boxY + boxH, boxX, boxY + boxH - r);
-    ctx.lineTo(boxX, boxY + r);
-    ctx.quadraticCurveTo(boxX, boxY, boxX + r, boxY);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,0.1)'; // match old subtle fill
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)'; // match old border contrast
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  const r = 24; // old border radius
+  ctx.moveTo(boxX + r, boxY);
+  ctx.lineTo(boxX + boxW - r, boxY);
+  ctx.quadraticCurveTo(boxX + boxW, boxY, boxX + boxW, boxY + r);
+  ctx.lineTo(boxX + boxW, boxY + boxH - r);
+  ctx.quadraticCurveTo(boxX + boxW, boxY + boxH, boxX + boxW - r, boxY + boxH);
+  ctx.lineTo(boxX + r, boxY + boxH);
+  ctx.quadraticCurveTo(boxX, boxY + boxH, boxX, boxY + boxH - r);
+  ctx.lineTo(boxX, boxY + r);
+  ctx.quadraticCurveTo(boxX, boxY, boxX + r, boxY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 
-    const qrPayload = JSON.stringify({ email: currentMember.email, password, timestamp });
-    const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: qrSize, color:{ dark:'#ffffff', light:'#00000000' }, margin:0 });
-    const qrImg = await loadImage(qrDataUrl);
-    if (qrImg) ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
-  }
+  // Use old payload generation logic
+  const qrPayload = JSON.stringify({ 
+    email: currentMember.email, 
+    password, 
+    timestamp 
+  });
+
+  const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+    width: qrSize,
+    color: { dark: '#ffffff', light: '#00000000' },
+    margin: 0
+  });
+
+  const qrImg = await loadImage(qrDataUrl);
+  if (qrImg) ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+}
 
   // Download image
   const link = document.createElement('a');

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Login | SPAN - Students for Patient Advocacy Nationwide</title>
+
+   <!-- Google Tag Manager (kept async) -->
+   <script async src="https://www.googletagmanager.com/gtag/js?id=G-7QY6SHLJDL"></script>
+   <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() { dataLayer.push(arguments); }
+      gtag('js', new Date());
+      gtag('config', 'G-7QY6SHLJDL');
+   </script>
+
+   <!-- SEO -->
+   <link rel="sitemap" type="application/xml" title="Sitemap" href="https://spanationwide/sitemap.xml" />
+   <script type="application/ld+json">
+      {
+         "@context": "https://schema.org",
+         "@type": "Organization",
+         "name": "SPAN - Students for Patient Advocacy Nationwide",
+         "url": "https://spanationwide.org",
+         "logo": "https://spanationwide.org/assets/images/index/logo-icon-dark.svg",
+         "sameAs": [
+            "https://www.linkedin.com/company/spanationwide/",
+            "https://www.instagram.com/spanationwide/"
+         ]
+      }
+   </script>
+
+   <!-- Styles (kept both CSS files; no duplicates) -->
+   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
+   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+   <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+   <link href="/assets/css/style.css" rel="stylesheet">
+
+   <!-- Favicon & canonical + social tags -->
+   <link rel="icon" type="image/svg+xml" href="assets/images/index/logo-icon-dark.ico" media="(prefers-color-scheme: light)">
+   <link rel="icon" type="image/svg+xml" href="assets/images/index/logo-icon-light.ico" media="(prefers-color-scheme: dark)">
+   <link rel="canonical" href="https://spanationwide.org">
+   <meta name="robots" content="index, follow">
+   <meta property="og:type" content="website">
+   <meta property="og:title" content="Login | SPAN - Students for Patient Advocacy Nationwide">
+   <meta property="og:description" content="Access your SPAN member dashboard.">
+   <meta property="og:image" content="/assets/images/index/preview.jpg">
+   <meta property="og:url" content="https://spanationwide.org">
+   <meta property="og:site_name" content="SPAN">
+   <meta name="twitter:title" content="Login | SPAN - Students for Patient Advocacy Nationwide">
+   <meta name="twitter:description" content="Access your SPAN member dashboard.">
+   <meta name="twitter:image" content="/assets/images/index/preview.jpg">
+   <meta name="twitter:site" content="@spanationwide">
+   <meta name="twitter:creator" content="@spanationwide">
+</head>
+
+<body>
+     <nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top"></nav>
+
+   <section class="subpage-hero d-flex align-items-center text-white text-center position-relative">
+      <div class="parallax-bg" aria-hidden="true"></div>
+      <div class="container position-relative z-1">
+         <h1 class="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Login</h1>
+         <p class="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
+            Access your SPAN member dashboard.
+         </p>
+      </div>
+   </section>
+
+
+  <!-- Login Form -->
+  <main class="position-relative overflow-hidden p-3 p-md-5 m-md-3 bg-light">
+    <div class="container d-flex justify-content-center align-items-center" style="min-height:40vh;">
+      <div class="card shadow-sm p-4" style="max-width:400px;width:100%;" data-aos="fade">
+        <!-- Email/Password Login Form -->
+        <form id="login-form">
+          <div class="mb-3">
+            <label for="email" class="form-label">Email</label>
+            <input type="email" class="form-control" id="email" placeholder="Enter your email" required>
+          </div>
+          <div class="mb-3">
+            <label for="password" class="form-label">Password</label>
+            <input type="password" class="form-control" id="password" placeholder="Enter your password" required>
+          </div>
+          <button type="submit" class="btn btn-dark w-100 mb-3">Sign In</button>
+          <p id="error-message" class="text-danger mt-1 mb-0 text-center"></p>
+        </form>
+
+        <!-- OR Divider -->
+        <div class="d-flex align-items-center my-3">
+          <hr class="flex-grow-1">
+          <span class="px-2 text-muted">OR</span>
+          <hr class="flex-grow-1">
+        </div>
+
+        <!-- QR Login Button -->
+        <div class="d-grid">
+          <button id="qr-login-btn" class="btn btn-outline-dark btn-lg" data-bs-toggle="modal" data-bs-target="#qrModal">
+            <i class="bi bi-qr-code-scan me-2"></i> Scan SPANCard
+          </button>
+          <p class="text-muted mt-2 text-center small">Use your SPANCard QR code to log in</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+<div class="modal fade" id="qrLoginModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Scan SPANCard</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="qrError" class="text-danger mb-2" style="display:none;"></div>
+        <video id="qrVideo" autoplay playsinline muted style="width:100%;height:auto;min-height:300px;background:black;object-fit:cover;"></video>
+      </div>
+    </div>
+  </div>
+</div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const qrModal = document.getElementById("qrModal");
+    const qrVideo = document.getElementById("qrVideo");
+    let stream;
+
+    qrModal.addEventListener("shown.bs.modal", async () => {
+      try {
+        // Start camera when modal opens
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        qrVideo.srcObject = stream;
+        qrVideo.play().catch(err => console.error("Video play blocked:", err));
+
+        // Wait for video to be ready
+        qrVideo.onloadedmetadata = () => {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+
+          const scan = () => {
+            if (qrVideo.readyState === qrVideo.HAVE_ENOUGH_DATA) {
+              canvas.width = qrVideo.videoWidth;
+              canvas.height = qrVideo.videoHeight;
+              ctx.drawImage(qrVideo, 0, 0, canvas.width, canvas.height);
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = jsQR(imageData.data, imageData.width, imageData.height);
+              if (code) {
+                console.log("QR code data:", code.data);
+                // TODO: call your login function here
+                bootstrap.Modal.getInstance(qrModal).hide();
+              }
+            }
+            requestAnimationFrame(scan);
+          };
+          scan();
+        };
+      } catch (err) {
+        console.error("Camera error:", err);
+        alert("Unable to access camera. Please allow camera permissions.");
+      }
+    });
+
+    qrModal.addEventListener("hidden.bs.modal", () => {
+      // Stop the stream when modal closes
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    });
+  });
+</script>
+
+
+  
+    <footer id="footerContainer" class="footer text-white py-5"></footer>
+
+    <!-- Scripts -->
+    <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script defer src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+
+    <script defer type="module" src="/assets/scripts/script.js"></script>
+    <script defer type="module" src="/assets/scripts/auth.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            if (window.AOS && typeof AOS.init === 'function') AOS.init();
+
+            const loginForm = document.getElementById('login-form');
+            const errorMessage = document.getElementById('error-message');
+
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                errorMessage.textContent = '';
+
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+
+                try {
+                    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                    if (error) throw error;
+
+                    // Redirect to dashboard
+                    window.location.href = '/dashboard.html';
+                } catch (err) {
+                    errorMessage.textContent = err.message || 'Login failed. Please try again.';
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

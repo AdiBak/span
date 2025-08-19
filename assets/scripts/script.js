@@ -4,7 +4,7 @@ import {
 
 const SUPABASE_URL = "https://qujzohvrbfsouakzocps.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1anpvaHZyYmZzb3Vha3pvY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNjQ2NzUsImV4cCI6MjA2OTk0MDY3NX0.Yl-vCGhkx4V_3HARGp2bwR-auSuZksP_77xgUoJop1k";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==================
 // bills.js
@@ -899,43 +899,104 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==================
 // navbar.js
 // ==================
-(function() {
-    var currentPath = window.location.pathname;
-    if (currentPath === "/") currentPath = "/index.html"; // treat root as index.html
+(async function() {
+    let currentPath = window.location.pathname;
+    if (currentPath === "/") currentPath = "/index.html";
 
-    var navbar = `
-  <div class="container">
-    <a class="navbar-brand" href="/index.html">
-      <img class="my-2" src="/assets/images/index/logo-wide-light.svg" height="30" alt="SPAN Logo">
-    </a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item">
-          <a class="nav-link ${currentPath === "/index.html" ? "active" : ""}" href="/index.html">Home</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link ${currentPath === "/our-story.html" ? "active" : ""}" href="/our-story.html">Our Story</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link ${currentPath === "/bills.html" ? "active" : ""}" href="/bills.html">Bills</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link ${currentPath === "/directory.html" ? "active" : ""}" href="/directory.html">Directory</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link ${currentPath === "/blog.html" ? "active" : ""}" href="/blog.html">Blog</a>
-        </li>
-      </ul>
-    </div>
-  </div>
-`;
+    const navContainer = document.getElementById("navbarContainer");
 
-    document.getElementById("navbarContainer").innerHTML = navbar;
+    async function renderNavbar() {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        let userMenu = '';
+
+        if (session && session.user) {
+            const { data: member } = await supabase
+                .from('members')
+                .select('first_name, image')
+                .eq('email', session.user.email)
+                .maybeSingle();
+
+            let firstName = "there";
+            let imageUrl = '';
+
+            if (member) {
+                if (member.first_name) firstName = member.first_name;
+                if (member.image) imageUrl = member.image;
+            }
+
+            userMenu = `
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false" style="padding-top:0.5rem; padding-bottom:0.5rem;">
+                    ${imageUrl ? `<img src="https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/${imageUrl}" 
+                    alt="${firstName}" width="32" height="32" class="rounded-circle me-2" style="object-fit: cover;">` : ''}
+                    Welcome, ${firstName}!
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="/dashboard.html">Dashboard</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" id="signOutBtn">Sign Out</a></li>
+                </ul>
+            </li>
+            `;
+        } else {
+            userMenu = `
+            <li class="nav-item">
+                <a class="nav-link ${currentPath === "/login.html" ? "active" : ""}" href="/login.html">Login</a>
+            </li>
+            `;
+        }
+
+        navContainer.innerHTML = `
+            <div class="container">
+                <a class="navbar-brand" href="/index.html">
+                    <img class="my-2" src="/assets/images/index/logo-wide-light.svg" height="30" alt="SPAN Logo">
+                </a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto align-items-center">
+                        <li class="nav-item">
+                            <a class="nav-link ${currentPath === "/index.html" ? "active" : ""}" href="/index.html">Home</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link ${currentPath === "/our-story.html" ? "active" : ""}" href="/our-story.html">Our Story</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link ${currentPath === "/bills.html" ? "active" : ""}" href="/bills.html">Bills</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link ${currentPath === "/directory.html" ? "active" : ""}" href="/directory.html">Directory</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link ${currentPath === "/blog.html" ? "active" : ""}" href="/blog.html">Blog</a>
+                        </li>
+                        ${userMenu}
+                    </ul>
+                </div>
+            </div>
+        `;
+
+        const signOutBtn = document.getElementById('signOutBtn');
+        if (signOutBtn) {
+            signOutBtn.addEventListener('click', async (e) => {
+                e.preventDefault();
+                await supabase.auth.signOut();
+            });
+        }
+    }
+
+    // Initial render
+    renderNavbar();
+
+    // Re-render on auth changes
+    supabase.auth.onAuthStateChange(() => {
+        renderNavbar();
+    });
 
 })();
+
 
 // ==================
 // footer.js
@@ -1131,6 +1192,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     window.addEventListener("resize", drawRegionsMap);
 })();
+
 // ==================
 // schools.js
 // ==================

@@ -271,7 +271,7 @@ if (typeof QRCode !== 'undefined') {
   const boxH = qrSize + boxPadding * 2;
 
   ctx.save();
-  ctx.fillStyle = 'rgba(255,255,255,0.1)'; // match old subtle fill
+  ctx.fillStyle = '#ffffff'; // match old subtle fill
   ctx.strokeStyle = 'rgba(255,255,255,0.3)'; // match old border contrast
   ctx.lineWidth = 4;
   ctx.beginPath();
@@ -299,7 +299,7 @@ if (typeof QRCode !== 'undefined') {
 
   const qrDataUrl = await QRCode.toDataURL(qrPayload, {
     width: qrSize,
-    color: { dark: '#ffffff', light: '#00000000' },
+    color: { dark: '#000000', light: '#ffffff' },
     margin: 0
   });
 

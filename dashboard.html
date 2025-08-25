@@ -3,18 +3,18 @@
 <head>
    <meta charset="UTF-8">
    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-   <title>Login | SPAN - Students for Patient Advocacy Nationwide</title>
+   <title>Dashboard | SPAN - Students for Patient Advocacy Nationwide</title>
 
-   <!-- Google Tag Manager (kept async) -->
+   <!-- Google Tag Manager -->
    <script async src="https://www.googletagmanager.com/gtag/js?id=G-7QY6SHLJDL"></script>
    <script>
       window.dataLayer = window.dataLayer || [];
-      function gtag() { dataLayer.push(arguments); }
+      function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
       gtag('config', 'G-7QY6SHLJDL');
    </script>
 
-   <!-- SEO -->
+   <!-- SEO / Social -->
    <link rel="sitemap" type="application/xml" title="Sitemap" href="https://spanationwide/sitemap.xml" />
    <script type="application/ld+json">
       {
@@ -30,121 +30,121 @@
       }
    </script>
 
-   <!-- Styles (kept both CSS files; no duplicates) -->
-   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
+   <!-- Styles -->
+   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
    <link href="/assets/css/style.css" rel="stylesheet">
 
-   <!-- Favicon & canonical + social tags -->
+   <!-- Favicon & Social -->
    <link rel="icon" type="image/svg+xml" href="assets/images/index/logo-icon-dark.ico" media="(prefers-color-scheme: light)">
    <link rel="icon" type="image/svg+xml" href="assets/images/index/logo-icon-light.ico" media="(prefers-color-scheme: dark)">
    <link rel="canonical" href="https://spanationwide.org">
-   <meta name="robots" content="index, follow">
-   <meta property="og:type" content="website">
-   <meta property="og:title" content="Dashboard | SPAN - Students for Patient Advocacy Nationwide">
-   <meta property="og:description" content="Manage your SPAN membership.">
-   <meta property="og:image" content="/assets/images/index/preview.jpg">
-   <meta property="og:url" content="https://spanationwide.org">
-   <meta property="og:site_name" content="SPAN">
-   <meta name="twitter:title" content="Dashboard | SPAN - Students for Patient Advocacy Nationwide">
-   <meta name="twitter:description" content="Manage your SPAN membership.">
-   <meta name="twitter:image" content="/assets/images/index/preview.jpg">
-   <meta name="twitter:site" content="@spanationwide">
-   <meta name="twitter:creator" content="@spanationwide"></head>
+</head>
+
 <body>
 <!-- Navbar -->
-      <nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top"></nav>
-   <section class="subpage-hero d-flex align-items-center text-white text-center position-relative">
-      <div class="parallax-bg" aria-hidden="true"></div>
-      <div class="container position-relative z-1">
-         <h1 class="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Dashboard</h1>
-         <p class="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-            Manage your SPAN membership.
-         </p>
-      </div>
-   </section>
-  <div class="container my-5">
+<nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top"></nav>
 
-    <!-- Profile header -->
-    <div class="text-center mb-4">
-      <img id="profileImage" class="rounded-circle border border-dark border-3 mb-3" 
-           src="" alt="Profile Image" style="width:150px;height:150px;object-fit:cover;display:none;">
-      <h2 id="fullName">-</h2>
-      <p id="role" class="text-muted">-</p>
-      <div class="mt-2">
-        <a id="linkedinLink" href="#" target="_blank" class="text-dark fs-4 me-2" style="display:none;"><i class="bi bi-linkedin"></i></a>
-        <a id="instagramLink" href="#" target="_blank" class="text-dark fs-4" style="display:none;"><i class="bi bi-instagram"></i></a>
-      </div>
-      <button id="downloadSpanCard" class="btn btn-dark mt-3"><i class="bi bi-person-vcard"></i> Download My SPANCard</button>
+<!-- Hero -->
+<section class="subpage-hero d-flex align-items-center text-white text-center position-relative">
+   <div class="parallax-bg" aria-hidden="true"></div>
+   <div class="container position-relative z-1">
+      <h1 class="display-3 fw-bold mb-2" data-aos="fade-up">Dashboard</h1>
+      <p class="lead" data-aos="fade-up" data-aos-delay="200">Manage your SPAN membership.</p>
+   </div>
+</section>
+
+<div class="container my-5">
+
+  <!-- Profile Header -->
+  <div class="text-center mb-5">
+    <img id="profileImage" class="rounded-circle border border-dark border-3 mb-3" src="" alt="Profile Image" style="width:150px;height:150px;object-fit:cover;display:none;">
+    <h2 id="fullName">-</h2>
+    <p id="role" class="text-muted">-</p>
+    <div class="mt-2">
+      <a id="linkedinLink" href="#" target="_blank" class="text-dark fs-4 me-2" style="display:none;"><i class="bi bi-linkedin"></i></a>
+      <a id="instagramLink" href="#" target="_blank" class="text-dark fs-4" style="display:none;"><i class="bi bi-instagram"></i></a>
     </div>
+    <button id="downloadSpanCard" class="btn btn-dark mt-3"><i class="bi bi-person-vcard"></i> Download My SPANCard</button>
+  </div>
+  
+  <h3>Your Info</h3>
 
-    <!-- Add QR code library -->
-    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <!-- Info Cards -->
+  <div class="row" id="infoCards"></div>
 
-    <!-- Info cards -->
-    <div class="row" id="infoCards">
-      <!-- Cards will be injected here -->
+  <!-- Volunteer Hours Section -->
+  <section id="volunteerSection" class="mt-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h3>Volunteer Hours</h3>
+      <button class="btn btn-dark" id="addVolunteerBtn">
+        <i class="bi bi-plus-circle me-2"></i>Add Entry
+      </button>
     </div>
+    <div id="volunteerCards" class="accordion"></div>
+  </section>
 
-    <!-- Password change -->
-    <div class="card mt-4">
+  <!-- Password Change -->
+  <section class="mt-5">
+    <h3>Change Password</h3>
+    <div class="card mt-3">
       <div class="card-body">
-        <h5 class="card-title fw-bold">Change Password</h5>
         <form id="changePasswordForm">
-          <div class="mb-3">
-            <label for="newPassword" class="form-label">New Password</label>
-            <input type="password" class="form-control" id="newPassword" required>
-          </div>
-          <div class="mb-3">
-            <label for="confirmPassword" class="form-label">Confirm Password</label>
-            <input type="password" class="form-control" id="confirmPassword" required>
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <label for="newPassword" class="form-label">New Password</label>
+              <input type="password" class="form-control" id="newPassword" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="confirmPassword" class="form-label">Confirm Password</label>
+              <input type="password" class="form-control" id="confirmPassword" required>
+            </div>
           </div>
           <button type="submit" class="btn btn-dark">Update Password</button>
-          <div id="passwordMessage" class="mt-2 text-danger"></div>
+          <div id="passwordMessage" class="mt-2"></div>
         </form>
       </div>
     </div>
+  </section>
+</div>
 
-  </div>
-
-  <!-- Password Confirmation Modal -->
-  <div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="passwordModalLabel">Confirm Password</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p>Confirm your password to generate your SPANCard:</p>
-          <input type="password" id="qrPasswordInput" class="form-control" placeholder="Your password">
-          <div id="qrPasswordError" class="text-danger mt-2 d-none">Password is required.</div>
-        </div>
-        <div class="modal-footer">
-            <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Cancel</button>
-            <button type="button" id="confirmQrPassword" class="btn btn-dark">Confirm</button>
-        </div>
+<!-- Modals -->
+<!-- SPAN Card Password Modal -->
+<div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="passwordModalLabel">Confirm Password</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Confirm your password to generate your SPANCard:</p>
+        <input type="password" id="qrPasswordInput" class="form-control" placeholder="Your password">
+        <div id="qrPasswordError" class="text-danger mt-2" style="display: none;">Password is required.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-dark" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" id="confirmQrPassword" class="btn btn-dark">Confirm</button>
       </div>
     </div>
   </div>
-      <footer id="footerContainer" class="footer text-white py-5"></footer>
+</div>
 
-    
-    <!-- Scripts -->
-    <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<footer id="footerContainer" class="footer text-white py-5"></footer>
+
+<!-- Scripts -->
+<script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 <script defer src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     if (typeof AOS !== 'undefined') AOS.init({ once: true, duration: 1000 });
   });
 </script>
-
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
-
-
-    <script defer type="module" src="/assets/scripts/script.js"></script>
-    <script defer type="module" src="/assets/scripts/dashboard.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script defer type="module" src="/assets/scripts/script.js"></script>
+<script defer type="module" src="/assets/scripts/dashboard.js"></script>
 </body>
 </html>

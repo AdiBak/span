@@ -262,7 +262,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         }).join("");
 
         if (proposalsElem) proposalsElem.textContent = bills.length;
-        if (statesElem) statesElem.textContent = new Set(bills.map(b => b.state)).size;
+        if (statesElem) statesElem.textContent = new Set(bills.map(b => b.state)).size - 1 // exclude U.S.;
 
         renderPagination();
 

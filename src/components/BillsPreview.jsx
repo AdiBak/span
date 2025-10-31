@@ -6,6 +6,7 @@ function BillsPreview() {
   const [bills, setBills] = useState([])
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     fetchData()
@@ -51,6 +52,7 @@ function BillsPreview() {
       setLoading(false)
     } catch (error) {
       console.error('Error fetching data:', error)
+      setError(error.message || 'Failed to load bills')
       setLoading(false)
     }
   }
@@ -66,7 +68,7 @@ function BillsPreview() {
 
   if (loading) {
     return (
-      <div className="text-center py-4">
+      <div className="text-center py-4" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
         <div className="spinner-border text-secondary" role="status">
           <span className="visually-hidden">Loading...</span>
         </div>
@@ -74,8 +76,20 @@ function BillsPreview() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-4" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
+        <p className="text-muted">Unable to load bills at this time.</p>
+      </div>
+    )
+  }
+
   if (bills.length === 0) {
-    return null
+    return (
+      <div className="text-center py-4" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
+        <p className="text-muted">No recent bills to display.</p>
+      </div>
+    )
   }
 
   return (

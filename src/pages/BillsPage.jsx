@@ -148,6 +148,45 @@ function BillsPage() {
     }
   }, [])
 
+  // Initialize AOS animations early, before content renders
+  useEffect(() => {
+    // Initialize AOS immediately if available, or wait for it to load
+    const initAOS = () => {
+      if (window.AOS && typeof window.AOS.init === 'function') {
+        window.AOS.init({
+          duration: 1000,
+          once: false,
+          mirror: false
+        })
+        if (typeof window.AOS.refreshHard === 'function') {
+          window.AOS.refreshHard()
+        } else if (typeof window.AOS.refresh === 'function') {
+          window.AOS.refresh()
+        }
+      }
+    }
+    
+    if (window.AOS) {
+      initAOS()
+    } else {
+      // Wait for AOS to load
+      const checkAOS = setInterval(() => {
+        if (window.AOS) {
+          clearInterval(checkAOS)
+          initAOS()
+        }
+      }, 50)
+      return () => clearInterval(checkAOS)
+    }
+  }, [])
+  
+  // Refresh AOS when loading completes
+  useEffect(() => {
+    if (!loading && window.AOS && typeof window.AOS.refresh === 'function') {
+      window.AOS.refresh()
+    }
+  }, [loading])
+
   if (loading) {
     return (
       <div className="container py-5 text-center">
@@ -165,8 +204,8 @@ function BillsPage() {
       <section className="subpage-hero d-flex align-items-center text-white text-center position-relative">
         <div className="parallax-bg" aria-hidden="true"></div>
         <div className="container position-relative z-1">
-          <h1 className="display-3 fw-bold mb-2">Bills</h1>
-          <p className="lead">
+          <h1 className="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Bills</h1>
+          <p className="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
             Tracking our advocacy efforts across state and federal policy.
           </p>
         </div>

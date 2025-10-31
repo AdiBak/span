@@ -1,9 +1,18 @@
-.directory-page .subpage-hero {
+/* Directory page specific styles */
+#directory-root {
   margin-top: 0;
   padding-top: 0;
 }
 
-#directory-root {
-  margin-top: 0;
+.directory-page .subpage-hero {
   padding-top: 0;
+}
+
+.directory-page .subpage-hero .container {
+  z-index: 10;
+}
+
+.directory-page .subpage-hero h1,
+.directory-page .subpage-hero p {
+  color: #ffffff;
 }

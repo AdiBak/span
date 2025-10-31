@@ -1,7 +1,39 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import './OurStoryPage.css'
 
 function OurStoryPage() {
+  // Initialize AOS animations early, before content renders
+  useEffect(() => {
+    // Initialize AOS immediately if available, or wait for it to load
+    const initAOS = () => {
+      if (window.AOS && typeof window.AOS.init === 'function') {
+        window.AOS.init({
+          duration: 1000,
+          once: false,
+          mirror: false
+        })
+        if (typeof window.AOS.refreshHard === 'function') {
+          window.AOS.refreshHard()
+        } else if (typeof window.AOS.refresh === 'function') {
+          window.AOS.refresh()
+        }
+      }
+    }
+    
+    if (window.AOS) {
+      initAOS()
+    } else {
+      // Wait for AOS to load
+      const checkAOS = setInterval(() => {
+        if (window.AOS) {
+          clearInterval(checkAOS)
+          initAOS()
+        }
+      }, 50)
+      return () => clearInterval(checkAOS)
+    }
+  }, [])
+
   return (
     <div className="our-story-page">
       <section className="subpage-hero d-flex align-items-center text-white text-center position-relative">

@@ -133,8 +133,7 @@
       <div class="container">
          <h2 class="text-center display-5 fw-bold" data-aos="fade" data-aos-duration="1000">Recent Bills</h2>
          <p class="lead text-center mb-5" data-aos="fade" data-aos-duration="1000">Explore the legislation we're tracking right now.</p>
-         <div id="billContainer" class="row mt-5 g-4" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-         </div>
+         <div id="bills-preview-root"></div>
       </div>
       <div class="text-center mt-5" data-aos="fade" data-aos-duration="1000" data-aos-delay="500">
          <a href="/bills.html" class="btn btn-dark btn-lg px-5 mb-4"><i class="bi bi-file-text"></i> View all Bills</a>
@@ -178,6 +177,8 @@
                      <h3 id="proposals"></h3>
                      <p class="lead mb-1">Proposals Submitted</p>
                      <p class="text-muted small">Across local, state, and federal legislation</p>
+                     <!-- React component will update stats -->
+                     <div id="bills-stats-root" style="display:none;"></div>
                   </div>
                </div>
             </div>
@@ -316,6 +317,9 @@
    <script  src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
 
    <script defer type="module" src="/assets/scripts/script.js"></script>
+
+   <!-- React app entry point for bills preview -->
+   <script type="module" src="/src/main.jsx"></script>
 
    <!-- Initialize AOS after DOM is ready and the library has been parsed -->
    <script>

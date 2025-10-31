@@ -1,0 +1,24 @@
+/* Blog Page styles */
+.blog-page .news-card img {
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+}
+
+.blog-page .news-card.featured-news {
+  border: 2px solid rgba(0, 48, 73, 0.1);
+}
+
+.blog-page .news-card .card-title {
+  font-weight: 600;
+}
+
+.writing-team-section img {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 768px) {
+  .blog-page .news-card.featured-news {
+    border-width: 1px;
+  }
+}
+

@@ -1,0 +1,65 @@
+/* Bills Page specific styles */
+.bills-page {
+  min-height: 100vh;
+}
+
+/* Ensure no gap above hero section */
+#bills-root {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.bills-page .subpage-hero {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.subpage-hero {
+  height: 20vh;
+  min-height: 300px;
+  background-color: #000;
+  overflow: hidden;
+  position: relative;
+  z-index: 0;
+  margin-top: 0;
+}
+
+.subpage-hero .parallax-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 150%;
+  background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.05)), url('/assets/images/index/hero.jpg') center/cover no-repeat;
+  background-attachment: fixed;
+  z-index: -1;
+}
+
+.subpage-hero h1,
+.subpage-hero p {
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.impact-card {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.impact-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .btn-filter-group {
+    width: 100%;
+  }
+  
+  .btn-filter-group .btn {
+    flex: 1;
+    min-width: 120px;
+  }
+}
+

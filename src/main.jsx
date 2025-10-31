@@ -16,6 +16,7 @@ const mountApp = (element, page) => {
 // Mount React apps on their respective pages
 mountApp(document.getElementById('bills-root'), 'bills')
 mountApp(document.getElementById('blog-root'), 'blog')
+mountApp(document.getElementById('directory-root'), 'directory')
 mountApp(document.getElementById('bills-preview-root'), 'bills-preview')
 mountApp(document.getElementById('bills-stats-root'), 'bills-stats')
 

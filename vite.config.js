@@ -11,7 +11,8 @@ export default defineConfig({
       input: {
         main: './index.html',
         bills: './bills.html',
-        blog: './blog.html'
+        blog: './blog.html',
+        directory: './directory.html'
       }
     }
   },

@@ -2,6 +2,7 @@ import React from 'react'
 import BillsPage from './pages/BillsPage'
 import BlogPage from './pages/BlogPage'
 import DirectoryPage from './pages/DirectoryPage'
+import OurStoryPage from './pages/OurStoryPage'
 import BillsPreview from './components/BillsPreview'
 import BillsStats from './components/BillsStats'
 import './App.css'
@@ -17,6 +18,10 @@ function App({ page }) {
 
   if (page === 'directory') {
     return <DirectoryPage />
+  }
+
+  if (page === 'our-story') {
+    return <OurStoryPage />
   }
 
   if (page === 'bills-preview') {

@@ -12,7 +12,8 @@ export default defineConfig({
         main: './index.html',
         bills: './bills.html',
         blog: './blog.html',
-        directory: './directory.html'
+        directory: './directory.html',
+        'our-story': './our-story.html'
       }
     }
   },

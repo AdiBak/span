@@ -58,61 +58,9 @@
 
 <body>
    <nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top"></nav>
-<section class="subpage-hero d-flex align-items-center text-white text-center position-relative">
-   <div class="parallax-bg"></div>
-   <div class="container position-relative z-1">
-      <h1 class="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Our Story</h1>
-      <p class="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-         SPAN's origin and mission.
-      </p>
-   </div>
-</section>
-   <main class="container py-5">
-      <div class="row justify-content-center">
-         <div class="col-lg-8">
-            <p class="lead mb-4">
-               At Students for Patient Advocacy Nationwide (SPAN), we believe the
-               voices of tomorrow’s healthcare leaders must be heard today.
-               Founded in response to a direct threat to medical student rights, SPAN
-               has grown into a powerful coalition representing students across the
-               country.
-            </p>
-            <p class="lead mb-4">
-               In early 2025, Texas House Bill 5294 proposed eliminating the
-               pass/fail grading system at Texas medical schools, a policy that
-               protects students from undue stress and preserves fair academic
-               evaluation. This bill jeopardized the futures of countless medical
-               students and sparked a nationwide call to action.
-            </p>
-            <p class="lead mb-4">
-               SPAN quickly mobilized. We united students from institutions including
-               UTMB and Baylor College of Medicine, rallying over 100 student advocates
-               to directly engage with legislators and policymakers. Our coalition
-               placed hundreds of calls, sent testimonies, and amplified student voices
-               in the halls of government.
-            </p>
-            <p class="lead mb-4">
-               Thanks to these coordinated efforts, the bill was ultimately stopped,
-               preserving the pass/fail system and protecting student futures. This
-               victory demonstrated the impact students can have when organized and
-               empowered.
-            </p>
-            <p class="lead mb-4">
-               But SPAN is more than just one campaign. We are committed to
-               democratizing healthcare policy advocacy by bridging the gap between
-               students and government. Our mission is to empower young advocates to
-               influence healthcare legislation at local, state, and federal levels.
-            </p>
-            <p class="lead">
-               Today, SPAN continues to grow its network, build strength in numbers,
-               and champion patient-centered policies. We invite all students who
-               share our passion for equitable, informed healthcare to join us and be
-               part of this transformative movement.
-            </p>
-            <p class="lead text-end">&mdash; Vishank, Shayan, Joel, & Ben</p>
-         </div>
-      </div>
-   </main>
+
+   <!-- React app will mount here (includes hero section) -->
+   <div id="our-story-root"></div>
    <footer id="footerContainer" class="footer text-white py-5"></footer>
 
       <!-- SCRIPTS - defer so parsing isn't blocked. Keep order important: bootstrap -> navbar -> module app scripts -> footer -->
@@ -120,6 +68,9 @@
    <script defer src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
 
    <script defer type="module" src="/assets/scripts/script.js"></script>
+
+   <!-- React app entry point -->
+   <script type="module" src="/src/main.jsx"></script>
 
    <!-- Initialize AOS after DOM is ready and the library has been parsed -->
    <script>

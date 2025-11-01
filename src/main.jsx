@@ -5,6 +5,7 @@ import Footer from './components/Footer'
 import Navbar from './components/Navbar'
 import SchoolsCarousel from './components/SchoolsCarousel'
 import TeamSection from './components/TeamSection'
+import ImpactMap from './components/ImpactMap'
 import './index.css'
 
 const mountApp = (element, page) => {
@@ -64,4 +65,5 @@ mountFooter(document.getElementById('footerContainer'))
 // Mount homepage components
 mountComponent(document.getElementById('schools-carousel-root'), SchoolsCarousel)
 mountComponent(document.getElementById('team-section-root'), TeamSection)
+mountComponent(document.getElementById('impact-map-root'), ImpactMap)
 

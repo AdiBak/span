@@ -148,15 +148,17 @@ function BillsPage() {
     }
   }, [])
 
-  // Initialize AOS animations early, before content renders
+  // Initialize AOS animations after component mounts
   useEffect(() => {
-    // Initialize AOS immediately if available, or wait for it to load
     const initAOS = () => {
       if (window.AOS && typeof window.AOS.init === 'function') {
         window.AOS.init({
           duration: 1000,
+          easing: 'ease-in-out',
           once: false,
-          mirror: false
+          mirror: false,
+          offset: 100,
+          startEvent: 'DOMContentLoaded'
         })
         if (typeof window.AOS.refreshHard === 'function') {
           window.AOS.refreshHard()
@@ -180,10 +182,39 @@ function BillsPage() {
     }
   }, [])
   
-  // Refresh AOS when loading completes
+  // Refresh AOS when loading completes and ensure elements animate
   useEffect(() => {
-    if (!loading && window.AOS && typeof window.AOS.refresh === 'function') {
-      window.AOS.refresh()
+    if (!loading) {
+      // Use setTimeout to ensure DOM is ready
+      setTimeout(() => {
+        if (window.AOS) {
+          if (typeof window.AOS.refresh === 'function') {
+            window.AOS.refresh()
+          }
+          // Ensure AOS elements animate properly
+          const heroElements = document.querySelectorAll('.bills-page .subpage-hero [data-aos]')
+          heroElements.forEach((el, index) => {
+            // Wait a bit for AOS to potentially initialize
+            setTimeout(() => {
+              // If AOS has initialized but not animated, force trigger
+              if (el.classList.contains('aos-init') && !el.classList.contains('aos-animate')) {
+                el.classList.add('aos-animate')
+              }
+              // If AOS hasn't initialized, trigger fallback
+              if (!el.classList.contains('aos-init') && !el.classList.contains('aos-animate')) {
+                // Manually animate with CSS animation
+                el.style.opacity = '0'
+                el.style.transform = 'translateY(20px)'
+                setTimeout(() => {
+                  el.style.transition = 'opacity 1s ease-in-out, transform 1s ease-in-out'
+                  el.style.opacity = '1'
+                  el.style.transform = 'translateY(0)'
+                }, 50)
+              }
+            }, 300 * (index + 1))
+          })
+        }
+      }, 100)
     }
   }, [loading])
 

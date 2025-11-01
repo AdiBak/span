@@ -10,34 +10,55 @@
 }
 
 .bills-page .subpage-hero {
-  margin-top: 0;
   padding-top: 0;
+  z-index: 10;
 }
 
-.subpage-hero {
-  height: 20vh;
-  min-height: 300px;
-  background-color: #000;
-  overflow: hidden;
+.bills-page .subpage-hero .container {
+  z-index: 10;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  min-height: 100% !important;
+}
+
+.bills-page .subpage-hero h1,
+.bills-page .subpage-hero p {
+  color: #ffffff;
+  z-index: 10;
   position: relative;
-  z-index: 0;
-  margin-top: 0;
 }
 
-.subpage-hero .parallax-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 150%;
-  background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.05)), url('/assets/images/index/hero.jpg') center/cover no-repeat;
-  background-attachment: fixed;
-  z-index: -1;
+/* Smooth transitions for fade and float */
+.bills-page .subpage-hero [data-aos] {
+  transition: opacity 1s ease-in-out, transform 1s ease-in-out !important;
 }
 
-.subpage-hero h1,
-.subpage-hero p {
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+/* Ensure elements become visible when AOS animates */
+.bills-page .subpage-hero [data-aos].aos-animate {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Fallback: show elements after a short delay if AOS doesn't initialize */
+.bills-page .subpage-hero [data-aos]:not(.aos-init) {
+  animation: fadeInUp 1s ease-in-out forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .impact-card {

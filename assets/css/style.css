@@ -104,10 +104,6 @@ html, body {
   transform: scale(1.01);
 }
 
-@keyframes scrollLinear {
-  0% { transform: translateX(0%); }
-  100% { transform: translateX(-50%); }
-}
 
 .collaborator-avatar {
   width: 35px;

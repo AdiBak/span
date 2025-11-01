@@ -90,7 +90,7 @@ npm run preview
 
 2. **Hybrid Approach**: The site uses a hybrid approach - all user-facing pages are React, while admin/internal pages (login, dashboard) remain vanilla JS for now.
 
-3. **Environment Variables**: Supabase credentials are currently hardcoded. Consider moving to environment variables for production.
+3. **Environment Variables**: Supabase credentials are now managed via environment variables. See [README-ENV.md](./README-ENV.md) for setup instructions.
 
 4. **PDF.js Worker**: The PDF viewer uses a worker for better performance. Make sure the worker file is accessible in production.
 

@@ -28,7 +28,7 @@ function BillsPreview() {
           bill_date: new Date(b.bill_date)
         }))
         .sort((a, b) => b.bill_date - a.bill_date)
-        .slice(0, 4) // Only show 4 for homepage preview
+        .slice(0, 3) // Show 3 for homepage preview
 
       // Check PDF existence
       const billsWithPDF = await Promise.all(

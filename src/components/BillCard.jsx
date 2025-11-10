@@ -94,22 +94,29 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted }) {
     }
   }
 
+  const aosDelay = Math.min((bill.index || 0) * 80, 320)
+
   return (
-    <div className="col-md-3 mb-4">
+    <div
+      className="bill-card-wrapper col-12 col-sm-6 col-lg-4 mb-4"
+      data-aos="fade-up"
+      data-aos-duration="700"
+      data-aos-delay={aosDelay}
+    >
       <div className="impact-card card h-100 shadow-sm position-relative overflow-hidden">
-        <div className="card-body position-relative">
+        <div className="card-body position-relative d-flex flex-column">
           <h5 className="card-title bill-card-title">
             <span>{bill.state} {bill.name}</span>
           </h5>
           <span className={`badge ${getPositionBadge(bill.position)} mb-2`}>
             {bill.position}
           </span>
-          <p className="card-text">{bill.description}</p>
-          <p className="text-muted small mb-2">{formatDate(bill.bill_date)}</p>
+          <p className="card-text bill-card-description">{bill.description}</p>
+          <p className="text-muted small mb-3">{formatDate(bill.bill_date)}</p>
 
           {/* PDF and Collaborator Section */}
           {bill.pdfExists && (
-            <div className="d-flex justify-content-between align-items-center mb-2">
+            <div className="bill-card-actions">
               <button
                 className="btn btn-outline-dark btn-sm"
                 onClick={() => setShowPDF(!showPDF)}
@@ -133,7 +140,7 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted }) {
             <>
               {/* Backdrop */}
               <div 
-                className="modal-backdrop fade show"
+                className="modal-backdrop fade show bill-modal-backdrop"
                 style={{ 
                   position: 'fixed',
                   top: 0,
@@ -147,7 +154,7 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted }) {
               />
               {/* Modal */}
               <div 
-                className="modal fade show d-block" 
+                className="modal fade show d-block bill-modal" 
                 style={{ 
                   position: 'fixed',
                   top: 0,

@@ -5,7 +5,7 @@ import Pagination from '../components/Pagination'
 import CollaboratorModal from '../components/CollaboratorModal'
 import '../pages/BillsPage.css'
 
-const ITEMS_PER_PAGE = 8
+const ITEMS_PER_PAGE = 9
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
@@ -185,49 +185,43 @@ function BillsPage() {
   // Refresh AOS when loading completes and ensure elements animate
   useEffect(() => {
     if (!loading) {
-      // Use setTimeout to ensure DOM is ready
-      setTimeout(() => {
+      const timeout = setTimeout(() => {
         if (window.AOS) {
-          if (typeof window.AOS.refresh === 'function') {
+          if (typeof window.AOS.refreshHard === 'function') {
+            window.AOS.refreshHard()
+          } else if (typeof window.AOS.refresh === 'function') {
             window.AOS.refresh()
           }
-          // Ensure AOS elements animate properly
           const heroElements = document.querySelectorAll('.bills-page .subpage-hero [data-aos]')
           heroElements.forEach((el, index) => {
-            // Wait a bit for AOS to potentially initialize
-            setTimeout(() => {
-              // If AOS has initialized but not animated, force trigger
-              if (el.classList.contains('aos-init') && !el.classList.contains('aos-animate')) {
-                el.classList.add('aos-animate')
-              }
-              // If AOS hasn't initialized, trigger fallback
-              if (!el.classList.contains('aos-init') && !el.classList.contains('aos-animate')) {
-                // Manually animate with CSS animation
-                el.style.opacity = '0'
-                el.style.transform = 'translateY(20px)'
-                setTimeout(() => {
-                  el.style.transition = 'opacity 1s ease-in-out, transform 1s ease-in-out'
-                  el.style.opacity = '1'
-                  el.style.transform = 'translateY(0)'
-                }, 50)
-              }
-            }, 300 * (index + 1))
+            if (el.classList.contains('aos-init') && !el.classList.contains('aos-animate')) {
+              setTimeout(() => el.classList.add('aos-animate'), index * 50)
+            }
           })
         }
-      }, 100)
+      }, 120)
+      return () => clearTimeout(timeout)
     }
   }, [loading])
 
-  if (loading) {
-    return (
-      <div className="container py-5 text-center">
-        <div className="spinner-border text-secondary" role="status" style={{ width: '3rem', height: '3rem' }}>
-          <span className="visually-hidden">Loading...</span>
-        </div>
-        <p className="mt-2 text-muted">Loading bills…</p>
-      </div>
-    )
-  }
+  // Refresh AOS whenever the visible bills change to prevent hidden cards
+  useEffect(() => {
+    if (!loading && window.AOS) {
+      const timeout = setTimeout(() => {
+        if (typeof window.AOS.refreshHard === 'function') {
+          window.AOS.refreshHard()
+        } else if (typeof window.AOS.refresh === 'function') {
+          window.AOS.refresh()
+        }
+        document.querySelectorAll('.bill-card-wrapper[data-aos]').forEach((el) => {
+          if (el.classList.contains('aos-init') && !el.classList.contains('aos-animate')) {
+            el.classList.add('aos-animate')
+          }
+        })
+      }, 80)
+      return () => clearTimeout(timeout)
+    }
+  }, [currentPage, filteredBills, loading])
 
   return (
     <div className="bills-page">
@@ -279,14 +273,21 @@ function BillsPage() {
           </div>
 
           {/* Results Count */}
-          {filteredBills.length > 0 && (
+          {!loading && filteredBills.length > 0 && (
             <p className="text-muted mb-3">
               {filteredBills.length} result{filteredBills.length !== 1 ? 's' : ''} found
             </p>
           )}
 
           {/* Bills Grid */}
-          {currentBills.length === 0 ? (
+          {loading ? (
+            <div className="bills-loading text-center py-5">
+              <div className="spinner-border text-secondary" role="status" style={{ width: '3rem', height: '3rem' }}>
+                <span className="visually-hidden">Loading bills...</span>
+              </div>
+              <p className="mt-2 text-muted">Loading bills…</p>
+            </div>
+          ) : currentBills.length === 0 ? (
             <div className="col-12 text-center">
               <p className="text-muted mt-5 fs-5">
                 No results found. Try a different filter or search term.

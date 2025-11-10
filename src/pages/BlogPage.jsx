@@ -1,41 +1,141 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import Pagination from '../components/Pagination'
 import BlogCard from '../components/BlogCard'
+import { supabase } from '../lib/supabase'
 import '../pages/BlogPage.css'
 
 const RSS_FEED_URL = 'https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fmedium.com%2Ffeed%2F%40spanationwide'
 const ITEMS_PER_PAGE = 5
 const FALLBACK_IMAGE = 'https://via.placeholder.com/600x338?text=No+Image'
-
-const AUTHOR_MAP = {
-  'ashita virani': {
-    name: 'Ashita Virani',
-    link: '/directory.html?search=Ashita+Virani',
-    avatar: 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/ashita-virani.jpg'
-  },
-  'arnav goyal': {
-    name: 'Arnav Goyal',
-    link: '/directory.html?search=Arnav+Goyal',
-    avatar: 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/arnav-goyal.jpg'
-  }
+const MEMBER_IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
+const DEFAULT_AUTHOR = {
+  name: 'SPAN',
+  link: '/index.html',
+  avatar: '/assets/images/index/logo-icon-light.svg'
 }
 
-const WRITING_TEAM = [
-  {
-    name: 'Arnav Goyal',
-    role: 'Policy Analyst',
-    bio: 'Arnav, a high school sophomore, is deeply passionate about public policy, geopolitics, and ethics. He explores these interests through journalism, podcasting, and advocacy work with organizations like SPAN to promote patient awareness and engagement.',
-    image: 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/arnav-goyal.jpg'
-  },
-  {
-    name: 'Ashita Virani',
-    role: 'Editorial & Business Lead',
-    bio: 'Ashita is a freshman at UT Austin’s McCombs School of Business who is driven by a deep interest in law, entrepreneurship, and public policy. She explores these areas through her startup Ashvish, advocacy with SPAN, and by writing her first book.',
-    image: 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/ashita-virani.jpg'
-  }
-]
+const decodeHtmlEntities = (str = '') => {
+  return str
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&rsquo;/gi, "'")
+    .replace(/&lsquo;/gi, "'")
+    .replace(/&ldquo;/gi, '"')
+    .replace(/&rdquo;/gi, '"')
+    .replace(/&ndash;/gi, '-')
+    .replace(/&mdash;/gi, '-')
+}
 
-function normalizePost(item) {
+const normalizeName = (name = '') =>
+  decodeHtmlEntities(name)
+    .replace(/\u00a0/g, ' ')
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+const getCandidateNames = (rawName = '') => {
+  const cleaned = decodeHtmlEntities(rawName)
+    .replace(/\(.*?\)/g, ' ')
+    .replace(/\u00a0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!cleaned) return []
+  const words = cleaned.split(' ').filter(Boolean)
+  const candidates = new Set()
+  candidates.add(cleaned)
+  if (words.length >= 2) {
+    candidates.add(`${words[0]} ${words[words.length - 1]}`)
+  }
+  if (words.length >= 1) {
+    candidates.add(words[0])
+  }
+  return Array.from(candidates)
+}
+
+const buildMemberLookup = (members = []) => {
+  return members.reduce((map, member) => {
+    const namesToIndex = new Set()
+
+    const first = member?.first_name?.trim()
+    const last = member?.last_name?.trim()
+
+    const fullName = [first, last].filter(Boolean).join(' ').trim()
+
+    if (fullName) namesToIndex.add(fullName)
+    if (first) namesToIndex.add(first)
+    if (last) namesToIndex.add(last)
+
+    namesToIndex.forEach((name) => {
+      const normalized = normalizeName(name)
+      if (normalized) {
+        map.set(normalized, member)
+      }
+    })
+
+    return map
+  }, new Map())
+}
+
+const extractAuthorName = (item) => {
+  const content = item.content || ''
+  const match = content.match(/written\s+by\s*([^<\n\r]+)/i)
+  if (match && match[1]) {
+    return decodeHtmlEntities(
+      match[1].replace(/[-–—].*$/, '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim()
+    )
+  }
+  if (item.author) {
+    return decodeHtmlEntities(item.author).replace(/\u00a0/g, ' ').trim()
+  }
+  return ''
+}
+
+const resolveMemberAvatar = (image) => {
+  if (!image) return DEFAULT_AUTHOR.avatar
+  if (/^https?:\/\//i.test(image)) return image
+  return `${MEMBER_IMAGE_BASE_URL}/${image}`
+}
+
+const resolveAuthor = (item, memberLookup) => {
+  if (!memberLookup || memberLookup.size === 0) {
+    return { ...DEFAULT_AUTHOR }
+  }
+
+  const authorName = extractAuthorName(item)
+  if (!authorName) {
+    return { ...DEFAULT_AUTHOR }
+  }
+
+  const segments = authorName.split(/(?:,|&| and )/i).map((segment) => segment.trim()).filter(Boolean)
+
+  for (const segment of segments) {
+    const candidates = getCandidateNames(segment)
+    for (const candidate of candidates) {
+      const normalized = normalizeName(candidate)
+      if (!normalized) continue
+
+      const member = memberLookup.get(normalized)
+      if (member) {
+        const displayName =
+          [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || authorName
+
+        const avatar = resolveMemberAvatar(member.image)
+        return {
+          name: displayName,
+          link: `/directory.html?search=${encodeURIComponent(displayName)}`,
+          avatar
+        }
+      }
+    }
+  }
+
+  return { ...DEFAULT_AUTHOR }
+}
+
+function normalizePost(item, memberLookup) {
   const descriptionMatch = item.description?.match(/<img[^>]+src="([^"]+)"/)
   const image = descriptionMatch ? descriptionMatch[1] : FALLBACK_IMAGE
 
@@ -55,18 +155,7 @@ function normalizePost(item) {
 
   const excerpt = cleanContent.length > 150 ? `${cleanContent.slice(0, 150)}…` : cleanContent
 
-  const lowerContent = item.content?.toLowerCase() || ''
-  const detectedAuthor = Object.entries(AUTHOR_MAP).find(([key]) => lowerContent.includes(key))
-
-  let author = {
-    name: 'SPAN',
-    link: '/index.html'
-  }
-
-  if (detectedAuthor) {
-    const [, authorData] = detectedAuthor
-    author = authorData
-  }
+  const author = resolveAuthor(item, memberLookup)
 
   return {
     id: item.guid || item.link,
@@ -80,7 +169,8 @@ function normalizePost(item) {
 }
 
 function BlogPage() {
-  const [posts, setPosts] = useState([])
+  const [rawPosts, setRawPosts] = useState([])
+  const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -88,22 +178,41 @@ function BlogPage() {
   useEffect(() => {
     let isMounted = true
 
-    async function fetchPosts() {
+    async function fetchData() {
       try {
         setLoading(true)
         const res = await fetch(RSS_FEED_URL)
         if (!res.ok) throw new Error('Failed to fetch blog posts')
         const data = await res.json()
         const items = data.items || []
+
+        let membersData = []
+        try {
+          const { data: memberData, error: memberError } = await supabase
+            .from('members')
+            .select('first_name,last_name,image')
+            .eq('active', true)
+
+          if (memberError) {
+            console.warn('Failed to fetch members for blog authors:', memberError)
+          } else {
+            membersData = memberData || []
+          }
+        } catch (memberFetchError) {
+          console.warn('Failed to fetch members for blog authors:', memberFetchError)
+        }
+
         if (!isMounted) return
-        setPosts(items.map(normalizePost))
+        setRawPosts(items)
+        setMembers(membersData)
         setError(null)
         setCurrentPage(1)
       } catch (err) {
         if (!isMounted) return
         console.error('Failed to fetch RSS feed:', err)
         setError('Blog posts coming soon!')
-        setPosts([])
+        setRawPosts([])
+        setMembers([])
       } finally {
         if (isMounted) {
           setLoading(false)
@@ -111,12 +220,19 @@ function BlogPage() {
       }
     }
 
-    fetchPosts()
+    fetchData()
 
     return () => {
       isMounted = false
     }
   }, [])
+
+  const memberLookup = useMemo(() => buildMemberLookup(members), [members])
+
+  const normalizedPosts = useMemo(
+    () => rawPosts.map((item) => normalizePost(item, memberLookup)),
+    [rawPosts, memberLookup]
+  )
 
   useEffect(() => {
     if (window.AOS && typeof window.AOS.init === 'function') {
@@ -125,10 +241,10 @@ function BlogPage() {
         window.AOS.refreshHard()
       }
     }
-  }, [posts])
+  }, [normalizedPosts])
 
-  const featuredPost = posts[0]
-  const otherPosts = useMemo(() => posts.slice(1), [posts])
+  const featuredPost = normalizedPosts[0]
+  const otherPosts = useMemo(() => normalizedPosts.slice(1), [normalizedPosts])
 
   const paginatedPosts = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE
@@ -203,31 +319,6 @@ function BlogPage() {
           {renderPosts()}
         </div>
       </main>
-
-      <section className="p-3 p-md-5 m-md-3 bg-light writing-team-section">
-        <div className="container">
-          <h2 className="text-center display-5 fw-bold">Writing Team</h2>
-          <div className="mt-5 row justify-content-center">
-            {WRITING_TEAM.map((member) => (
-              <div className="col-md-4 mb-4" key={member.name}>
-                <div className="card shadow-sm border-0 h-100">
-                  <div className="card-body text-center">
-                    <img
-                      src={member.image}
-                      alt={member.name}
-                      className="rounded-circle mb-3"
-                      style={{ width: '120px', height: '120px', objectFit: 'cover' }}
-                    />
-                    <h5 className="card-title">{member.name}</h5>
-                    <p className="card-text text-muted">{member.role}</p>
-                    <p className="card-text">{member.bio}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
     </div>
   )
 }

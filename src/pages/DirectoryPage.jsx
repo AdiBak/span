@@ -243,30 +243,6 @@ function DirectoryPage() {
     return fullState ? `/assets/images/states/${fullState}.svg` : null
   }
 
-  if (loading) {
-    return (
-      <div className="directory-page">
-        <section className="subpage-hero d-flex align-items-center text-white text-center position-relative">
-          <div className="parallax-bg" aria-hidden="true"></div>
-          <div className="container position-relative z-1">
-            <h1 className="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Directory</h1>
-            <p className="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-              Meet our network of student advocates across the nation.
-            </p>
-          </div>
-        </section>
-        <main className="p-3 p-md-5 m-md-3 bg-light">
-          <div className="text-center my-5 py-5">
-            <div className="spinner-border text-secondary" role="status" style={{ width: '3rem', height: '3rem' }}>
-              <span className="visually-hidden">Loading...</span>
-            </div>
-            <p className="mt-3 text-muted">Loading directory...</p>
-          </div>
-        </main>
-      </div>
-    )
-  }
-
   if (error) {
     return (
       <div className="directory-page">
@@ -350,7 +326,18 @@ function DirectoryPage() {
               </tr>
             </thead>
             <tbody>
-              {paginatedMembers.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan="4" className="text-center py-5">
+                    <div className="directory-loading">
+                      <div className="spinner-border text-secondary" role="status" style={{ width: '3rem', height: '3rem' }}>
+                        <span className="visually-hidden">Loading directory…</span>
+                      </div>
+                      <p className="text-muted mb-0">Loading directory…</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedMembers.length === 0 ? (
                 <tr>
                   <td colSpan="4" className="text-center text-muted py-4">
                     {debouncedSearch ? `No results found for "${debouncedSearch}"` : 'No members available.'}
@@ -402,13 +389,15 @@ function DirectoryPage() {
           </table>
         </div>
 
-        <div className="mt-3 d-flex justify-content-center">
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-          />
-        </div>
+        {!loading && totalPages > 1 && (
+          <div className="mt-3 d-flex justify-content-center">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          </div>
+        )}
       </main>
     </div>
   )

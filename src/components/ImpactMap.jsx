@@ -56,12 +56,33 @@ const STATE_NAME_TO_CODE = {
   "District of Columbia": "US-DC"
 }
 
+const FEDERAL_ALIASES = [
+  'federal',
+  'federal (us)',
+  'united states',
+  'united states of america',
+  'usa',
+  'u.s.',
+  'u.s',
+  'us',
+  'national'
+]
+
+const normalizeStateValue = (value = '') =>
+  value
+    .toString()
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
 function ImpactMap() {
   const chartDivRef = useRef(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const chartRef = useRef(null)
   const [stateCounts, setStateCounts] = useState({})
+  const [federalCount, setFederalCount] = useState(0)
 
   // Load Google Charts and initialize - runs after component renders
   useEffect(() => {
@@ -156,12 +177,26 @@ function ImpactMap() {
 
       // Count bills by state
       const counts = {}
+      let federalTotal = 0
       for (const bill of bills || []) {
-        if (bill.state) {
-          counts[bill.state] = (counts[bill.state] || 0) + 1
+        if (!bill.state) continue
+        const stateName = bill.state.trim()
+        const stateCode = STATE_NAME_TO_CODE[stateName]
+
+        if (stateCode) {
+          counts[stateName] = (counts[stateName] || 0) + 1
+        } else {
+          const normalized = normalizeStateValue(stateName)
+          const matchesFederal =
+            FEDERAL_ALIASES.includes(normalized) || /federal/.test(normalized) || /united states/.test(normalized)
+
+          if (matchesFederal) {
+            federalTotal += 1
+          }
         }
       }
       setStateCounts(counts)
+      setFederalCount(federalTotal)
 
       // Wait for both Google Charts and the chart div to be ready
       const attemptDraw = (attempts = 0) => {
@@ -297,7 +332,21 @@ function ImpactMap() {
           {error}
         </div>
       )}
-      <div ref={chartDivRef} className="impact-map" style={{ visibility: loading ? 'hidden' : 'visible' }}></div>
+      <div className="impact-map-wrapper">
+        <div
+          ref={chartDivRef}
+          className="impact-map"
+          style={{ visibility: loading ? 'hidden' : 'visible' }}
+        ></div>
+        {!loading && !error && federalCount > 0 && (
+          <div className="impact-map-federal-card" role="note" aria-label="Federal bills summary">
+            <span className="impact-map-federal-label">U.S.</span>
+            <span className="impact-map-federal-count">
+              {federalCount === 1 ? '1 federal bill' : `${federalCount} federal bills`}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

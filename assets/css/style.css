@@ -16,7 +16,7 @@ html, body {
   box-shadow: 0 10px 20px rgba(0,0,0,0.1);
 }
 
-.navbar, .footer {
+.footer {
   background-color: #003049;
 }
 .text-white {

@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import BillCard from './BillCard'
+import CollaboratorModal from './CollaboratorModal'
 
 function BillsPreview() {
   const [bills, setBills] = useState([])
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [selectedCollaborators, setSelectedCollaborators] = useState(null)
 
   useEffect(() => {
     fetchData()
@@ -84,6 +86,17 @@ function BillsPreview() {
     )
   }
 
+  function handleCollaboratorClick(collaborators, billIndex) {
+    const bill = bills[billIndex]
+    if (bill) {
+      setSelectedCollaborators({ collaborators, bill })
+    }
+  }
+
+  function handleCloseCollaboratorModal() {
+    setSelectedCollaborators(null)
+  }
+
   if (bills.length === 0) {
     return (
       <div className="text-center py-4" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
@@ -93,21 +106,31 @@ function BillsPreview() {
   }
 
   return (
-    <div className="row mt-5 g-4" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-      {bills.map((bill, idx) => (
-        <BillCard
-          key={`${bill.state}-${bill.name}-${idx}`}
-          bill={{
-            ...bill,
-            index: idx,
-            bill_id: bill.bill_id || `${bill.state}-${bill.name}`
-          }}
+    <>
+      <div className="row mt-5 g-4" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
+        {bills.map((bill, idx) => (
+          <BillCard
+            key={`${bill.state}-${bill.name}-${idx}`}
+            bill={{
+              ...bill,
+              index: idx,
+              bill_id: bill.bill_id || `${bill.state}-${bill.name}`
+            }}
+            members={members}
+            onCollaboratorClick={handleCollaboratorClick}
+            onKeywordExtracted={() => {}} // No keyword extraction needed for preview
+          />
+        ))}
+      </div>
+      {selectedCollaborators && (
+        <CollaboratorModal
+          collaborators={selectedCollaborators.collaborators}
+          bill={selectedCollaborators.bill}
           members={members}
-          onCollaboratorClick={() => {}} // No modal needed for preview
-          onKeywordExtracted={() => {}} // No keyword extraction needed for preview
+          onClose={handleCloseCollaboratorModal}
         />
-      ))}
-    </div>
+      )}
+    </>
   )
 }
 

@@ -94,6 +94,8 @@ npm run preview
 
 4. **PDF.js Worker**: The PDF viewer uses a worker for better performance. Make sure the worker file is accessible in production.
 
+5. **Member Provisioning**: Automated onboarding design lives in [docs/auth-provisioning.md](./docs/auth-provisioning.md).
+
 ## Architecture
 
 ### React Components Structure

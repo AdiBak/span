@@ -97,23 +97,63 @@ The function automatically sets up email routing in Cloudflare to forward emails
 
 ### Getting Cloudflare Credentials
 
-**Required**: Cloudflare Email Routing API requires Global API Key authentication (not API Tokens).
+**Option 1 (Recommended)**: Use API Tokens with Bearer authentication:
 
-Ask account admin for:
-1. **Global API Key** - Found in [Cloudflare Profile → API Tokens](https://dash.cloudflare.com/profile/api-tokens) (scroll to "API Keys" section)
-2. **Account Email** - The email address associated with the Cloudflare account (must match the account that owns the API key)
+You need two API tokens:
+1. **Account Token** - For managing email routing addresses
+   - Go to [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens)
+   - Create token with: **Account** → **Email Routing Addresses** → **Edit**
+   - Account ID: `c01cbe5d0d56079ec448c3f92297d09c`
+
+2. **Zone Token** - For managing email routing rules
+   - Create token with: **Zone** → **Email Routing Rules** → **Edit**
+   - Zone: `spanationwide.org` (or Zone ID: `d8283cfe50b0e9188183602f6361be34`)
 
 Add both to Supabase secrets:
-- `CLOUDFLARE_API_KEY` - The Global API Key
-- `CLOUDFLARE_EMAIL` - The account email address (exact match required)
+```bash
+supabase secrets set \
+  CLOUDFLARE_ACCOUNT_TOKEN=<account-token-for-addresses> \
+  CLOUDFLARE_ZONE_TOKEN=<zone-token-for-rules>
+```
 
-**Important**: 
-- The email must be the exact email address of the Cloudflare account that owns the API key
-- The API key must have permissions for the zone (usually granted automatically for account owners)
-- If you get a 403 "Authentication error", verify:
-  1. The API key is correct (no extra spaces or characters)
-  2. The email matches the account email exactly
-  3. The account has access to the `spanationwide.org` zone
+**Option 2 (Fallback)**: Use a single API Token with both permissions:
+```bash
+supabase secrets set \
+  CLOUDFLARE_API_TOKEN=<token-with-both-account-and-zone-permissions>
+```
+
+**Option 3 (Legacy)**: Use Global API Key (if tokens don't work):
+```bash
+supabase secrets set \
+  CLOUDFLARE_API_KEY=<global-api-key> \
+  CLOUDFLARE_EMAIL=Theinspiredmediasolutions@gmail.com
+```
+
+**Note**: The Account ID (`c01cbe5d0d56079ec448c3f92297d09c`) and Zone ID (`d8283cfe50b0e9188183602f6361be34`) are hardcoded in the function.
+
+**Troubleshooting 403 "Authentication error"**:
+
+1. **Verify credentials are from the correct account**:
+   - The API key and email must be from the account that owns `spanationwide.org`
+   - Switch to the SPAN account in Cloudflare dashboard before getting the key
+
+2. **Check the API key**:
+   - No extra spaces or characters
+   - Copy directly from Cloudflare (don't type it)
+   - Make sure it's the Global API Key, not an API Token
+
+3. **Verify the email**:
+   - Must match the account email exactly (case-sensitive)
+   - Check the email shown in Cloudflare dashboard (Profile section)
+
+4. **Test credentials manually**:
+   ```bash
+   curl -X GET "https://api.cloudflare.com/client/v4/zones/d8283cfe50b0e9188183602f6361be34/email/routing/addresses" \
+     -H "X-Auth-Email: Theinspiredmediasolutions@gmail.com" \
+     -H "X-Auth-Key: <your-global-api-key>" \
+     -H "Content-Type: application/json"
+   ```
+   If this returns 403, the credentials are incorrect. If it returns 200, the credentials work and the issue is elsewhere.
 
 **Note**: The Zone ID is hardcoded in the function (`d8283cfe50b0e9188183602f6361be34`). If the zone changes, update it in `supabase/functions/members-provision/index.ts`.
 

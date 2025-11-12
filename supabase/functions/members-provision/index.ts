@@ -32,10 +32,8 @@ const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 
 const EMAILJS_ENDPOINT = "https://api.emailjs.com/api/v1.0/email/send"
 const CLOUDFLARE_API_BASE = "https://api.cloudflare.com/client/v4"
-const CLOUDFLARE_ZONE_ID = Deno.env.get("CLOUDFLARE_ZONE_ID") ?? ""
-if (!CLOUDFLARE_ZONE_ID) {
-  throw new Error("Missing CLOUDFLARE_ZONE_ID environment variable")
-}
+const CLOUDFLARE_ZONE_ID = "d8283cfe50b0e9188183602f6361be34"
+const CLOUDFLARE_ACCOUNT_ID = "c01cbe5d0d56079ec448c3f92297d09c"
 
 /**
  * Sets up Cloudflare Email Routing for a new member
@@ -48,40 +46,84 @@ async function setupCloudflareEmailRouting({
   spanEmail: string
   destinationEmail: string
 }) {
+  // Try Account API Token first (if available), then fall back to Global API Key
+  const apiToken = Deno.env.get("CLOUDFLARE_API_TOKEN")
   const apiKey = Deno.env.get("CLOUDFLARE_API_KEY")
   const email = Deno.env.get("CLOUDFLARE_EMAIL")
 
-  // Cloudflare Email Routing API requires Global API Key authentication
-  // (X-Auth-Key + X-Auth-Email headers), not Bearer tokens
-  if (!apiKey || !email) {
-    console.warn("Cloudflare credentials missing; skipping email routing setup")
-    return { ok: false, reason: "missing_credentials" }
+  let headers: Record<string, string> = {
+    "Content-Type": "application/json",
   }
 
-  const headers = {
-    "X-Auth-Key": apiKey,
-    "X-Auth-Email": email,
-    "Content-Type": "application/json",
+  // Cloudflare Email Routing API supports API Tokens with Bearer authentication
+  // Need two tokens: one for account-level (addresses) and one for zone-level (rules)
+  const accountToken = Deno.env.get("CLOUDFLARE_ACCOUNT_TOKEN") // For addresses
+  const zoneToken = Deno.env.get("CLOUDFLARE_ZONE_TOKEN") // For rules
+
+  // Fallback to single token if both tokens not provided
+  const singleToken = Deno.env.get("CLOUDFLARE_API_TOKEN")
+
+  // Fallback to Global API Key if tokens not available
+  if (!accountToken && !zoneToken && !singleToken && apiKey && email) {
+    headers["X-Auth-Key"] = apiKey
+    headers["X-Auth-Email"] = email
+    console.log("Using Cloudflare Global API Key for authentication")
+  } else if (accountToken || zoneToken || singleToken) {
+    // Use API Token(s) with Bearer authentication
+    const tokenToUse = accountToken || zoneToken || singleToken
+    headers["Authorization"] = `Bearer ${tokenToUse}`
+    console.log(
+      "Using Cloudflare API Token for authentication",
+      accountToken ? "(account token)" : zoneToken ? "(zone token)" : "(single token)",
+    )
+  } else {
+    console.warn(
+      "Cloudflare credentials missing; skipping email routing setup",
+      "Have ACCOUNT_TOKEN:",
+      !!accountToken,
+      "Have ZONE_TOKEN:",
+      !!zoneToken,
+      "Have API_TOKEN:",
+      !!singleToken,
+      "Have API_KEY:",
+      !!apiKey,
+    )
+    return { ok: false, reason: "missing_credentials" }
   }
 
   try {
     // Step 1: Create or get destination address
-    // First, verify authentication by checking if we can list addresses
+    // Use account-level endpoint for addresses (requires account token)
+    const addressToken = accountToken || singleToken
+    const addressHeaders = addressToken
+      ? { ...headers, Authorization: `Bearer ${addressToken}` }
+      : headers
+
     const listDestResponse = await fetch(
-      `${CLOUDFLARE_API_BASE}/zones/${CLOUDFLARE_ZONE_ID}/email/routing/addresses`,
+      `${CLOUDFLARE_API_BASE}/accounts/${CLOUDFLARE_ACCOUNT_ID}/email/routing/addresses`,
       {
         method: "GET",
-        headers,
+        headers: addressHeaders,
       },
     )
 
     // Log authentication status
     if (!listDestResponse.ok) {
       const errorText = await listDestResponse.text()
+      let errorDetails = errorText
+      try {
+        const errorJson = JSON.parse(errorText)
+        errorDetails = JSON.stringify(errorJson, null, 2)
+      } catch {
+        // Keep as text if not JSON
+      }
       console.error(
         "Cloudflare authentication failed (GET addresses)",
+        "Status:",
         listDestResponse.status,
-        errorText,
+        "Error:",
+        errorDetails,
+        "Tip: Verify CLOUDFLARE_API_KEY and CLOUDFLARE_EMAIL match the account that owns the zone",
       )
       return {
         ok: false,
@@ -104,12 +146,13 @@ async function setupCloudflareEmailRouting({
     }
 
     // Create destination if it doesn't exist
+    // Use account-level endpoint for creating addresses
     if (!destinationTag) {
       const createDestResponse = await fetch(
-        `${CLOUDFLARE_API_BASE}/zones/${CLOUDFLARE_ZONE_ID}/email/routing/addresses`,
+        `${CLOUDFLARE_API_BASE}/accounts/${CLOUDFLARE_ACCOUNT_ID}/email/routing/addresses`,
         {
           method: "POST",
-          headers,
+          headers: addressHeaders,
           body: JSON.stringify({
             email: destinationEmail,
           }),
@@ -149,11 +192,18 @@ async function setupCloudflareEmailRouting({
     }
 
     // Step 2: Create routing rule (forward spanEmail -> destinationEmail)
+    // Use zone-level endpoint for rules (requires zone token)
+    // Note: actions.value must be an array of email addresses, not destination tags
+    const ruleToken = zoneToken || singleToken
+    const ruleHeaders = ruleToken
+      ? { ...headers, Authorization: `Bearer ${ruleToken}` }
+      : headers
+
     const createRuleResponse = await fetch(
       `${CLOUDFLARE_API_BASE}/zones/${CLOUDFLARE_ZONE_ID}/email/routing/rules`,
       {
         method: "POST",
-        headers,
+        headers: ruleHeaders,
         body: JSON.stringify({
           name: `Forward ${spanEmail} to ${destinationEmail}`,
           enabled: true,
@@ -168,7 +218,7 @@ async function setupCloudflareEmailRouting({
           actions: [
             {
               type: "forward",
-              value: [destinationTag],
+              value: [destinationEmail], // Use email address, not destination tag
             },
           ],
         }),

@@ -94,7 +94,13 @@ npm run preview
 
 4. **PDF.js Worker**: The PDF viewer uses a worker for better performance. Make sure the worker file is accessible in production.
 
-5. **Member Provisioning**: Automated onboarding design lives in [docs/auth-provisioning.md](./docs/auth-provisioning.md).
+5. **Automated Member Provisioning**: Fully automated onboarding system is now live! When a member is added to the `members` table, the system automatically:
+   - Creates a Supabase Auth user
+   - Sets up Cloudflare email routing (SPAN email → personal email)
+   - Sends a welcome email via EmailJS
+   - Links the member's `user_id` to the Auth account
+   
+   See [docs/auth-provisioning.md](./docs/auth-provisioning.md) for complete setup and configuration details.
 
 ## Architecture
 
@@ -134,14 +140,28 @@ React components are mounted to specific DOM elements in the HTML files:
 - Global components (Navbar, Footer) mount to their containers
 - Homepage components mount to specific sections (`#schools-carousel-root`, `#impact-map-root`, etc.)
 
+## Automated Member Provisioning
+
+The system now includes a fully automated onboarding flow powered by a Supabase Edge Function:
+
+- **Trigger**: Database webhook on `INSERT` to `public.members` table
+- **Edge Function**: `supabase/functions/members-provision/index.ts`
+- **Features**:
+  - Automatic Supabase Auth user creation
+  - Cloudflare Email Routing setup (forwards SPAN emails to personal inbox)
+  - Welcome email delivery via EmailJS
+  - Graceful error handling and logging
+
+**Setup**: See [docs/auth-provisioning.md](./docs/auth-provisioning.md) for deployment and configuration instructions.
+
 ## Next Steps (Improvements)
 
-1. **Security**: Enhance DB security and make .env file
-2. **Auth**: Improve user auth process
+1. **Backfill Existing Members**: Script to provision existing members without `user_id`
+2. **QR Login Enhancement**: Modernize QR login to use single-use tokens instead of passwords
 3. **Testing**: Add unit and integration tests
 4. **Performance**: Optimize bundle size and add lazy loading
 5. **Error Handling**: Add React error boundaries
-6. **Documentation**: Update documentation and component docs
+6. **Documentation**: Update API documentation and component docs
 
 ## Troubleshooting
 

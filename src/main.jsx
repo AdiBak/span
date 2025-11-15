@@ -57,11 +57,13 @@ if (document.readyState === 'loading') {
 
 function mountComponents() {
   // Mount React apps on their respective pages
+  mountApp(document.getElementById('home-root'), 'home')
   mountApp(document.getElementById('bills-root'), 'bills')
   mountApp(document.getElementById('blog-root'), 'blog')
   mountApp(document.getElementById('directory-root'), 'directory')
   mountApp(document.getElementById('our-story-root'), 'our-story')
   mountApp(document.getElementById('login-root'), 'login')
+  mountApp(document.getElementById('dashboard-root'), 'dashboard')
   mountApp(document.getElementById('bills-preview-root'), 'bills-preview')
   mountApp(document.getElementById('bills-stats-root'), 'bills-stats')
 

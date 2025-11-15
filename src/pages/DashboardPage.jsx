@@ -30,6 +30,35 @@ function DashboardPage() {
   const [qrPassword, setQrPassword] = useState('')
   const [qrPasswordError, setQrPasswordError] = useState('')
   const [verifiedPassword, setVerifiedPassword] = useState('')
+  const [showBillModal, setShowBillModal] = useState(false)
+  const [billForm, setBillForm] = useState({
+    state: '',
+    name: '',
+    position: 'Support',
+    description: '',
+    billDate: '',
+    legiscanLink: '',
+    collaborators: []
+  })
+  const [billPdfFile, setBillPdfFile] = useState(null)
+  const [billError, setBillError] = useState('')
+  const [billSuccess, setBillSuccess] = useState('')
+  const [allMembers, setAllMembers] = useState([])
+  const [allBills, setAllBills] = useState([])
+  const [showEditBillModal, setShowEditBillModal] = useState(false)
+  const [showDeleteBillModal, setShowDeleteBillModal] = useState(false)
+  const [selectedBillForEdit, setSelectedBillForEdit] = useState(null)
+  const [selectedBillForDelete, setSelectedBillForDelete] = useState(null)
+  const [editBillForm, setEditBillForm] = useState({
+    state: '',
+    name: '',
+    position: 'Support',
+    description: '',
+    billDate: '',
+    legiscanLink: '',
+    collaborators: []
+  })
+  const [editBillPdfFile, setEditBillPdfFile] = useState(null)
 
   // Helper functions
   const formatDate = (dateStr) => {
@@ -77,7 +106,41 @@ function DashboardPage() {
   // Load member data
   useEffect(() => {
     loadMemberData()
-  }, [])
+    loadAllMembers()
+    if (member && (member.is_executive_director === true || member.is_executive_director === 'true')) {
+      loadAllBills()
+    }
+  }, [member])
+
+  // Load all members for collaborator selection
+  const loadAllMembers = async () => {
+    const { data: membersData, error } = await supabase
+      .from('members')
+      .select('member_id, first_name, last_name')
+      .order('last_name', { ascending: true })
+
+    if (error) {
+      console.error('Error loading members:', error)
+      return
+    }
+
+    setAllMembers(membersData || [])
+  }
+
+  // Load all bills for management (executive directors only)
+  const loadAllBills = async () => {
+    const { data: billsData, error } = await supabase
+      .from('bills')
+      .select('*')
+      .order('bill_date', { ascending: false })
+
+    if (error) {
+      console.error('Error loading bills:', error)
+      return
+    }
+
+    setAllBills(billsData || [])
+  }
 
   const loadMemberData = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -108,19 +171,48 @@ function DashboardPage() {
   const loadVolunteerEntries = async (memberData) => {
     if (!memberData) return
 
+    // Query volunteer entries
     const { data: entries, error } = await supabase
       .from('volunteers')
-      .select(`*, members:member_id(first_name, last_name, image, email)`)
+      .select('*')
       .order('start_timestamp', { ascending: false })
 
     if (error) {
-      console.error(error)
+      console.error('Error loading volunteer entries:', error)
+      setVolunteerEntries([])
       return
+    }
+    
+    // If we have entries, fetch member data separately
+    if (entries && entries.length > 0) {
+      const memberIds = [...new Set(entries.map(e => e.member_id))]
+      const { data: membersData, error: membersError } = await supabase
+        .from('members')
+        .select('member_id, first_name, last_name, image, email')
+        .in('member_id', memberIds)
+      
+      if (membersError) {
+        console.error('Error fetching members:', membersError)
+      }
+      
+      // Map members to entries
+      const membersMap = {}
+      if (membersData) {
+        membersData.forEach(m => {
+          membersMap[m.member_id] = m
+        })
+      }
+      
+      // Add member data to each entry
+      entries.forEach(entry => {
+        entry.members = membersMap[entry.member_id] || {}
+      })
     }
 
     // Filter entries - executive directors see all, others see only their own
+    const isExecutiveDirector = memberData.is_executive_director === true || memberData.is_executive_director === 'true'
     const filtered = entries.filter(e => 
-      memberData.is_executive_director === true || e.member_id === memberData.member_id
+      isExecutiveDirector || e.member_id === memberData.member_id
     )
 
     setVolunteerEntries(filtered || [])
@@ -448,6 +540,280 @@ function DashboardPage() {
     await loadVolunteerEntries(member)
   }
 
+  // Bill upload management
+  const handleAddBill = () => {
+    setBillForm({
+      state: '',
+      name: '',
+      position: 'Support',
+      description: '',
+      billDate: '',
+      legiscanLink: '',
+      collaborators: []
+    })
+    setBillPdfFile(null)
+    setBillError('')
+    setBillSuccess('')
+    setShowBillModal(true)
+  }
+
+  const handleBillCollaboratorToggle = (memberId) => {
+    const member = allMembers.find(m => m.member_id === memberId)
+    if (!member) return
+
+    const fullName = `${member.first_name} ${member.last_name}`
+    const current = billForm.collaborators || []
+    
+    if (current.includes(fullName)) {
+      setBillForm({
+        ...billForm,
+        collaborators: current.filter(name => name !== fullName)
+      })
+    } else {
+      setBillForm({
+        ...billForm,
+        collaborators: [...current, fullName]
+      })
+    }
+  }
+
+  const handleSaveBill = async () => {
+    const { state, name, position, description, billDate, legiscanLink, collaborators } = billForm
+    setBillError('')
+    setBillSuccess('')
+
+    // Validation
+    if (!state || !name || !description || !billDate) {
+      setBillError('State, name, description, and bill date are required.')
+      return
+    }
+
+    try {
+      // 1. Upload PDF if provided
+      let pdfUploaded = true
+      if (billPdfFile) {
+        const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_')
+        const sanitizedState = state.replace(/[^a-zA-Z0-9]/g, '_')
+        const pdfPath = `${sanitizedState}/${sanitizedName}.pdf`
+        
+        const { error: uploadError } = await supabase.storage
+          .from('proposals')
+          .upload(pdfPath, billPdfFile, {
+            cacheControl: '3600',
+            upsert: true
+          })
+
+        if (uploadError) {
+          console.error('PDF upload error:', uploadError)
+          setBillError('Failed to upload PDF. ' + uploadError.message)
+          return
+        }
+        pdfUploaded = true
+      }
+
+      // 2. Insert bill to database
+      const { data: billData, error: insertError } = await supabase
+        .from('bills')
+        .insert([{
+          state: state.trim(),
+          name: name.trim(),
+          position: position,
+          description: description.trim(),
+          bill_date: billDate,
+          legiscan_link: legiscanLink.trim() || null,
+          bill_collaborators: collaborators.length > 0 ? collaborators : null
+        }])
+        .select()
+        .single()
+
+      if (insertError) {
+        console.error('Bill insert error:', insertError)
+        setBillError('Failed to save bill. ' + insertError.message)
+        return
+      }
+
+      setBillSuccess(`Bill "${state} ${name}" uploaded successfully!`)
+      setBillForm({
+        state: '',
+        name: '',
+        position: 'Support',
+        description: '',
+        billDate: '',
+        legiscanLink: '',
+        collaborators: []
+      })
+      setBillPdfFile(null)
+      await loadAllBills() // Refresh bills list
+      
+      // Close modal after 2 seconds
+      setTimeout(() => {
+        setShowBillModal(false)
+        setBillSuccess('')
+      }, 2000)
+    } catch (err) {
+      console.error('Error saving bill:', err)
+      setBillError(err.message || 'Failed to save bill.')
+    }
+  }
+
+  // Bill edit/delete handlers for dashboard
+  const handleSaveEditBill = async () => {
+    const { state, name, position, description, billDate, legiscanLink, collaborators } = editBillForm
+    setBillError('')
+    setBillSuccess('')
+
+    if (!state || !name || !description || !billDate) {
+      setBillError('State, name, description, and bill date are required.')
+      return
+    }
+
+    try {
+      // 1. Upload new PDF if provided
+      if (editBillPdfFile) {
+        const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_')
+        const sanitizedState = state.replace(/[^a-zA-Z0-9]/g, '_')
+        const pdfPath = `${sanitizedState}/${sanitizedName}.pdf`
+        
+        const { error: uploadError } = await supabase.storage
+          .from('proposals')
+          .upload(pdfPath, editBillPdfFile, {
+            cacheControl: '3600',
+            upsert: true
+          })
+
+        if (uploadError) {
+          setBillError('Failed to upload PDF. ' + uploadError.message)
+          return
+        }
+      }
+
+      // 2. Update bill in database
+      console.log('Attempting to update bill:', selectedBillForEdit.bill_id)
+      console.log('Update data:', {
+        state: state.trim(),
+        name: name.trim(),
+        position: position,
+        description: description.trim(),
+        bill_date: billDate,
+        legiscan_link: legiscanLink.trim() || null,
+        bill_collaborators: collaborators.length > 0 ? collaborators : null
+      })
+      
+      const { data, error: updateError } = await supabase
+        .from('bills')
+        .update({
+          state: state.trim(),
+          name: name.trim(),
+          position: position,
+          description: description.trim(),
+          bill_date: billDate,
+          legiscan_link: legiscanLink.trim() || null,
+          bill_collaborators: collaborators.length > 0 ? collaborators : null
+        })
+        .eq('bill_id', selectedBillForEdit.bill_id)
+        .select()
+
+      if (updateError) {
+        console.error('Update error:', updateError)
+        setBillError('Failed to update bill. ' + updateError.message)
+        return
+      }
+
+      console.log('Bill updated successfully:', data)
+
+      setBillSuccess(`Bill "${state} ${name}" updated successfully!`)
+      await loadAllBills()
+      
+      setTimeout(() => {
+        setShowEditBillModal(false)
+        setBillSuccess('')
+        setSelectedBillForEdit(null)
+      }, 1500)
+    } catch (err) {
+      setBillError(err.message || 'Failed to update bill.')
+    }
+  }
+
+  const handleConfirmDeleteBill = async () => {
+    if (!selectedBillForDelete) {
+      console.error('No bill selected for deletion')
+      return
+    }
+
+    console.log('Attempting to delete bill:', selectedBillForDelete.bill_id, selectedBillForDelete.name)
+    setBillError('') // Clear any previous errors
+
+    try {
+      // Try to delete PDF in both formats (sanitized and original with spaces)
+      const sanitizedName = selectedBillForDelete.name.replace(/[^a-zA-Z0-9]/g, '_')
+      const sanitizedState = selectedBillForDelete.state.replace(/[^a-zA-Z0-9]/g, '_')
+      const sanitizedPath = `${sanitizedState}/${sanitizedName}.pdf`
+      
+      // Original format with spaces
+      const originalPath = `${selectedBillForDelete.state}/${selectedBillForDelete.name}.pdf`
+      
+      console.log('Attempting to delete PDFs:', { sanitizedPath, originalPath })
+      
+      // Try to delete both (one will fail if it doesn't exist, but that's okay)
+      const pathsToDelete = [sanitizedPath, originalPath]
+      const { error: storageError } = await supabase.storage
+        .from('proposals')
+        .remove(pathsToDelete)
+      
+      // Don't fail if PDF doesn't exist - just log it
+      if (storageError) {
+        console.warn('PDF deletion warning (may not exist):', storageError)
+      } else {
+        console.log('PDF deletion successful (or files did not exist)')
+      }
+
+      // Delete bill from database
+      console.log('Attempting to delete bill from database:', selectedBillForDelete.bill_id)
+      const { data, error } = await supabase
+        .from('bills')
+        .delete()
+        .eq('bill_id', selectedBillForDelete.bill_id)
+        .select()
+
+      if (error) {
+        console.error('Database delete error:', error)
+        throw error
+      }
+
+      console.log('Bill deleted successfully:', data)
+
+      setShowDeleteBillModal(false)
+      setSelectedBillForDelete(null)
+      setBillError('')
+      await loadAllBills()
+    } catch (err) {
+      console.error('Delete error:', err)
+      const errorMessage = err.message || 'Unknown error occurred'
+      setBillError(`Failed to delete bill: ${errorMessage}`)
+      // Keep modal open so user can see the error
+    }
+  }
+
+  const handleEditBillCollaboratorToggle = (memberId) => {
+    const member = allMembers.find(m => m.member_id === memberId)
+    if (!member) return
+
+    const fullName = `${member.first_name} ${member.last_name}`
+    const current = editBillForm.collaborators || []
+    
+    if (current.includes(fullName)) {
+      setEditBillForm({
+        ...editBillForm,
+        collaborators: current.filter(name => name !== fullName)
+      })
+    } else {
+      setEditBillForm({
+        ...editBillForm,
+        collaborators: [...current, fullName]
+      })
+    }
+  }
+
   if (loading) {
     return (
       <div className="container my-5 text-center">
@@ -617,7 +983,7 @@ function DashboardPage() {
                                   <p><i className="bi bi-person-workspace me-1"></i>Supervisor Comment: {entry.supervisor_comment || '-'}</p>
                                   <p><i className="bi bi-upload me-1"></i>Submitted: {new Date(entry.request_submit_timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                   <div className="mt-2 d-flex gap-2 flex-wrap">
-                                    {member.is_executive_director === true && !isOwn && (
+                                    {(member.is_executive_director === true || member.is_executive_director === 'true') && !isOwn && (
                                       <>
                                         <button
                                           className="btn btn-sm btn-outline-success"
@@ -709,6 +1075,100 @@ function DashboardPage() {
             </div>
           </div>
         </section>
+
+        {/* Bill Upload Section - Executive Directors Only */}
+        {(member.is_executive_director === true || member.is_executive_director === 'true') && (
+          <section className="mt-5">
+            <div className="d-flex justify-content-between align-items-center mb-4">
+              <h3>Bill Management</h3>
+              <button className="btn btn-dark" onClick={handleAddBill}>
+                <i className="bi bi-plus-circle me-2"></i>Upload New Bill
+              </button>
+            </div>
+            <div className="card mb-3">
+              <div className="card-body">
+                <p className="text-muted mb-0">
+                  <i className="bi bi-info-circle me-2"></i>
+                  Upload bills to the website. Bills will appear on the Bills page after upload.
+                </p>
+              </div>
+            </div>
+            
+            {/* Bills List */}
+            {allBills.length > 0 && (
+              <div className="card">
+                <div className="card-header">
+                  <h5 className="mb-0">All Bills ({allBills.length})</h5>
+                </div>
+                <div className="card-body">
+                  <div className="table-responsive">
+                    <table className="table table-hover">
+                      <thead>
+                        <tr>
+                          <th>State</th>
+                          <th>Bill Name</th>
+                          <th>Position</th>
+                          <th>Date</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allBills.map(bill => (
+                          <tr key={bill.bill_id}>
+                            <td>{bill.state}</td>
+                            <td>{bill.name}</td>
+                            <td>
+                              <span className={`badge ${
+                                bill.position === 'Support' ? 'bg-success' :
+                                bill.position === 'Oppose' ? 'bg-danger' :
+                                'bg-warning text-dark'
+                              }`}>
+                                {bill.position}
+                              </span>
+                            </td>
+                            <td>{formatDate(bill.bill_date)}</td>
+                            <td>
+                              <button
+                                className="btn btn-sm btn-outline-primary me-2"
+                                onClick={() => {
+                                  setSelectedBillForEdit(bill)
+                                  setEditBillForm({
+                                    state: bill.state || '',
+                                    name: bill.name || '',
+                                    position: bill.position || 'Support',
+                                    description: bill.description || '',
+                                    billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
+                                    legiscanLink: bill.legiscan_link || '',
+                                    collaborators: bill.bill_collaborators || []
+                                  })
+                                  setEditBillPdfFile(null)
+                                  setBillError('')
+                                  setBillSuccess('')
+                                  setShowEditBillModal(true)
+                                }}
+                              >
+                                <i className="bi bi-pencil"></i> Edit
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => {
+                                  setSelectedBillForDelete(bill)
+                                  setShowDeleteBillModal(true)
+                                }}
+                              >
+                                <i className="bi bi-trash"></i> Delete
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {/* SPAN Card Password Modal */}
@@ -1005,6 +1465,376 @@ function DashboardPage() {
                     onClick={handleDeleteEntry}
                   >
                     Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Bill Upload Modal */}
+      {showBillModal && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowBillModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Upload New Bill</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowBillModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label">State <span className="text-danger">*</span></label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g., California, Texas"
+                      value={billForm.state}
+                      onChange={(e) => setBillForm({ ...billForm, state: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Bill Name/Number <span className="text-danger">*</span></label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="e.g., HB 1234, AB 567"
+                      value={billForm.name}
+                      onChange={(e) => setBillForm({ ...billForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Position <span className="text-danger">*</span></label>
+                    <select
+                      className="form-select"
+                      value={billForm.position}
+                      onChange={(e) => setBillForm({ ...billForm, position: e.target.value })}
+                      required
+                    >
+                      <option value="Support">Support</option>
+                      <option value="Oppose">Oppose</option>
+                      <option value="Support If Amended">Support If Amended</option>
+                      <option value="Oppose Unless Amended">Oppose Unless Amended</option>
+                    </select>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Description <span className="text-danger">*</span></label>
+                    <textarea
+                      className="form-control"
+                      rows="4"
+                      placeholder="Describe the bill and SPAN's position..."
+                      value={billForm.description}
+                      onChange={(e) => setBillForm({ ...billForm, description: e.target.value })}
+                      required
+                    ></textarea>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Bill Date <span className="text-danger">*</span></label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={billForm.billDate}
+                      onChange={(e) => setBillForm({ ...billForm, billDate: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">LegiScan Link</label>
+                    <input
+                      type="url"
+                      className="form-control"
+                      placeholder="https://legiscan.com/..."
+                      value={billForm.legiscanLink}
+                      onChange={(e) => setBillForm({ ...billForm, legiscanLink: e.target.value })}
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Proposal PDF</label>
+                    <input
+                      type="file"
+                      className="form-control"
+                      accept=".pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          if (file.type !== 'application/pdf') {
+                            setBillError('Please upload a PDF file.')
+                            return
+                          }
+                          setBillPdfFile(file)
+                        }
+                      }}
+                    />
+                    <small className="text-muted">Optional: Upload the proposal PDF. Will be stored as {billForm.state}/{billForm.name || 'bill'}.pdf</small>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Collaborators</label>
+                    <div className="border rounded p-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                      {allMembers.length === 0 ? (
+                        <p className="text-muted small mb-0">Loading members...</p>
+                      ) : (
+                        <div className="d-flex flex-wrap gap-2">
+                          {allMembers.map(m => {
+                            const fullName = `${m.first_name} ${m.last_name}`
+                            const isSelected = billForm.collaborators.includes(fullName)
+                            return (
+                              <button
+                                key={m.member_id}
+                                type="button"
+                                className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-outline-primary'}`}
+                                onClick={() => handleBillCollaboratorToggle(m.member_id)}
+                              >
+                                {fullName}
+                                {isSelected && <i className="bi bi-check ms-1"></i>}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <small className="text-muted">Select members who worked on this bill</small>
+                  </div>
+                  {billError && <div className="text-danger mt-2">{billError}</div>}
+                  {billSuccess && <div className="text-success mt-2">{billSuccess}</div>}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowBillModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    onClick={handleSaveBill}
+                  >
+                    Upload Bill
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Edit Bill Modal - Dashboard */}
+      {showEditBillModal && selectedBillForEdit && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowEditBillModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Edit Bill</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowEditBillModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label">State <span className="text-danger">*</span></label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editBillForm.state}
+                      onChange={(e) => setEditBillForm({ ...editBillForm, state: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Bill Name/Number <span className="text-danger">*</span></label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editBillForm.name}
+                      onChange={(e) => setEditBillForm({ ...editBillForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Position <span className="text-danger">*</span></label>
+                    <select
+                      className="form-select"
+                      value={editBillForm.position}
+                      onChange={(e) => setEditBillForm({ ...editBillForm, position: e.target.value })}
+                      required
+                    >
+                      <option value="Support">Support</option>
+                      <option value="Oppose">Oppose</option>
+                      <option value="Support If Amended">Support If Amended</option>
+                      <option value="Oppose Unless Amended">Oppose Unless Amended</option>
+                    </select>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Description <span className="text-danger">*</span></label>
+                    <textarea
+                      className="form-control"
+                      rows="4"
+                      value={editBillForm.description}
+                      onChange={(e) => setEditBillForm({ ...editBillForm, description: e.target.value })}
+                      required
+                    ></textarea>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Bill Date <span className="text-danger">*</span></label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={editBillForm.billDate}
+                      onChange={(e) => setEditBillForm({ ...editBillForm, billDate: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">LegiScan Link</label>
+                    <input
+                      type="url"
+                      className="form-control"
+                      value={editBillForm.legiscanLink}
+                      onChange={(e) => setEditBillForm({ ...editBillForm, legiscanLink: e.target.value })}
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Proposal PDF (New)</label>
+                    <input
+                      type="file"
+                      className="form-control"
+                      accept=".pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          if (file.type !== 'application/pdf') {
+                            setBillError('Please upload a PDF file.')
+                            return
+                          }
+                          setEditBillPdfFile(file)
+                        }
+                      }}
+                    />
+                    <small className="text-muted">Optional: Upload a new PDF to replace the existing one</small>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Collaborators</label>
+                    <div className="border rounded p-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                      {allMembers.length === 0 ? (
+                        <p className="text-muted small mb-0">Loading members...</p>
+                      ) : (
+                        <div className="d-flex flex-wrap gap-2">
+                          {allMembers.map(m => {
+                            const fullName = `${m.first_name} ${m.last_name}`
+                            const isSelected = editBillForm.collaborators.includes(fullName)
+                            return (
+                              <button
+                                key={m.member_id}
+                                type="button"
+                                className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-outline-primary'}`}
+                                onClick={() => handleEditBillCollaboratorToggle(m.member_id)}
+                              >
+                                {fullName}
+                                {isSelected && <i className="bi bi-check ms-1"></i>}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <small className="text-muted">Select members who worked on this bill</small>
+                  </div>
+                  {billError && <div className="text-danger mt-2">{billError}</div>}
+                  {billSuccess && <div className="text-success mt-2">{billSuccess}</div>}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowEditBillModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    onClick={handleSaveEditBill}
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Delete Bill Confirmation Modal - Dashboard */}
+      {showDeleteBillModal && selectedBillForDelete && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowDeleteBillModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title text-danger">Delete Bill</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowDeleteBillModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <p>Are you sure you want to delete <strong>{selectedBillForDelete.state} {selectedBillForDelete.name}</strong>?</p>
+                  <p className="text-muted small mb-0">This will also delete the associated PDF file. This action cannot be undone.</p>
+                  {billError && <div className="text-danger mt-2">{billError}</div>}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowDeleteBillModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={handleConfirmDeleteBill}
+                  >
+                    Delete Bill
                   </button>
                 </div>
               </div>

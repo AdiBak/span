@@ -1,6 +1,41 @@
 import React from 'react'
 
 function CollaboratorModal({ collaborators, bill, members, onClose }) {
+  // Map state abbreviations/variations to full state names for SVG files
+  const getStateFileName = (state) => {
+    if (!state) return 'United States'
+    
+    const stateMap = {
+      'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
+      'CA': 'California', 'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
+      'DC': 'District of Columbia', 'FL': 'Florida', 'GA': 'Georgia', 'HI': 'Hawaii',
+      'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
+      'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine',
+      'MD': 'Maryland', 'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota',
+      'MS': 'Mississippi', 'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska',
+      'NV': 'Nevada', 'NH': 'New Hampshire', 'NJ': 'New Jersey', 'NM': 'New Mexico',
+      'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
+      'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island',
+      'SC': 'South Carolina', 'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas',
+      'UT': 'Utah', 'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington',
+      'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming', 'US': 'United States'
+    }
+    
+    const stateUpper = state.toUpperCase()
+    if (stateMap[stateUpper]) {
+      return stateMap[stateUpper]
+    }
+    
+    const fullStateNames = Object.values(stateMap)
+    const matched = fullStateNames.find(name => name.toLowerCase() === state.toLowerCase())
+    if (matched) {
+      return matched
+    }
+    
+    return state
+  }
+  
+  const stateFileName = getStateFileName(bill.state)
   const findMemberByName = (fullName) => {
     const lowerName = fullName.trim().toLowerCase()
     return members.find(m => {
@@ -32,9 +67,12 @@ function CollaboratorModal({ collaborators, bill, members, onClose }) {
             <h5 className="modal-title">
               <img
                 className="state-image"
-                src={`/assets/images/states/${bill.state}.svg`}
+                src={`/assets/images/states/${stateFileName}.svg`}
                 alt={`${bill.state} flag`}
                 style={{ width: '20px', height: 'auto', marginRight: '8px' }}
+                onError={(e) => {
+                  e.target.src = '/assets/images/states/United States.svg'
+                }}
               />
               {bill.state} {bill.name} Collaborators
             </h5>

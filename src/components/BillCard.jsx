@@ -4,13 +4,123 @@ import PDFViewer from './PDFViewer'
 import CollaboratorAvatars from './CollaboratorAvatars'
 import './BillCard.css'
 
-function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted }) {
+function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, currentUser, onEdit, onDelete }) {
   const [showPDF, setShowPDF] = useState(false)
   const [extractedKeywords, setExtractedKeywords] = useState([])
   const modalRef = useRef(null)
   const [portalReady, setPortalReady] = useState(false)
 
-  const pdfPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${bill.state}/${bill.name}.pdf`
+  const [pdfPath, setPdfPath] = useState(null)
+
+  // Map state abbreviations/variations to full state names for SVG files
+  const getStateFileName = (state) => {
+    if (!state) return 'United States'
+    
+    const stateMap = {
+      'AL': 'Alabama',
+      'AK': 'Alaska',
+      'AZ': 'Arizona',
+      'AR': 'Arkansas',
+      'CA': 'California',
+      'CO': 'Colorado',
+      'CT': 'Connecticut',
+      'DE': 'Delaware',
+      'DC': 'District of Columbia',
+      'FL': 'Florida',
+      'GA': 'Georgia',
+      'HI': 'Hawaii',
+      'ID': 'Idaho',
+      'IL': 'Illinois',
+      'IN': 'Indiana',
+      'IA': 'Iowa',
+      'KS': 'Kansas',
+      'KY': 'Kentucky',
+      'LA': 'Louisiana',
+      'ME': 'Maine',
+      'MD': 'Maryland',
+      'MA': 'Massachusetts',
+      'MI': 'Michigan',
+      'MN': 'Minnesota',
+      'MS': 'Mississippi',
+      'MO': 'Missouri',
+      'MT': 'Montana',
+      'NE': 'Nebraska',
+      'NV': 'Nevada',
+      'NH': 'New Hampshire',
+      'NJ': 'New Jersey',
+      'NM': 'New Mexico',
+      'NY': 'New York',
+      'NC': 'North Carolina',
+      'ND': 'North Dakota',
+      'OH': 'Ohio',
+      'OK': 'Oklahoma',
+      'OR': 'Oregon',
+      'PA': 'Pennsylvania',
+      'RI': 'Rhode Island',
+      'SC': 'South Carolina',
+      'SD': 'South Dakota',
+      'TN': 'Tennessee',
+      'TX': 'Texas',
+      'UT': 'Utah',
+      'VT': 'Vermont',
+      'VA': 'Virginia',
+      'WA': 'Washington',
+      'WV': 'West Virginia',
+      'WI': 'Wisconsin',
+      'WY': 'Wyoming',
+      'US': 'United States'
+    }
+    
+    // Check if it's already a full state name (case-insensitive)
+    const stateUpper = state.toUpperCase()
+    if (stateMap[stateUpper]) {
+      return stateMap[stateUpper]
+    }
+    
+    // Check if it matches a full state name (case-insensitive)
+    const fullStateNames = Object.values(stateMap)
+    const matched = fullStateNames.find(name => name.toLowerCase() === state.toLowerCase())
+    if (matched) {
+      return matched
+    }
+    
+    // Return original if no match found
+    return state
+  }
+  
+  const stateFileName = getStateFileName(bill.state)
+  
+  // Determine correct PDF path when PDF viewer opens
+  // Try both formats: sanitized (new uploads) and URL-encoded (old uploads)
+  useEffect(() => {
+    if (showPDF && !pdfPath) {
+      const getPdfPath = async () => {
+        // Try sanitized format first (new uploads)
+        const sanitizedName = bill.name.replace(/[^a-zA-Z0-9]/g, '_')
+        const sanitizedState = bill.state.replace(/[^a-zA-Z0-9]/g, '_')
+        const sanitizedPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
+        
+        // Check if sanitized exists
+        try {
+          const response = await fetch(sanitizedPath, { method: 'HEAD' })
+          if (response.ok) {
+            setPdfPath(sanitizedPath)
+            return
+          }
+        } catch {}
+        
+        // Fall back to original format with URL encoding (old uploads)
+        const originalState = encodeURIComponent(bill.state)
+        const originalName = encodeURIComponent(bill.name)
+        const originalPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${originalState}/${originalName}.pdf`
+        setPdfPath(originalPath)
+      }
+      
+      getPdfPath()
+    } else if (!showPDF) {
+      setPdfPath(null) // Reset when closing
+    }
+  }, [showPDF, pdfPath, bill.name, bill.state])
 
   // Create modal root element on mount, keep it for the component lifecycle
   useEffect(() => {
@@ -135,6 +245,24 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted }) {
             </div>
           )}
 
+          {/* Executive Director Actions */}
+          {currentUser && (currentUser.is_executive_director === true || currentUser.is_executive_director === 'true') && (
+            <div className="mt-3 pt-3 border-top d-flex gap-2">
+              <button
+                className="btn btn-outline-primary btn-sm flex-fill"
+                onClick={() => onEdit && onEdit(bill)}
+              >
+                <i className="bi bi-pencil me-1"></i>Edit
+              </button>
+              <button
+                className="btn btn-outline-danger btn-sm flex-fill"
+                onClick={() => onDelete && onDelete(bill)}
+              >
+                <i className="bi bi-trash me-1"></i>Delete
+              </button>
+            </div>
+          )}
+
           {/* PDF Viewer Modal - rendered via portal to prevent flashing */}
           {showPDF && portalReady && modalRef.current && createPortal(
             <>
@@ -189,7 +317,15 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted }) {
                       ></button>
                     </div>
                     <div className="modal-body">
-                      <PDFViewer url={pdfPath} onTextExtracted={handlePDFTextExtracted} />
+                      {pdfPath ? (
+                        <PDFViewer url={pdfPath} onTextExtracted={handlePDFTextExtracted} />
+                      ) : (
+                        <div className="text-center p-5">
+                          <div className="spinner-border" role="status">
+                            <span className="visually-hidden">Loading PDF...</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -208,8 +344,12 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted }) {
           >
             <img
               className="state-image"
-              src={`/assets/images/states/${bill.state}.svg`}
+              src={`/assets/images/states/${stateFileName}.svg`}
               alt={`${bill.state} flag`}
+              onError={(e) => {
+                // Fallback to United States if state SVG not found
+                e.target.src = '/assets/images/states/United States.svg'
+              }}
             />
           </a>
         </div>

@@ -35,9 +35,25 @@ function BillsPreview() {
       // Check PDF existence
       const billsWithPDF = await Promise.all(
         processedBills.map(async (bill) => {
-          const pdfPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${bill.state}/${bill.name}.pdf`
-          const exists = await checkPDFExists(pdfPath)
-          return { ...bill, pdfExists: exists }
+          // Try both formats: sanitized (new) and original with spaces (old, URL-encoded)
+          const sanitizedName = bill.name.replace(/[^a-zA-Z0-9]/g, '_')
+          const sanitizedState = bill.state.replace(/[^a-zA-Z0-9]/g, '_')
+          
+          // New format: sanitized (underscores)
+          const sanitizedPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
+          const sanitizedExists = await checkPDFExists(sanitizedPath)
+          
+          if (sanitizedExists) {
+            return { ...bill, pdfExists: true }
+          }
+          
+          // Old format: original names with spaces (URL-encoded)
+          const originalState = encodeURIComponent(bill.state)
+          const originalName = encodeURIComponent(bill.name)
+          const originalPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${originalState}/${originalName}.pdf`
+          const originalExists = await checkPDFExists(originalPath)
+          
+          return { ...bill, pdfExists: originalExists }
         })
       )
 

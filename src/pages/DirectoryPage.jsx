@@ -240,7 +240,7 @@ function DirectoryPage() {
 
   function getStateFlagSrc(state) {
     const fullState = STATE_ABBR_TO_FULL_NAME[(state || '').toUpperCase()] || ''
-    return fullState ? `/assets/images/states/${fullState}.svg` : null
+    return fullState ? `/images/states/${fullState}.svg` : null
   }
 
   if (error) {

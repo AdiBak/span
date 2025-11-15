@@ -6,6 +6,7 @@ on:
       - main
   workflow_dispatch:
 
+# Only allow one deployment at a time
 permissions:
   contents: read
   pages: write
@@ -13,7 +14,7 @@ permissions:
 
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:

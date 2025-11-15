@@ -67,11 +67,11 @@ function CollaboratorModal({ collaborators, bill, members, onClose }) {
             <h5 className="modal-title">
               <img
                 className="state-image"
-                src={`/assets/images/states/${stateFileName}.svg`}
+                src={`/images/states/${stateFileName}.svg`}
                 alt={`${bill.state} flag`}
                 style={{ width: '20px', height: 'auto', marginRight: '8px' }}
                 onError={(e) => {
-                  e.target.src = '/assets/images/states/United States.svg'
+                  e.target.src = '/images/states/United States.svg'
                 }}
               />
               {bill.state} {bill.name} Collaborators

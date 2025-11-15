@@ -29,13 +29,24 @@ export default defineConfig(({ mode }) => {
   base: '/',
   build: {
     outDir: 'dist',
+    chunkSizeWarningLimit: 1000, // Increase warning limit to 1MB (optional)
     rollupOptions: {
       input: {
         main: './index.html',
         bills: './bills.html',
         blog: './blog.html',
         directory: './directory.html',
-        'our-story': './our-story.html'
+        'our-story': './our-story.html',
+        login: './login.html',
+        dashboard: './dashboard.html'
+      },
+      output: {
+        manualChunks: {
+          // Split vendor chunks for better caching
+          'react-vendor': ['react', 'react-dom'],
+          'supabase': ['@supabase/supabase-js'],
+          'pdf-vendor': ['pdfjs-dist', 'react-pdf']
+        }
       }
     }
   },

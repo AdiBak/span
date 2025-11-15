@@ -58,56 +58,7 @@
    <script defer src="https://www.gstatic.com/charts/loader.js"></script>
 
    <!-- React app entry point - Vite will process this and inject built assets -->
-          <link rel="modulepreload" crossorigin href="data:text/javascript;base64,KGZ1bmN0aW9uKCl7Y29uc3QgdD1kb2N1bWVudC5jcmVhdGVFbGVtZW50KCJsaW5rIikucmVsTGlzdDtpZih0JiZ0LnN1cHBvcnRzJiZ0LnN1cHBvcnRzKCJtb2R1bGVwcmVsb2FkIikpcmV0dXJuO2Zvcihjb25zdCBlIG9mIGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3JBbGwoJ2xpbmtbcmVsPSJtb2R1bGVwcmVsb2FkIl0nKSlpKGUpO25ldyBNdXRhdGlvbk9ic2VydmVyKGU9Pntmb3IoY29uc3QgciBvZiBlKWlmKHIudHlwZT09PSJjaGlsZExpc3QiKWZvcihjb25zdCBvIG9mIHIuYWRkZWROb2RlcylvLnRhZ05hbWU9PT0iTElOSyImJm8ucmVsPT09Im1vZHVsZXByZWxvYWQiJiZpKG8pfSkub2JzZXJ2ZShkb2N1bWVudCx7Y2hpbGRMaXN0OiEwLHN1YnRyZWU6ITB9KTtmdW5jdGlvbiBzKGUpe2NvbnN0IHI9e307cmV0dXJuIGUuaW50ZWdyaXR5JiYoci5pbnRlZ3JpdHk9ZS5pbnRlZ3JpdHkpLGUucmVmZXJyZXJQb2xpY3kmJihyLnJlZmVycmVyUG9saWN5PWUucmVmZXJyZXJQb2xpY3kpLGUuY3Jvc3NPcmlnaW49PT0idXNlLWNyZWRlbnRpYWxzIj9yLmNyZWRlbnRpYWxzPSJpbmNsdWRlIjplLmNyb3NzT3JpZ2luPT09ImFub255bW91cyI/ci5jcmVkZW50aWFscz0ib21pdCI6ci5jcmVkZW50aWFscz0ic2FtZS1vcmlnaW4iLHJ9ZnVuY3Rpb24gaShlKXtpZihlLmVwKXJldHVybjtlLmVwPSEwO2NvbnN0IHI9cyhlKTtmZXRjaChlLmhyZWYscil9fSkoKTsK">
-          <link rel="modulepreload" crossorigin href="/assets/react-vendor-BEryHLmj-UAoZghAG-UAoZghAG-UAoZghAG-UAoZghAG.js">
-          <link rel="modulepreload" crossorigin href="/assets/supabase-DMrP9yPS-CiKWY9Tk-CiKWY9Tk-CiKWY9Tk-CiKWY9Tk.js">
-          <link rel="modulepreload" crossorigin href="/assets/pdf-vendor-CNJyne1K-BgeaaK64-BgeaaK64-BgeaaK64-BgeaaK64.js">
-        
-          <script>
-            window.__ENV__ = {
-              VITE_SUPABASE_URL: "https://qujzohvrbfsouakzocps.supabase.co",
-              VITE_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1anpvaHZyYmZzb3Vha3pvY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNjQ2NzUsImV4cCI6MjA2OTk0MDY3NX0.Yl-vCGhkx4V_3HARGp2bwR-auSuZksP_77xgUoJop1k"
-            };
-          </script>
-          <link rel="modulepreload" crossorigin href="/assets/main-D3obdbHH-BHCSdf0Y-C5KPpUJy-C5KPpUJy-C5KPpUJy.js">
-          <link rel="modulepreload" crossorigin href="data:text/javascript;base64,Y29uc3QgaD0ibW9kdWxlcHJlbG9hZCIsRT1mdW5jdGlvbihpKXtyZXR1cm4iLyIraX0sYT17fSx5PWZ1bmN0aW9uKHUscyx2KXtsZXQgYz1Qcm9taXNlLnJlc29sdmUoKTtpZihzJiZzLmxlbmd0aD4wKXtkb2N1bWVudC5nZXRFbGVtZW50c0J5VGFnTmFtZSgibGluayIpO2NvbnN0IGU9ZG9jdW1lbnQucXVlcnlTZWxlY3RvcigibWV0YVtwcm9wZXJ0eT1jc3Atbm9uY2VdIiksdD0oZT09bnVsbD92b2lkIDA6ZS5ub25jZSl8fChlPT1udWxsP3ZvaWQgMDplLmdldEF0dHJpYnV0ZSgibm9uY2UiKSk7Yz1Qcm9taXNlLmFsbFNldHRsZWQocy5tYXAocj0+e2lmKHI9RShyKSxyIGluIGEpcmV0dXJuO2Fbcl09ITA7Y29uc3Qgbz1yLmVuZHNXaXRoKCIuY3NzIiksZD1vPydbcmVsPSJzdHlsZXNoZWV0Il0nOiIiO2lmKGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoYGxpbmtbaHJlZj0iJHtyfSJdJHtkfWApKXJldHVybjtjb25zdCBuPWRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoImxpbmsiKTtpZihuLnJlbD1vPyJzdHlsZXNoZWV0IjpoLG98fChuLmFzPSJzY3JpcHQiKSxuLmNyb3NzT3JpZ2luPSIiLG4uaHJlZj1yLHQmJm4uc2V0QXR0cmlidXRlKCJub25jZSIsdCksZG9jdW1lbnQuaGVhZC5hcHBlbmRDaGlsZChuKSxvKXJldHVybiBuZXcgUHJvbWlzZSgoZixtKT0+e24uYWRkRXZlbnRMaXN0ZW5lcigibG9hZCIsZiksbi5hZGRFdmVudExpc3RlbmVyKCJlcnJvciIsKCk9Pm0obmV3IEVycm9yKGBVbmFibGUgdG8gcHJlbG9hZCBDU1MgZm9yICR7cn1gKSkpfSl9KSl9ZnVuY3Rpb24gbChlKXtjb25zdCB0PW5ldyBFdmVudCgidml0ZTpwcmVsb2FkRXJyb3IiLHtjYW5jZWxhYmxlOiEwfSk7aWYodC5wYXlsb2FkPWUsd2luZG93LmRpc3BhdGNoRXZlbnQodCksIXQuZGVmYXVsdFByZXZlbnRlZCl0aHJvdyBlfXJldHVybiBjLnRoZW4oZT0+e2Zvcihjb25zdCB0IG9mIGV8fFtdKXQuc3RhdHVzPT09InJlamVjdGVkIiYmbCh0LnJlYXNvbik7cmV0dXJuIHUoKS5jYXRjaChsKX0pfTtleHBvcnR7eSBhcyBffTsK">
-        
-          <script>
-            window.__ENV__ = {
-              VITE_SUPABASE_URL: "https://qujzohvrbfsouakzocps.supabase.co",
-              VITE_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1anpvaHZyYmZzb3Vha3pvY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNjQ2NzUsImV4cCI6MjA2OTk0MDY3NX0.Yl-vCGhkx4V_3HARGp2bwR-auSuZksP_77xgUoJop1k"
-            };
-          </script>
-          <link rel="modulepreload" crossorigin href="/assets/main-D3obdbHH-D3obdbHH-DE8Sj9jo-CCL1cyXd-CCL1cyXd.js">
-          <link rel="modulepreload" crossorigin href="data:text/javascript;base64,Y29uc3QgaD0ibW9kdWxlcHJlbG9hZCIsRT1mdW5jdGlvbihpKXtyZXR1cm4iLyIraX0sYT17fSx5PWZ1bmN0aW9uKHUscyx2KXtsZXQgYz1Qcm9taXNlLnJlc29sdmUoKTtpZihzJiZzLmxlbmd0aD4wKXtkb2N1bWVudC5nZXRFbGVtZW50c0J5VGFnTmFtZSgibGluayIpO2NvbnN0IGU9ZG9jdW1lbnQucXVlcnlTZWxlY3RvcigibWV0YVtwcm9wZXJ0eT1jc3Atbm9uY2VdIiksdD0oZT09bnVsbD92b2lkIDA6ZS5ub25jZSl8fChlPT1udWxsP3ZvaWQgMDplLmdldEF0dHJpYnV0ZSgibm9uY2UiKSk7Yz1Qcm9taXNlLmFsbFNldHRsZWQocy5tYXAocj0+e2lmKHI9RShyKSxyIGluIGEpcmV0dXJuO2Fbcl09ITA7Y29uc3Qgbz1yLmVuZHNXaXRoKCIuY3NzIiksZD1vPydbcmVsPSJzdHlsZXNoZWV0Il0nOiIiO2lmKGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoYGxpbmtbaHJlZj0iJHtyfSJdJHtkfWApKXJldHVybjtjb25zdCBuPWRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoImxpbmsiKTtpZihuLnJlbD1vPyJzdHlsZXNoZWV0IjpoLG98fChuLmFzPSJzY3JpcHQiKSxuLmNyb3NzT3JpZ2luPSIiLG4uaHJlZj1yLHQmJm4uc2V0QXR0cmlidXRlKCJub25jZSIsdCksZG9jdW1lbnQuaGVhZC5hcHBlbmRDaGlsZChuKSxvKXJldHVybiBuZXcgUHJvbWlzZSgoZixtKT0+e24uYWRkRXZlbnRMaXN0ZW5lcigibG9hZCIsZiksbi5hZGRFdmVudExpc3RlbmVyKCJlcnJvciIsKCk9Pm0obmV3IEVycm9yKGBVbmFibGUgdG8gcHJlbG9hZCBDU1MgZm9yICR7cn1gKSkpfSl9KSl9ZnVuY3Rpb24gbChlKXtjb25zdCB0PW5ldyBFdmVudCgidml0ZTpwcmVsb2FkRXJyb3IiLHtjYW5jZWxhYmxlOiEwfSk7aWYodC5wYXlsb2FkPWUsd2luZG93LmRpc3BhdGNoRXZlbnQodCksIXQuZGVmYXVsdFByZXZlbnRlZCl0aHJvdyBlfXJldHVybiBjLnRoZW4oZT0+e2Zvcihjb25zdCB0IG9mIGV8fFtdKXQuc3RhdHVzPT09InJlamVjdGVkIiYmbCh0LnJlYXNvbik7cmV0dXJuIHUoKS5jYXRjaChsKX0pfTtleHBvcnR7eSBhcyBffTsK">
-        
-          <script>
-            window.__ENV__ = {
-              VITE_SUPABASE_URL: "https://qujzohvrbfsouakzocps.supabase.co",
-              VITE_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1anpvaHZyYmZzb3Vha3pvY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNjQ2NzUsImV4cCI6MjA2OTk0MDY3NX0.Yl-vCGhkx4V_3HARGp2bwR-auSuZksP_77xgUoJop1k"
-            };
-          </script>
-          <link rel="modulepreload" crossorigin href="/assets/main-D3obdbHH-D3obdbHH-D3obdbHH-CuxPoFl2-B3RhbkZH.js">
-          <link rel="modulepreload" crossorigin href="data:text/javascript;base64,Y29uc3QgaD0ibW9kdWxlcHJlbG9hZCIsRT1mdW5jdGlvbihpKXtyZXR1cm4iLyIraX0sYT17fSx5PWZ1bmN0aW9uKHUscyx2KXtsZXQgYz1Qcm9taXNlLnJlc29sdmUoKTtpZihzJiZzLmxlbmd0aD4wKXtkb2N1bWVudC5nZXRFbGVtZW50c0J5VGFnTmFtZSgibGluayIpO2NvbnN0IGU9ZG9jdW1lbnQucXVlcnlTZWxlY3RvcigibWV0YVtwcm9wZXJ0eT1jc3Atbm9uY2VdIiksdD0oZT09bnVsbD92b2lkIDA6ZS5ub25jZSl8fChlPT1udWxsP3ZvaWQgMDplLmdldEF0dHJpYnV0ZSgibm9uY2UiKSk7Yz1Qcm9taXNlLmFsbFNldHRsZWQocy5tYXAocj0+e2lmKHI9RShyKSxyIGluIGEpcmV0dXJuO2Fbcl09ITA7Y29uc3Qgbz1yLmVuZHNXaXRoKCIuY3NzIiksZD1vPydbcmVsPSJzdHlsZXNoZWV0Il0nOiIiO2lmKGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3IoYGxpbmtbaHJlZj0iJHtyfSJdJHtkfWApKXJldHVybjtjb25zdCBuPWRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoImxpbmsiKTtpZihuLnJlbD1vPyJzdHlsZXNoZWV0IjpoLG98fChuLmFzPSJzY3JpcHQiKSxuLmNyb3NzT3JpZ2luPSIiLG4uaHJlZj1yLHQmJm4uc2V0QXR0cmlidXRlKCJub25jZSIsdCksZG9jdW1lbnQuaGVhZC5hcHBlbmRDaGlsZChuKSxvKXJldHVybiBuZXcgUHJvbWlzZSgoZixtKT0+e24uYWRkRXZlbnRMaXN0ZW5lcigibG9hZCIsZiksbi5hZGRFdmVudExpc3RlbmVyKCJlcnJvciIsKCk9Pm0obmV3IEVycm9yKGBVbmFibGUgdG8gcHJlbG9hZCBDU1MgZm9yICR7cn1gKSkpfSl9KSl9ZnVuY3Rpb24gbChlKXtjb25zdCB0PW5ldyBFdmVudCgidml0ZTpwcmVsb2FkRXJyb3IiLHtjYW5jZWxhYmxlOiEwfSk7aWYodC5wYXlsb2FkPWUsd2luZG93LmRpc3BhdGNoRXZlbnQodCksIXQuZGVmYXVsdFByZXZlbnRlZCl0aHJvdyBlfXJldHVybiBjLnRoZW4oZT0+e2Zvcihjb25zdCB0IG9mIGV8fFtdKXQuc3RhdHVzPT09InJlamVjdGVkIiYmbCh0LnJlYXNvbik7cmV0dXJuIHUoKS5jYXRjaChsKX0pfTtleHBvcnR7eSBhcyBffTsK">
-        
-          <script>
-            window.__ENV__ = {
-              VITE_SUPABASE_URL: "https://qujzohvrbfsouakzocps.supabase.co",
-              VITE_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1anpvaHZyYmZzb3Vha3pvY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNjQ2NzUsImV4cCI6MjA2OTk0MDY3NX0.Yl-vCGhkx4V_3HARGp2bwR-auSuZksP_77xgUoJop1k"
-            };
-          </script>
-          <script type="module" crossorigin src="/assets/main-Cb-no5IH.js" data-cfasync="false"></script>
-          <link rel="modulepreload" crossorigin href="/assets/main-D3obdbHH-D3obdbHH-D3obdbHH-Cm0rj0jM-BuJ1LOwF.js">
-          <link rel="modulepreload" crossorigin href="/assets/supabase-D7HrI6pR.js">
-          <link rel="stylesheet" crossorigin href="/assets/main-D3obdbHH-D3obdbHH-D3obdbHH-Cm0rj0jM-D3obdbHH.css">
-          <link rel="stylesheet" crossorigin href="/assets/main-BogvLuzf.css">
-        
-          <script>
-            window.__ENV__ = {
-              VITE_SUPABASE_URL: "https://qujzohvrbfsouakzocps.supabase.co",
-              VITE_SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1anpvaHZyYmZzb3Vha3pvY3BzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNjQ2NzUsImV4cCI6MjA2OTk0MDY3NX0.Yl-vCGhkx4V_3HARGp2bwR-auSuZksP_77xgUoJop1k"
-            };
-          </script>
+   <script type="module" src="/src/main.jsx"></script>
         </head>
 
 <body>

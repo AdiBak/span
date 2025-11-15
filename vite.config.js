@@ -22,7 +22,13 @@ export default defineConfig(({ mode }) => {
             };
           </script>
         `
-        return html.replace('</head>', `${envScript}</head>`)
+        // Add data-cfasync="false" to module scripts to disable Cloudflare Rocket Loader
+        let modified = html.replace('</head>', `${envScript}</head>`)
+        modified = modified.replace(
+          /<script type="module"([^>]*)src="([^"]*)"([^>]*)>/g,
+          '<script type="module"$1src="$2"$3 data-cfasync="false">'
+        )
+        return modified
       }
     }
   ],

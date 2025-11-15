@@ -344,11 +344,11 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
           >
             <img
               className="state-image"
-              src={`/assets/images/states/${stateFileName}.svg`}
+              src={`/images/states/${stateFileName}.svg`}
               alt={`${bill.state} flag`}
               onError={(e) => {
                 // Fallback to United States if state SVG not found
-                e.target.src = '/assets/images/states/United States.svg'
+                e.target.src = '/images/states/United States.svg'
               }}
             />
           </a>

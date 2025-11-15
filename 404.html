@@ -56,19 +56,28 @@
    <meta name="twitter:creator" content="@spanationwide">
 </head>
 
-<body class="bg-light d-flex align-items-center justify-content-center min-vh-100">
-   <main class="container text-center">
-      <div class="mx-auto" style="max-width: 500px;">
-         <h1 data-aos="fade-down" data-aos-duration="1000"  class="display-1 fw-bold text-primary">404</h1>
-         <h2 data-aos="fade-up" data-aos-duration="1000" class="mb-3">Page Not Found</h2>
-         <p data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200" class="text-muted mb-4">Sorry, the page you're looking for doesn’t exist or has been moved.</p>
-         <a data-aos="fade" data-aos-duration="1000" data-aos-delay="800" href="/" class="btn btn-outline-dark">Go Home</a>
+<body class="bg-light">
+   <nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top"></nav>
+
+   <main class="d-flex align-items-center justify-content-center" style="min-height: calc(100vh - 200px);">
+      <div class="container text-center">
+         <div class="mx-auto" style="max-width: 500px;">
+            <h1 data-aos="fade-down" data-aos-duration="1000"  class="display-1 fw-bold text-primary">404</h1>
+            <h2 data-aos="fade-up" data-aos-duration="1000" class="mb-3">Page Not Found</h2>
+            <p data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200" class="text-muted mb-4">Sorry, the page you're looking for doesn't exist or has been moved.</p>
+            <a data-aos="fade" data-aos-duration="1000" data-aos-delay="800" href="/" class="btn btn-outline-dark">Go Home</a>
+         </div>
       </div>
    </main>
 
-      <!-- SCRIPTS - defer so parsing isn't blocked. Keep order important: bootstrap -> navbar -> module app scripts -> footer -->
+   <footer id="footerContainer" class="footer text-white py-5"></footer>
+
+   <!-- SCRIPTS - defer so parsing isn't blocked. Keep order important: bootstrap -> navbar -> module app scripts -> footer -->
    <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
    <script defer src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+
+   <!-- React app entry point for navbar and footer -->
+   <script type="module" src="/src/main.jsx"></script>
 
    <!-- Initialize AOS after DOM is ready and the library has been parsed -->
    <script>

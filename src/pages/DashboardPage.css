@@ -1,0 +1,67 @@
+/* Dashboard Page specific styles */
+#dashboard-root {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.dashboard-page {
+  min-height: 100vh;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* Ensure no gap above hero section */
+.dashboard-page .subpage-hero {
+  padding-top: 0;
+  margin-top: 0;
+  z-index: 1;
+  position: relative;
+}
+
+.dashboard-page .subpage-hero .container {
+  z-index: 10 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  min-height: 100% !important;
+}
+
+.dashboard-page .subpage-hero h1,
+.dashboard-page .subpage-hero p {
+  color: #ffffff;
+  z-index: 10;
+  position: relative;
+}
+
+/* Smooth transitions for fade and float */
+.dashboard-page .subpage-hero [data-aos] {
+  transition: opacity 1s ease-in-out, transform 1s ease-in-out !important;
+}
+
+/* Ensure elements become visible when AOS animates */
+.dashboard-page .subpage-hero [data-aos].aos-animate {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Fallback: show elements after a short delay if AOS doesn't initialize */
+.dashboard-page .subpage-hero [data-aos]:not(.aos-init) {
+  animation: fadeInUp 1s ease-in-out forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

@@ -1,0 +1,63 @@
+.navbar {
+background-color: #003049 !important;
+transition: background-color 0.3s ease;
+width: 100% !important;
+}
+
+.navbar > .container {
+display: flex !important;
+flex-direction: row !important;
+justify-content: space-between !important;
+align-items: center !important;
+flex-wrap: wrap !important;
+width: 100% !important;
+}
+
+.navbar .navbar-brand img {
+justify-content: flex-start !important;
+height: 30px;
+width: auto;
+}
+
+.navbar .navbar-toggler {
+order: 2;
+}
+
+.navbar .navbar-collapse {
+flex-grow: 1 !important;
+justify-content: flex-end !important;
+align-items: center !important;
+order: 3;
+}
+
+.navbar .navbar-nav {
+display: flex !important;
+flex-direction: row !important;
+align-items: center !important;
+gap: 1.5rem;
+justify-content: flex-end !important;
+}
+
+.navbar .navbar-nav .nav-link {
+color: rgba(253, 240, 213, 0.75);
+font-weight: 500;
+letter-spacing: 0.02em;
+transition: color 0.2s ease;
+white-space: nowrap;
+}
+
+.navbar .navbar-nav .nav-link:hover,
+.navbar .navbar-nav .nav-link:focus {
+color: #fdf0d5;
+}
+
+.navbar .navbar-nav .nav-link.active {
+    color: #fdf0d5;
+}
+
+@media (max-width: 991.98px) {
+.navbar .navbar-collapse {
+    flex-basis: 100% !important;
+    order: 4;
+}
+}

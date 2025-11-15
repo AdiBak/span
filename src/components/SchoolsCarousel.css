@@ -1,3 +1,4 @@
+/* Schools Carousel Styles */
 .school-carousel-container {
   overflow: hidden;
   padding: 2rem 0;
@@ -41,12 +42,21 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-  .school-carousel-track { gap: 1rem; animation-duration: 40s; }
-  .school-logo { height: 60px; }
-  .school-logo-item { min-width: 160px; }
+  .school-carousel-track { 
+    gap: 1rem; 
+    animation-duration: 40s; 
+  }
+  .school-logo { 
+    height: 60px; 
+  }
+  .school-logo-item { 
+    min-width: 160px; 
+  }
 }
 
 /* Respect reduced-motion preference */
 @media (prefers-reduced-motion: reduce) {
-  .school-carousel-track { animation: none; }
+  .school-carousel-track { 
+    animation: none; 
+  }
 }

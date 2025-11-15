@@ -3,6 +3,7 @@ import BillsPage from './pages/BillsPage'
 import BlogPage from './pages/BlogPage'
 import DirectoryPage from './pages/DirectoryPage'
 import OurStoryPage from './pages/OurStoryPage'
+import LoginPage from './pages/LoginPage'
 import BillsPreview from './components/BillsPreview'
 import BillsStats from './components/BillsStats'
 import './App.css'
@@ -22,6 +23,10 @@ function App({ page }) {
 
   if (page === 'our-story') {
     return <OurStoryPage />
+  }
+
+  if (page === 'login') {
+    return <LoginPage />
   }
 
   if (page === 'bills-preview') {

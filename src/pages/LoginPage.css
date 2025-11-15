@@ -1,0 +1,112 @@
+/* Login Page specific styles */
+.login-page {
+  min-height: 100vh;
+}
+
+/* Ensure no gap above hero section */
+#login-root {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.login-page .subpage-hero {
+  padding-top: 0;
+  z-index: 1;
+  position: relative;
+}
+
+.login-page .subpage-hero .container {
+  z-index: 10;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: center !important;
+  min-height: 100% !important;
+}
+
+.login-page .subpage-hero h1,
+.login-page .subpage-hero p {
+  color: #ffffff;
+  z-index: 10;
+  position: relative;
+}
+
+/* Smooth transitions for fade and float */
+.login-page .subpage-hero [data-aos] {
+  transition: opacity 1s ease-in-out, transform 1s ease-in-out !important;
+}
+
+/* Ensure elements become visible when AOS animates */
+.login-page .subpage-hero [data-aos].aos-animate {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Fallback: show elements after a short delay if AOS doesn't initialize */
+.login-page .subpage-hero [data-aos]:not(.aos-init) {
+  animation: fadeInUp 1s ease-in-out forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Ensure form is visible */
+.login-page main {
+  position: relative !important;
+  z-index: 2 !important;
+  background-color: #f8f9fa !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.login-page main [data-aos] {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.login-page .card {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.login-page .form-label {
+  color: #000000 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.login-page .form-control {
+  color: #000000 !important;
+  background-color: #ffffff !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.login-page .form-control::placeholder {
+  color: #6c757d !important;
+}
+
+.login-page .text-muted {
+  color: #6c757d !important;
+}
+
+.login-page .btn {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+

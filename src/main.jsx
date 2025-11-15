@@ -48,22 +48,32 @@ const mountComponent = (element, Component) => {
   )
 }
 
-// Mount React apps on their respective pages
-mountApp(document.getElementById('bills-root'), 'bills')
-mountApp(document.getElementById('blog-root'), 'blog')
-mountApp(document.getElementById('directory-root'), 'directory')
-mountApp(document.getElementById('our-story-root'), 'our-story')
-mountApp(document.getElementById('bills-preview-root'), 'bills-preview')
-mountApp(document.getElementById('bills-stats-root'), 'bills-stats')
+// Wait for DOM to be ready before mounting
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', mountComponents)
+} else {
+  mountComponents()
+}
 
-// Mount Navbar on all pages
-mountNavbar(document.getElementById('navbarContainer'))
+function mountComponents() {
+  // Mount React apps on their respective pages
+  mountApp(document.getElementById('bills-root'), 'bills')
+  mountApp(document.getElementById('blog-root'), 'blog')
+  mountApp(document.getElementById('directory-root'), 'directory')
+  mountApp(document.getElementById('our-story-root'), 'our-story')
+  mountApp(document.getElementById('login-root'), 'login')
+  mountApp(document.getElementById('bills-preview-root'), 'bills-preview')
+  mountApp(document.getElementById('bills-stats-root'), 'bills-stats')
 
-// Mount Footer on all pages
-mountFooter(document.getElementById('footerContainer'))
+  // Mount Navbar on all pages
+  mountNavbar(document.getElementById('navbarContainer'))
 
-// Mount homepage components
-mountComponent(document.getElementById('schools-carousel-root'), SchoolsCarousel)
-mountComponent(document.getElementById('team-section-root'), TeamSection)
-mountComponent(document.getElementById('impact-map-root'), ImpactMap)
+  // Mount Footer on all pages
+  mountFooter(document.getElementById('footerContainer'))
+
+  // Mount homepage components
+  mountComponent(document.getElementById('schools-carousel-root'), SchoolsCarousel)
+  mountComponent(document.getElementById('team-section-root'), TeamSection)
+  mountComponent(document.getElementById('impact-map-root'), ImpactMap)
+}
 

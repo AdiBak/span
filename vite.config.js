@@ -7,6 +7,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   
   return {
+  publicDir: 'assets',
   plugins: [
     react(),
     // Plugin to inject environment variables for vanilla JS modules

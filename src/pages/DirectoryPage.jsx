@@ -238,25 +238,6 @@ function DirectoryPage() {
     return sortAsc ? <i className="bi bi-arrow-up"></i> : <i className="bi bi-arrow-down"></i>
   }
 
-  function getStateFlagSrc(state) {
-    if (!state) return '/images/states/United States.svg'
-    
-    // Check if it's an abbreviation
-    const stateUpper = state.toUpperCase()
-    if (STATE_ABBR_TO_FULL_NAME[stateUpper]) {
-      return `/images/states/${STATE_ABBR_TO_FULL_NAME[stateUpper]}.svg`
-    }
-    
-    // Check if it's already a full state name (case-insensitive)
-    const fullStateNames = Object.values(STATE_ABBR_TO_FULL_NAME)
-    const matched = fullStateNames.find(name => name.toLowerCase() === state.toLowerCase())
-    if (matched) {
-      return `/images/states/${matched}.svg`
-    }
-    
-    // Fallback to United States if no match
-    return '/images/states/United States.svg'
-  }
 
   if (error) {
     return (
@@ -360,9 +341,6 @@ function DirectoryPage() {
                 </tr>
               ) : (
                 paginatedMembers.map((member, idx) => {
-                  const stateFlagSrc = getStateFlagSrc(member.state)
-                  const fullState = STATE_ABBR_TO_FULL_NAME[(member.state || '').toUpperCase()] || ''
-                  
                   return (
                     <tr key={idx}>
                       <td>
@@ -378,15 +356,6 @@ function DirectoryPage() {
                         </div>
                       </td>
                       <td>
-                        <img
-                          src={stateFlagSrc}
-                          height="18"
-                          style={{ marginRight: '6px' }}
-                          alt={fullState ? `${fullState} flag` : 'Location'}
-                          onError={(e) => {
-                            e.target.src = '/images/states/United States.svg'
-                          }}
-                        />
                         {member.location}
                       </td>
                       <td>

@@ -3,11 +3,11 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
 
-// Set up PDF.js worker - use local file to avoid CDN/CORS issues
+// Set up PDF.js worker
 if (typeof window !== 'undefined') {
-  // Use the worker file from public directory (copied from react-pdf's pdfjs-dist)
-  // This ensures version match and avoids CDN issues
-  pdfjs.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.mjs'
+  // Use CDN URL for the worker - this is the most reliable approach
+  // The version matches pdfjs-dist package version (4.10.38)
+  pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
 }
 
 function PDFViewer({ url, onTextExtracted }) {

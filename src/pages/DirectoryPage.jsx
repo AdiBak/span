@@ -239,8 +239,23 @@ function DirectoryPage() {
   }
 
   function getStateFlagSrc(state) {
-    const fullState = STATE_ABBR_TO_FULL_NAME[(state || '').toUpperCase()] || ''
-    return fullState ? `/images/states/${fullState}.svg` : null
+    if (!state) return '/images/states/United States.svg'
+    
+    // Check if it's an abbreviation
+    const stateUpper = state.toUpperCase()
+    if (STATE_ABBR_TO_FULL_NAME[stateUpper]) {
+      return `/images/states/${STATE_ABBR_TO_FULL_NAME[stateUpper]}.svg`
+    }
+    
+    // Check if it's already a full state name (case-insensitive)
+    const fullStateNames = Object.values(STATE_ABBR_TO_FULL_NAME)
+    const matched = fullStateNames.find(name => name.toLowerCase() === state.toLowerCase())
+    if (matched) {
+      return `/images/states/${matched}.svg`
+    }
+    
+    // Fallback to United States if no match
+    return '/images/states/United States.svg'
   }
 
   if (error) {
@@ -363,14 +378,15 @@ function DirectoryPage() {
                         </div>
                       </td>
                       <td>
-                        {stateFlagSrc && (
-                          <img
-                            src={stateFlagSrc}
-                            height="18"
-                            style={{ marginRight: '6px' }}
-                            alt={fullState ? `${fullState} flag` : 'Location'}
-                          />
-                        )}
+                        <img
+                          src={stateFlagSrc}
+                          height="18"
+                          style={{ marginRight: '6px' }}
+                          alt={fullState ? `${fullState} flag` : 'Location'}
+                          onError={(e) => {
+                            e.target.src = '/images/states/United States.svg'
+                          }}
+                        />
                         {member.location}
                       </td>
                       <td>

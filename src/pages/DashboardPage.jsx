@@ -294,7 +294,7 @@ function DashboardPage() {
     })
 
     const [bgImage, profileImage] = await Promise.all([
-      loadImage('/assets/images/misc/SPANCard.jpg'),
+      loadImage('/images/misc/SPANCard.jpg'),
       loadImage(member.image
         ? `${IMAGE_BASE_URL}/${member.image}`
         : null)

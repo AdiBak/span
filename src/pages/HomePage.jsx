@@ -164,7 +164,7 @@ function HomePage() {
             expanding across the U.S. and looking for dedicated students ready to transform the healthcare system.</p>
           <div>
             <img onContextMenu={(e) => e.preventDefault()} loading="lazy" className="rounded img-fluid shadow"
-              src="/assets/images/index/capitol.jpg" alt="Texas Capitol building" width="1280" height="720" decoding="async" />
+              src="/images/index/capitol.jpg" alt="Texas Capitol building" width="1280" height="720" decoding="async" />
           </div>
         </div>
 

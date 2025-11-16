@@ -16,7 +16,7 @@ function HomePage() {
         <div className="container position-relative z-1">
           <div className="row justify-content-center">
             <div className="col-lg-9">
-              <img src="/assets/images/index/logo-wide-light.svg"
+              <img src="/images/index/logo-wide-light.svg"
                 alt="SPAN Logo"
                 loading="lazy"
                 decoding="async"
@@ -54,7 +54,7 @@ function HomePage() {
       <div className="row position-relative overflow-hidden p-3 p-md-5 m-md-3 bg-light">
         <div className="col-sm-6 p-lg-5 my-5" data-aos="fade-right" data-aos-duration="1000">
           <h3 className="text-primary fw-bold">About</h3>
-          <img className="mb-3" src="/assets/images/index/logo-wide-dark.svg" alt="SPAN logo dark" height="50" decoding="async" />
+          <img className="mb-3" src="/images/index/logo-wide-dark.svg" alt="SPAN logo dark" height="50" decoding="async" />
           <p className="lead">
             <b>Students for Patient Advocacy Nationwide (SPAN)</b> is a national, student-led coalition focused on advocating for patient-centered healthcare reform. The
             organization empowers high-school and college students who are passionate about the intersection of medicine

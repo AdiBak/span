@@ -11,7 +11,7 @@ const MEMBER_IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/
 const DEFAULT_AUTHOR = {
   name: 'SPAN',
   link: '/index.html',
-  avatar: '/assets/images/index/logo-icon-light.svg'
+  avatar: '/images/index/logo-icon-light.svg'
 }
 
 const decodeHtmlEntities = (str = '') => {

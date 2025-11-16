@@ -47,7 +47,7 @@ function Navbar() {
         <a className="navbar-brand" href="/index.html">
           <img
             className="my-2"
-            src="/assets/images/index/logo-wide-light.svg"
+            src="/images/index/logo-wide-light.svg"
             height="30"
             alt="SPAN Logo"
           />

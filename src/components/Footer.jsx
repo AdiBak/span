@@ -10,7 +10,7 @@ function Footer() {
         <div className="row p-3">
           <div className="col-md-6 mb-4 mb-md-0">
             <img
-              src="/assets/images/index/logo-wide-light.svg"
+              src="/images/index/logo-wide-light.svg"
               height="40"
               alt="SPAN Logo"
               className="mb-3"

@@ -14,6 +14,15 @@ export default defineConfig(({ mode }) => {
     {
       name: 'inject-env-vars',
       transformIndexHtml(html) {
+        // Check if window.__ENV__ already exists to prevent duplicates
+        if (html.includes('window.__ENV__')) {
+          // Just add data-cfasync="false" to module scripts
+          return html.replace(
+            /<script type="module"([^>]*)src="([^"]*)"([^>]*)>/g,
+            '<script type="module"$1src="$2"$3 data-cfasync="false">'
+          )
+        }
+        
         // Inject env vars as a global variable for vanilla JS files
         const envScript = `
           <script>

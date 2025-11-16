@@ -5,9 +5,9 @@ import 'react-pdf/dist/esm/Page/TextLayer.css'
 
 // Set up PDF.js worker
 if (typeof window !== 'undefined') {
-  // Use CDN URL for the worker - this is the most reliable approach
-  // The version matches pdfjs-dist package version (4.10.38)
-  pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
+  // Use CDN URL for the worker - use the version from react-pdf's pdfjs instance
+  // This ensures the worker version matches the API version
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
 }
 
 function PDFViewer({ url, onTextExtracted }) {

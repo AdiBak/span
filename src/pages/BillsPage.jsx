@@ -158,7 +158,13 @@ function BillsPage() {
           keyword.toLowerCase().includes(queryLower)
         )
 
-        return matchesBasic || matchesKeywords
+        // Search in collaborators
+        const collaborators = bill.bill_collaborators || []
+        const matchesCollaborators = collaborators.some(collaborator => 
+          collaborator.toLowerCase().includes(queryLower)
+        )
+
+        return matchesBasic || matchesKeywords || matchesCollaborators
       })
     }
 

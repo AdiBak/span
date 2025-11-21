@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Document, Page, pdfjs } from 'react-pdf'
 import 'react-pdf/dist/esm/Page/AnnotationLayer.css'
 import 'react-pdf/dist/esm/Page/TextLayer.css'
@@ -15,6 +15,8 @@ function PDFViewer({ url, onTextExtracted }) {
   const [pageNumber, setPageNumber] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const scrollContainerRef = useRef(null)
+  const pageRefs = useRef({})
 
   // Extract text from visible page only (memory-efficient)
   useEffect(() => {
@@ -44,12 +46,80 @@ function PDFViewer({ url, onTextExtracted }) {
   }
 
   function goToPrevPage() {
-    setPageNumber(prev => Math.max(1, prev - 1))
+    const newPage = Math.max(1, pageNumber - 1)
+    setPageNumber(newPage)
+    scrollToPage(newPage)
   }
 
   function goToNextPage() {
-    setPageNumber(prev => Math.min(numPages, prev + 1))
+    const newPage = Math.min(numPages, pageNumber + 1)
+    setPageNumber(newPage)
+    scrollToPage(newPage)
   }
+
+  function scrollToPage(pageNum) {
+    const pageElement = pageRefs.current[pageNum]
+    if (pageElement && scrollContainerRef.current) {
+      pageElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  // Track which page is currently visible while scrolling
+  useEffect(() => {
+    if (!scrollContainerRef.current || !numPages) return
+
+    const container = scrollContainerRef.current
+    let scrollTimeout = null
+
+    const handleScroll = () => {
+      // Debounce scroll events for better performance
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout)
+      }
+
+      scrollTimeout = setTimeout(() => {
+        const scrollTop = container.scrollTop
+        const containerHeight = container.clientHeight
+        const viewportCenter = scrollTop + containerHeight / 2
+
+        // Find the page closest to the viewport center
+        let closestPage = 1
+        let closestDistance = Infinity
+
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+          const pageElement = pageRefs.current[pageNum]
+          if (!pageElement) continue
+
+          // Get page position relative to container
+          const pageTop = pageElement.offsetTop
+          const pageHeight = pageElement.offsetHeight
+          const pageCenter = pageTop + pageHeight / 2
+
+          // Calculate distance from viewport center
+          const distance = Math.abs(pageCenter - viewportCenter)
+          
+          if (distance < closestDistance) {
+            closestDistance = distance
+            closestPage = pageNum
+          }
+        }
+
+        // Update page number if it changed
+        setPageNumber(prevPage => {
+          if (prevPage !== closestPage && closestPage >= 1 && closestPage <= numPages) {
+            return closestPage
+          }
+          return prevPage
+        })
+      }, 100) // Debounce by 100ms
+    }
+
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      if (scrollTimeout) clearTimeout(scrollTimeout)
+    }
+  }, [numPages])
 
   // Extract text from only the visible page (memory-efficient)
   async function extractTextFromVisiblePage(pdfUrl, pageNum) {
@@ -123,17 +193,22 @@ function PDFViewer({ url, onTextExtracted }) {
         </div>
       )}
 
-      <div className="pdf-viewer-wrapper" style={{ 
-        border: '1px solid #dee2e6', 
-        borderRadius: '0.375rem',
-        overflow: 'auto',
-        maxHeight: '80vh',
-        backgroundColor: '#f8f9fa',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'flex-start',
-        padding: '1rem'
-      }}>
+      <div 
+        ref={scrollContainerRef}
+        className="pdf-viewer-wrapper" 
+        style={{ 
+          border: '1px solid #dee2e6', 
+          borderRadius: '0.375rem',
+          overflow: 'auto',
+          maxHeight: '80vh',
+          backgroundColor: '#f8f9fa',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '1rem',
+          gap: '1rem'
+        }}
+      >
         <Document
           file={url}
           onLoadSuccess={onDocumentLoadSuccess}
@@ -146,13 +221,30 @@ function PDFViewer({ url, onTextExtracted }) {
             </div>
           }
         >
-          <Page
-            pageNumber={pageNumber}
-            width={1200}
-            renderTextLayer={true}
-            renderAnnotationLayer={true}
-            className="pdf-page"
-          />
+          {numPages && Array.from(new Array(numPages), (el, index) => {
+            const pageNum = index + 1
+            return (
+              <div
+                key={`page_${pageNum}`}
+                ref={(el) => {
+                  if (el) pageRefs.current[pageNum] = el
+                }}
+                style={{
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  justifyContent: 'center'
+                }}
+              >
+                <Page
+                  pageNumber={pageNum}
+                  width={1200}
+                  renderTextLayer={true}
+                  renderAnnotationLayer={true}
+                  className="pdf-page"
+                />
+              </div>
+            )
+          })}
         </Document>
       </div>
     </div>

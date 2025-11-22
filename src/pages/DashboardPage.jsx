@@ -833,16 +833,6 @@ function DashboardPage() {
   }
 
   const fullName = `${member.first_name || ''} ${member.last_name || ''}`.trim()
-  const infoFields = [
-    { label: 'Full Name', value: fullName },
-    { label: 'Role', value: member.role || '-' },
-    { label: 'Start Date', value: formatDate(member.start_date) },
-    { label: 'Date of Birth', value: formatDate(member.dob) },
-    { label: 'School', value: member.school_name || '-' },
-    { label: 'Location', value: member.city && member.state ? `${member.city}, ${member.state}` : '-' },
-    { label: 'Email', value: member.email || '-' },
-    { label: 'Phone', value: formatPhone(member.phone) },
-  ]
 
   // Group volunteer entries by member_id
   const groupedEntries = {}
@@ -893,20 +883,259 @@ function DashboardPage() {
           </button>
         </div>
 
-        {/* Info Cards */}
-        <h3>Your Info</h3>
-        <div className="row">
-          {infoFields.map((field, index) => (
-            <div key={index} className="col-md-6 mb-3">
-              <div className="card info-card impact-card h-100 shadow-sm">
-                <div className="card-body">
-                  <div className="field-label fw-semibold text-muted small">{field.label}</div>
-                  <div className="card-text">{field.value}</div>
+        {/* Your Info Section - Split Design */}
+        <section className="mt-5" style={{ backgroundColor: 'transparent' }}>
+          <h3 className="mb-4">Your Info</h3>
+          <div className="card shadow-sm border-0" style={{ borderRadius: '16px', overflow: 'hidden' }}>
+            {/* Top Section - Dark Background */}
+            <div style={{ 
+              backgroundColor: '#16213e', 
+              padding: '2rem',
+              display: 'flex',
+              gap: '2rem',
+              flexWrap: 'wrap'
+            }}>
+              {/* Started Field */}
+              <div style={{ flex: '1', minWidth: '250px' }}>
+                <div style={{ 
+                  width: '48px', 
+                  height: '48px', 
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)', 
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '1rem'
+                }}>
+                  <i className="bi bi-calendar-check" style={{ fontSize: '1.5rem', color: '#fff' }}></i>
+                </div>
+                <div style={{ 
+                  fontSize: '0.7rem', 
+                  color: '#b0b0b0', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: '1px',
+                  marginBottom: '0.5rem',
+                  fontWeight: '500'
+                }}>
+                  Started
+                </div>
+                <div style={{ 
+                  fontSize: '1.25rem', 
+                  color: '#fff', 
+                  fontWeight: 'bold'
+                }}>
+                  {formatDate(member.start_date)}
+                </div>
+              </div>
+
+              {/* Email Field */}
+              <div style={{ flex: '1', minWidth: '250px' }}>
+                <div style={{ 
+                  width: '48px', 
+                  height: '48px', 
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)', 
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '1rem'
+                }}>
+                  <i className="bi bi-envelope-fill" style={{ fontSize: '1.5rem', color: '#fff' }}></i>
+                </div>
+                <div style={{ 
+                  fontSize: '0.7rem', 
+                  color: '#b0b0b0', 
+                  textTransform: 'uppercase', 
+                  letterSpacing: '1px',
+                  marginBottom: '0.5rem',
+                  fontWeight: '500'
+                }}>
+                  Email
+                </div>
+                <div style={{ 
+                  fontSize: '1.25rem', 
+                  color: '#fff', 
+                  fontWeight: 'bold',
+                  wordBreak: 'break-word'
+                }}>
+                  {member.email || '-'}
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+
+            {/* Bottom Section - Light Background with Grid */}
+            <div style={{ 
+              backgroundColor: '#fff', 
+              padding: '2rem'
+            }}>
+              <div className="row g-3">
+                {/* Birthday */}
+                <div className="col-md-6">
+                  <div style={{ 
+                    backgroundColor: '#f8f9fa', 
+                    padding: '1.5rem', 
+                    borderRadius: '12px',
+                    border: '1px solid #e9ecef'
+                  }}>
+                    <div style={{ 
+                      width: '40px', 
+                      height: '40px', 
+                      backgroundColor: '#fff', 
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: '1rem',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}>
+                      <i className="bi bi-calendar-event" style={{ fontSize: '1.25rem', color: '#16213e' }}></i>
+                    </div>
+                    <div style={{ 
+                      fontSize: '0.7rem', 
+                      color: '#6c757d', 
+                      textTransform: 'uppercase', 
+                      letterSpacing: '1px',
+                      marginBottom: '0.5rem',
+                      fontWeight: '500'
+                    }}>
+                      Birthday
+                    </div>
+                    <div style={{ 
+                      fontSize: '1.1rem', 
+                      color: '#212529', 
+                      fontWeight: 'bold'
+                    }}>
+                      {formatDate(member.dob)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Location */}
+                <div className="col-md-6">
+                  <div style={{ 
+                    backgroundColor: '#f8f9fa', 
+                    padding: '1.5rem', 
+                    borderRadius: '12px',
+                    border: '1px solid #e9ecef'
+                  }}>
+                    <div style={{ 
+                      width: '40px', 
+                      height: '40px', 
+                      backgroundColor: '#fff', 
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: '1rem',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}>
+                      <i className="bi bi-geo-alt-fill" style={{ fontSize: '1.25rem', color: '#16213e' }}></i>
+                    </div>
+                    <div style={{ 
+                      fontSize: '0.7rem', 
+                      color: '#6c757d', 
+                      textTransform: 'uppercase', 
+                      letterSpacing: '1px',
+                      marginBottom: '0.5rem',
+                      fontWeight: '500'
+                    }}>
+                      Location
+                    </div>
+                    <div style={{ 
+                      fontSize: '1.1rem', 
+                      color: '#212529', 
+                      fontWeight: 'bold'
+                    }}>
+                      {member.city && member.state ? `${member.city}, ${member.state}` : '-'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* School */}
+                <div className="col-md-6">
+                  <div style={{ 
+                    backgroundColor: '#f8f9fa', 
+                    padding: '1.5rem', 
+                    borderRadius: '12px',
+                    border: '1px solid #e9ecef'
+                  }}>
+                    <div style={{ 
+                      width: '40px', 
+                      height: '40px', 
+                      backgroundColor: '#fff', 
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: '1rem',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}>
+                      <i className="bi bi-building" style={{ fontSize: '1.25rem', color: '#16213e' }}></i>
+                    </div>
+                    <div style={{ 
+                      fontSize: '0.7rem', 
+                      color: '#6c757d', 
+                      textTransform: 'uppercase', 
+                      letterSpacing: '1px',
+                      marginBottom: '0.5rem',
+                      fontWeight: '500'
+                    }}>
+                      School
+                    </div>
+                    <div style={{ 
+                      fontSize: '1.1rem', 
+                      color: '#212529', 
+                      fontWeight: 'bold'
+                    }}>
+                      {member.school_name || '-'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Phone */}
+                <div className="col-md-6">
+                  <div style={{ 
+                    backgroundColor: '#f8f9fa', 
+                    padding: '1.5rem', 
+                    borderRadius: '12px',
+                    border: '1px solid #e9ecef'
+                  }}>
+                    <div style={{ 
+                      width: '40px', 
+                      height: '40px', 
+                      backgroundColor: '#fff', 
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: '1rem',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}>
+                      <i className="bi bi-telephone-fill" style={{ fontSize: '1.25rem', color: '#16213e' }}></i>
+                    </div>
+                    <div style={{ 
+                      fontSize: '0.7rem', 
+                      color: '#6c757d', 
+                      textTransform: 'uppercase', 
+                      letterSpacing: '1px',
+                      marginBottom: '0.5rem',
+                      fontWeight: '500'
+                    }}>
+                      Phone
+                    </div>
+                    <div style={{ 
+                      fontSize: '1.1rem', 
+                      color: '#212529', 
+                      fontWeight: 'bold'
+                    }}>
+                      {formatPhone(member.phone)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Volunteer Hours Section */}
         <section className="mt-5">

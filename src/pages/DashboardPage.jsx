@@ -1366,14 +1366,6 @@ function DashboardPage() {
                 <i className="bi bi-plus-circle me-2"></i>Upload New Bill
               </button>
             </div>
-            <div className="card mb-3">
-              <div className="card-body">
-                <p className="text-muted mb-0">
-                  <i className="bi bi-info-circle me-2"></i>
-                  Upload bills to the website. Bills will appear on the Bills page after upload.
-                </p>
-              </div>
-            </div>
             
             {/* Bills List - Grouped by State */}
             {allBills.length > 0 ? (

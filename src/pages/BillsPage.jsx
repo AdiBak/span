@@ -61,10 +61,54 @@ function BillsPage() {
     }
   }
 
-  // Filter bills when filter or search changes
+  // Filter bills when filter or search changes (but not when keywords are extracted)
   useEffect(() => {
     filterBills()
-  }, [bills, currentFilter, searchQuery, billKeywords])
+  }, [bills, currentFilter, searchQuery])
+
+  // Update filtered bills when keywords change (without resetting page)
+  // Only update if there's an active search query that might benefit from keywords
+  useEffect(() => {
+    // Only re-filter if there's a search query and keywords have been extracted
+    // This prevents page reset when PDFs are opened
+    if (searchQuery.trim() && Object.keys(billKeywords).length > 0) {
+      // Re-filter without resetting page
+      let filtered = [...bills]
+
+      // Apply position filter
+      if (currentFilter !== 'All') {
+        filtered = filtered.filter(b => b.position === currentFilter)
+      }
+
+      // Apply search filter with updated keywords
+      const queryLower = searchQuery.toLowerCase()
+      filtered = filtered.filter(bill => {
+        // Search in bill name, state, description
+        const matchesBasic = 
+          bill.name.toLowerCase().includes(queryLower) ||
+          bill.state.toLowerCase().includes(queryLower) ||
+          bill.description.toLowerCase().includes(queryLower)
+
+        // Search in extracted keywords if available
+        const keywords = billKeywords[bill.bill_id || `${bill.state}-${bill.name}`] || []
+        const matchesKeywords = keywords.some(keyword => 
+          keyword.toLowerCase().includes(queryLower)
+        )
+
+        // Search in collaborators
+        const collaborators = bill.bill_collaborators || []
+        const matchesCollaborators = collaborators.some(collaborator => 
+          collaborator.toLowerCase().includes(queryLower)
+        )
+
+        return matchesBasic || matchesKeywords || matchesCollaborators
+      })
+
+      setFilteredBills(filtered)
+      // Don't reset page - keep current page
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billKeywords]) // Only depend on billKeywords to avoid unnecessary re-renders
 
   async function fetchData() {
     try {
@@ -171,6 +215,7 @@ function BillsPage() {
     setFilteredBills(filtered)
     setCurrentPage(1) // Reset to first page when filter changes
   }
+
 
   const handleKeywordExtracted = React.useCallback((billId, keywords) => {
     setBillKeywords(prev => ({

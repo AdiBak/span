@@ -834,6 +834,40 @@ function DashboardPage() {
 
   const fullName = `${member.first_name || ''} ${member.last_name || ''}`.trim()
 
+  // Helper function to get state file name for icons
+  const getStateFileName = (state) => {
+    if (!state) return 'United States'
+    
+    const stateMap = {
+      'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
+      'CA': 'California', 'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
+      'DC': 'District of Columbia', 'FL': 'Florida', 'GA': 'Georgia', 'HI': 'Hawaii',
+      'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
+      'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine',
+      'MD': 'Maryland', 'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota',
+      'MS': 'Mississippi', 'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska',
+      'NV': 'Nevada', 'NH': 'New Hampshire', 'NJ': 'New Jersey', 'NM': 'New Mexico',
+      'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
+      'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island',
+      'SC': 'South Carolina', 'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas',
+      'UT': 'Utah', 'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington',
+      'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming', 'US': 'United States'
+    }
+    
+    const stateUpper = state.toUpperCase()
+    if (stateMap[stateUpper]) {
+      return stateMap[stateUpper]
+    }
+    
+    const fullStateNames = Object.values(stateMap)
+    const matched = fullStateNames.find(name => name.toLowerCase() === state.toLowerCase())
+    if (matched) {
+      return matched
+    }
+    
+    return state
+  }
+
   // Group volunteer entries by member_id
   const groupedEntries = {}
   volunteerEntries.forEach(entry => {
@@ -841,6 +875,24 @@ function DashboardPage() {
       groupedEntries[entry.member_id] = []
     }
     groupedEntries[entry.member_id].push(entry)
+  })
+
+  // Group bills by state
+  const billsByState = {}
+  allBills.forEach(bill => {
+    const state = bill.state || 'Unknown'
+    if (!billsByState[state]) {
+      billsByState[state] = []
+    }
+    billsByState[state].push(bill)
+  })
+  
+  // Sort states alphabetically
+  const sortedStates = Object.keys(billsByState).sort((a, b) => {
+    // Put "Unknown" at the end
+    if (a === 'Unknown') return 1
+    if (b === 'Unknown') return -1
+    return a.localeCompare(b)
   })
 
   return (
@@ -1323,77 +1375,136 @@ function DashboardPage() {
               </div>
             </div>
             
-            {/* Bills List */}
-            {allBills.length > 0 && (
-              <div className="card">
-                <div className="card-header">
-                  <h5 className="mb-0">All Bills ({allBills.length})</h5>
-                </div>
-                <div className="card-body">
-                  <div className="table-responsive">
-                    <table className="table table-hover">
-                      <thead>
-                        <tr>
-                          <th>State</th>
-                          <th>Bill Name</th>
-                          <th>Position</th>
-                          <th>Date</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {allBills.map(bill => (
-                          <tr key={bill.bill_id}>
-                            <td>{bill.state}</td>
-                            <td>{bill.name}</td>
-                            <td>
-                              <span className={`badge ${
-                                bill.position === 'Support' ? 'bg-success' :
-                                bill.position === 'Oppose' ? 'bg-danger' :
-                                'bg-warning text-dark'
-                              }`}>
-                                {bill.position}
-                              </span>
-                            </td>
-                            <td>{formatDate(bill.bill_date)}</td>
-                            <td>
-                              <button
-                                className="btn btn-sm btn-outline-primary me-2"
-                                onClick={() => {
-                                  setSelectedBillForEdit(bill)
-                                  setEditBillForm({
-                                    state: bill.state || '',
-                                    name: bill.name || '',
-                                    position: bill.position || 'Support',
-                                    description: bill.description || '',
-                                    billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
-                                    legiscanLink: bill.legiscan_link || '',
-                                    collaborators: bill.bill_collaborators || []
-                                  })
-                                  setEditBillPdfFile(null)
-                                  setBillError('')
-                                  setBillSuccess('')
-                                  setShowEditBillModal(true)
-                                }}
-                              >
-                                <i className="bi bi-pencil"></i> Edit
-                              </button>
-                              <button
-                                className="btn btn-sm btn-outline-danger"
-                                onClick={() => {
-                                  setSelectedBillForDelete(bill)
-                                  setShowDeleteBillModal(true)
-                                }}
-                              >
-                                <i className="bi bi-trash"></i> Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+            {/* Bills List - Grouped by State */}
+            {allBills.length > 0 ? (
+              <div>
+                {sortedStates.map(state => {
+                  const stateBills = billsByState[state]
+                  const stateFileName = getStateFileName(state)
+                  
+                  return (
+                    <div key={state} className="accordion mb-3 shadow-sm border rounded">
+                      <h2 className="accordion-header">
+                        <button
+                          className="accordion-button collapsed bg-light text-dark"
+                          type="button"
+                          data-bs-toggle="collapse"
+                          data-bs-target={`#collapseState${state.replace(/\s+/g, '')}`}
+                          aria-expanded="false"
+                        >
+                          <div className="d-flex align-items-center gap-2">
+                            <img
+                              src={`/images/states/${stateFileName}.svg`}
+                              alt={`${state} flag`}
+                              style={{ width: '32px', height: 'auto' }}
+                              onError={(e) => {
+                                e.target.src = '/images/states/United States.svg'
+                              }}
+                            />
+                            <span>{state}</span>
+                            <span className="fw-bold ms-2 text-muted">
+                              ({stateBills.length} {stateBills.length === 1 ? 'bill' : 'bills'})
+                            </span>
+                          </div>
+                        </button>
+                      </h2>
+                      <div id={`collapseState${state.replace(/\s+/g, '')}`} className="accordion-collapse collapse">
+                        <div className="accordion-body">
+                          <div className="accordion" id={`stateAccordion${state.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')}`}>
+                            {stateBills.map(bill => (
+                              <div key={bill.bill_id} className="accordion-item mb-2 shadow-sm border rounded">
+                                <h2 className="accordion-header">
+                                  <button
+                                    className="accordion-button collapsed bg-white text-dark"
+                                    type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target={`#collapseBill${bill.bill_id}`}
+                                    aria-expanded="false"
+                                  >
+                                    <div className="d-flex w-100 justify-content-between align-items-center">
+                                      <span className="fw-bold">{bill.name}</span>
+                                      <span className={`badge me-3 ${
+                                        bill.position === 'Support' ? 'bg-success' :
+                                        bill.position === 'Oppose' ? 'bg-danger' :
+                                        'bg-warning text-dark'
+                                      }`}>
+                                        {bill.position}
+                                      </span>
+                                      <span className="text-muted">{formatDate(bill.bill_date)}</span>
+                                    </div>
+                                  </button>
+                                </h2>
+                                <div id={`collapseBill${bill.bill_id}`} className="accordion-collapse collapse" data-bs-parent={`#stateAccordion${state.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')}`}>
+                                  <div className="accordion-body">
+                                    <div className="mb-3">
+                                      <strong>Description:</strong>
+                                      <p className="mt-1 mb-0">{bill.description || '-'}</p>
+                                    </div>
+                                    {bill.legiscan_link && (
+                                      <div className="mb-3">
+                                        <strong>LegiScan Link:</strong>
+                                        <p className="mt-1 mb-0">
+                                          <a href={bill.legiscan_link} target="_blank" rel="noopener noreferrer" className="text-primary">
+                                            {bill.legiscan_link}
+                                          </a>
+                                        </p>
+                                      </div>
+                                    )}
+                                    {bill.bill_collaborators && bill.bill_collaborators.length > 0 && (
+                                      <div className="mb-3">
+                                        <strong>Collaborators:</strong>
+                                        <p className="mt-1 mb-0">
+                                          {bill.bill_collaborators.join(', ')}
+                                        </p>
+                                      </div>
+                                    )}
+                                    <div className="mt-3 d-flex gap-2 flex-wrap">
+                                      <button
+                                        className="btn btn-sm btn-outline-primary"
+                                        onClick={() => {
+                                          setSelectedBillForEdit(bill)
+                                          setEditBillForm({
+                                            state: bill.state || '',
+                                            name: bill.name || '',
+                                            position: bill.position || 'Support',
+                                            description: bill.description || '',
+                                            billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
+                                            legiscanLink: bill.legiscan_link || '',
+                                            collaborators: bill.bill_collaborators || []
+                                          })
+                                          setEditBillPdfFile(null)
+                                          setBillError('')
+                                          setBillSuccess('')
+                                          setShowEditBillModal(true)
+                                        }}
+                                      >
+                                        <i className="bi bi-pencil me-1"></i>Edit
+                                      </button>
+                                      <button
+                                        className="btn btn-sm btn-outline-danger"
+                                        onClick={() => {
+                                          setSelectedBillForDelete(bill)
+                                          setShowDeleteBillModal(true)
+                                        }}
+                                      >
+                                        <i className="bi bi-trash me-1"></i>Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-5 text-muted">
+                <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
+                <p>No bills found. Upload your first bill to get started.</p>
               </div>
             )}
           </section>

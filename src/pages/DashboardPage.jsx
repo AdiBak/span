@@ -59,6 +59,35 @@ function DashboardPage() {
     collaborators: []
   })
   const [editBillPdfFile, setEditBillPdfFile] = useState(null)
+  const [showMemberModal, setShowMemberModal] = useState(false)
+  const [memberForm, setMemberForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    originalEmail: '',
+    role: '',
+    tier: '',
+    active: true,
+    startDate: '',
+    dob: '',
+    schoolName: '',
+    city: '',
+    state: '',
+    phone: '',
+    linkedin: '',
+    instagram: '',
+    notes: '',
+    bio: '',
+    isExecutiveDirector: false
+  })
+  const [memberError, setMemberError] = useState('')
+  const [memberSuccess, setMemberSuccess] = useState('')
+  const [applications, setApplications] = useState([])
+  const [applicationFilter, setApplicationFilter] = useState('pending') // 'all', 'pending', 'accepted', 'rejected'
+  const [selectedApplication, setSelectedApplication] = useState(null)
+  const [showApplicationModal, setShowApplicationModal] = useState(false)
+  const [applicationNotes, setApplicationNotes] = useState('')
+  const [showDeleteApplicationModal, setShowDeleteApplicationModal] = useState(false)
 
   // Helper functions
   const formatDate = (dateStr) => {
@@ -108,9 +137,10 @@ function DashboardPage() {
     loadMemberData()
     loadAllMembers()
     if (member && (member.is_executive_director === true || member.is_executive_director === 'true')) {
-      loadAllBills()
-    }
-  }, [member])
+        loadAllBills()
+        loadApplications()
+      }
+    }, [member])
 
   // Load all members for collaborator selection
   const loadAllMembers = async () => {
@@ -139,7 +169,22 @@ function DashboardPage() {
       return
     }
 
-    setAllBills(billsData || [])
+      setAllBills(billsData || [])
+    }
+
+  // Load all applications (executive directors only)
+  const loadApplications = async () => {
+    const { data: applicationsData, error } = await supabase
+      .from('applications')
+      .select('*')
+      .order('submitted_at', { ascending: false })
+
+    if (error) {
+      console.error('Error loading applications:', error)
+      return
+    }
+
+    setApplications(applicationsData || [])
   }
 
   const loadMemberData = async () => {
@@ -793,6 +838,211 @@ function DashboardPage() {
       // Keep modal open so user can see the error
     }
   }
+
+  // Member management handlers
+  const handleAddMember = () => {
+    setMemberForm({
+      firstName: '',
+      lastName: '',
+      email: '',
+      originalEmail: '',
+      role: '',
+      tier: '',
+      active: true,
+      startDate: '',
+      dob: '',
+      schoolName: '',
+      city: '',
+      state: '',
+      phone: '',
+      linkedin: '',
+      instagram: '',
+      notes: '',
+      bio: '',
+      isExecutiveDirector: false
+    })
+    setMemberError('')
+    setMemberSuccess('')
+    setShowMemberModal(true)
+  }
+
+  const handleSaveMember = async () => {
+    const { firstName, lastName, email, originalEmail, role, tier, active, startDate, dob, schoolName, city, state, phone, linkedin, instagram, notes, bio, isExecutiveDirector } = memberForm
+    setMemberError('')
+    setMemberSuccess('')
+
+    // Validation
+    if (!firstName || !lastName || !email || !originalEmail || !role) {
+      setMemberError('First name, last name, email, original email, and role are required.')
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      setMemberError('Please enter a valid SPAN email address.')
+      return
+    }
+    if (!emailRegex.test(originalEmail)) {
+      setMemberError('Please enter a valid personal email address.')
+      return
+    }
+
+    try {
+      // Prepare member data
+      const memberData = {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        original_email: originalEmail.trim().toLowerCase(),
+        role: role.trim(),
+        tier: tier ? parseInt(tier) : null,
+        active: active,
+        start_date: startDate || null,
+        dob: dob || null,
+        school_name: schoolName.trim() || null,
+        city: city.trim() || null,
+        state: state.trim() || null,
+        phone: phone ? phone.replace(/\D/g, '') : null,
+        linkedin: linkedin.trim() || null,
+        instagram: instagram.trim() || null,
+        notes: notes.trim() || null,
+        bio: bio.trim() || null,
+        is_executive_director: isExecutiveDirector
+      }
+
+      // Call the database function to create member (bypasses RLS)
+      const { data: memberDataResult, error: insertError } = await supabase.rpc('create_member', {
+        p_first_name: firstName.trim(),
+        p_last_name: lastName.trim(),
+        p_email: email.trim().toLowerCase(),
+        p_original_email: originalEmail.trim().toLowerCase(),
+        p_role: role.trim(),
+        p_tier: tier ? parseInt(tier) : null,
+        p_active: active,
+        p_start_date: startDate || null,
+        p_dob: dob || null,
+        p_school_name: schoolName.trim() || null,
+        p_city: city.trim() || null,
+        p_state: state.trim() || null,
+        p_phone: phone ? phone.replace(/\D/g, '') : null,
+        p_linkedin: linkedin.trim() || null,
+        p_instagram: instagram.trim() || null,
+        p_notes: notes.trim() || null,
+        p_bio: bio.trim() || null,
+        p_is_executive_director: isExecutiveDirector
+      })
+
+      if (insertError) {
+        console.error('Member insert error:', insertError)
+        setMemberError('Failed to save member. ' + insertError.message)
+        return
+      }
+
+      setMemberSuccess(`Member "${firstName} ${lastName}" added successfully! They will receive an email invitation to set up their account.`)
+      setMemberForm({
+        firstName: '',
+        lastName: '',
+        email: '',
+        originalEmail: '',
+        role: '',
+        tier: '',
+        active: true,
+        startDate: '',
+        dob: '',
+        schoolName: '',
+        city: '',
+        state: '',
+        phone: '',
+        linkedin: '',
+        instagram: '',
+        notes: '',
+        bio: '',
+        isExecutiveDirector: false
+      })
+      
+      // Refresh members list if needed
+      if (allMembers.length > 0) {
+        await loadAllMembers()
+      }
+      
+      // Close modal after 3 seconds
+      setTimeout(() => {
+        setShowMemberModal(false)
+        setMemberSuccess('')
+      }, 3000)
+    } catch (err) {
+      console.error('Error saving member:', err)
+      setMemberError(err.message || 'Failed to save member.')
+    }
+  }
+
+  // Application management handlers
+  const handleViewApplication = (application) => {
+    setSelectedApplication(application)
+    setApplicationNotes(application.notes || '')
+    setShowApplicationModal(true)
+  }
+
+  const handleUpdateApplicationStatus = async (status) => {
+    if (!selectedApplication) return
+
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({
+          status: status,
+          reviewed_by: member.member_id,
+          reviewed_at: new Date().toISOString(),
+          notes: applicationNotes.trim() || null
+        })
+        .eq('application_id', selectedApplication.application_id)
+
+      if (error) {
+        console.error('Error updating application:', error)
+        alert('Failed to update application status: ' + error.message)
+        return
+      }
+
+      await loadApplications()
+      setShowApplicationModal(false)
+      setSelectedApplication(null)
+      setApplicationNotes('')
+    } catch (err) {
+      console.error('Error updating application:', err)
+      alert('Failed to update application status.')
+    }
+  }
+
+  const handleDeleteApplication = async () => {
+    if (!selectedApplication) return
+
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .delete()
+        .eq('application_id', selectedApplication.application_id)
+
+      if (error) {
+        console.error('Error deleting application:', error)
+        alert('Failed to delete application: ' + error.message)
+        return
+      }
+
+      // Close both modals and refresh the list
+      setShowDeleteApplicationModal(false)
+      setShowApplicationModal(false)
+      setSelectedApplication(null)
+      await loadApplications()
+    } catch (err) {
+      console.error('Error deleting application:', err)
+      alert('Failed to delete application.')
+    }
+  }
+
+  const filteredApplications = applicationFilter === 'all' 
+    ? applications 
+    : applications.filter(app => app.status === applicationFilter)
 
   const handleEditBillCollaboratorToggle = (memberId) => {
     const member = allMembers.find(m => m.member_id === memberId)
@@ -1501,6 +1751,119 @@ function DashboardPage() {
             )}
           </section>
         )}
+
+        {/* Member Management Section - Executive Directors Only */}
+        {(member.is_executive_director === true || member.is_executive_director === 'true') && (
+          <section className="mt-5">
+            <div className="d-flex justify-content-between align-items-center mb-4">
+              <h3>Member Management</h3>
+              <button className="btn btn-dark" onClick={handleAddMember}>
+                <i className="bi bi-person-plus me-2"></i>Add New Member
+              </button>
+            </div>
+            
+            <div className="alert alert-info">
+              <i className="bi bi-info-circle me-2"></i>
+              When you add a new member, they will automatically receive an email invitation to set up their account.
+            </div>
+          </section>
+        )}
+
+        {/* Applications Section - Executive Directors Only */}
+        {(member.is_executive_director === true || member.is_executive_director === 'true') && (
+          <section className="mt-5">
+            <div className="d-flex justify-content-between align-items-center mb-4">
+              <h3>New Member Applications</h3>
+              <div className="btn-group" role="group">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${applicationFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setApplicationFilter('all')}
+                >
+                  All ({applications.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${applicationFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
+                  onClick={() => setApplicationFilter('pending')}
+                >
+                  Pending ({applications.filter(a => a.status === 'pending').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${applicationFilter === 'accepted' ? 'btn-success' : 'btn-outline-success'}`}
+                  onClick={() => setApplicationFilter('accepted')}
+                >
+                  Accepted ({applications.filter(a => a.status === 'accepted').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${applicationFilter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'}`}
+                  onClick={() => setApplicationFilter('rejected')}
+                >
+                  Rejected ({applications.filter(a => a.status === 'rejected').length})
+                </button>
+              </div>
+            </div>
+
+            {filteredApplications.length > 0 ? (
+              <div className="table-responsive">
+                <table className="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Grade</th>
+                      <th>School</th>
+                      <th>State</th>
+                      <th>Hours/Week</th>
+                      <th>Submitted</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredApplications.map(app => (
+                      <tr key={app.application_id}>
+                        <td>{app.full_name}</td>
+                        <td>
+                          <a href={`mailto:${app.email}`}>{app.email}</a>
+                        </td>
+                        <td>{app.grade}</td>
+                        <td>{app.school}</td>
+                        <td>{app.state}</td>
+                        <td>{app.hours_per_week}</td>
+                        <td>{formatDateLong(app.submitted_at)}</td>
+                        <td>
+                          <span className={`badge ${
+                            app.status === 'pending' ? 'bg-warning text-dark' :
+                            app.status === 'accepted' ? 'bg-success' :
+                            'bg-danger'
+                          }`}>
+                            {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => handleViewApplication(app)}
+                          >
+                            <i className="bi bi-eye me-1"></i>View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-5 text-muted">
+                <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
+                <p>No {applicationFilter === 'all' ? '' : applicationFilter} applications found.</p>
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {/* SPAN Card Password Modal */}
@@ -2173,6 +2536,473 @@ function DashboardPage() {
             </div>
           </div>
           <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Add Member Modal */}
+      {showMemberModal && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowMemberModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg" style={{ maxWidth: '800px' }}>
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Add New Member</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowMemberModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                  {memberError && <div className="alert alert-danger">{memberError}</div>}
+                  {memberSuccess && <div className="alert alert-success">{memberSuccess}</div>}
+                  
+                  <div className="row g-3">
+                    {/* Required Fields */}
+                    <div className="col-md-6">
+                      <label className="form-label">First Name <span className="text-danger">*</span></label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={memberForm.firstName}
+                        onChange={(e) => setMemberForm({ ...memberForm, firstName: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Last Name <span className="text-danger">*</span></label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={memberForm.lastName}
+                        onChange={(e) => setMemberForm({ ...memberForm, lastName: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Email (SPAN Email) <span className="text-danger">*</span></label>
+                      <input
+                        type="email"
+                        className="form-control"
+                        value={memberForm.email}
+                        onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })}
+                        placeholder="firstname.lastname@spanationwide.org"
+                        required
+                      />
+                      <small className="text-muted">This will be their login email</small>
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Original Email (Personal Email) <span className="text-danger">*</span></label>
+                      <input
+                        type="email"
+                        className="form-control"
+                        value={memberForm.originalEmail}
+                        onChange={(e) => setMemberForm({ ...memberForm, originalEmail: e.target.value })}
+                        placeholder="personal@example.com"
+                        required
+                      />
+                      <small className="text-muted">Where to forward SPAN emails</small>
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Role <span className="text-danger">*</span></label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={memberForm.role}
+                        onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })}
+                        placeholder="e.g., Volunteer, Director, etc."
+                        required
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Tier</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={memberForm.tier}
+                        onChange={(e) => setMemberForm({ ...memberForm, tier: e.target.value })}
+                        placeholder="1, 2, 3, etc."
+                        min="1"
+                      />
+                    </div>
+                    
+                    {/* Dates */}
+                    <div className="col-md-6">
+                      <label className="form-label">Start Date</label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        value={memberForm.startDate}
+                        onChange={(e) => setMemberForm({ ...memberForm, startDate: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Date of Birth</label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        value={memberForm.dob}
+                        onChange={(e) => setMemberForm({ ...memberForm, dob: e.target.value })}
+                      />
+                    </div>
+                    
+                    {/* Location */}
+                    <div className="col-md-6">
+                      <label className="form-label">City</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={memberForm.city}
+                        onChange={(e) => setMemberForm({ ...memberForm, city: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">State</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={memberForm.state}
+                        onChange={(e) => setMemberForm({ ...memberForm, state: e.target.value })}
+                      />
+                    </div>
+                    
+                    {/* School */}
+                    <div className="col-md-12">
+                      <label className="form-label">School Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={memberForm.schoolName}
+                        onChange={(e) => setMemberForm({ ...memberForm, schoolName: e.target.value })}
+                      />
+                    </div>
+                    
+                    {/* Contact */}
+                    <div className="col-md-6">
+                      <label className="form-label">Phone</label>
+                      <input
+                        type="tel"
+                        className="form-control"
+                        value={memberForm.phone}
+                        onChange={(e) => setMemberForm({ ...memberForm, phone: e.target.value })}
+                        placeholder="(123) 456-7890"
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">LinkedIn</label>
+                      <input
+                        type="url"
+                        className="form-control"
+                        value={memberForm.linkedin}
+                        onChange={(e) => setMemberForm({ ...memberForm, linkedin: e.target.value })}
+                        placeholder="https://linkedin.com/in/username"
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Instagram</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={memberForm.instagram}
+                        onChange={(e) => setMemberForm({ ...memberForm, instagram: e.target.value })}
+                        placeholder="@username"
+                      />
+                    </div>
+                    
+                    {/* Bio and Notes */}
+                    <div className="col-md-12">
+                      <label className="form-label">Bio</label>
+                      <textarea
+                        className="form-control"
+                        rows="3"
+                        value={memberForm.bio}
+                        onChange={(e) => setMemberForm({ ...memberForm, bio: e.target.value })}
+                        placeholder="Brief biography..."
+                      />
+                    </div>
+                    <div className="col-md-12">
+                      <label className="form-label">Notes</label>
+                      <textarea
+                        className="form-control"
+                        rows="2"
+                        value={memberForm.notes}
+                        onChange={(e) => setMemberForm({ ...memberForm, notes: e.target.value })}
+                        placeholder="Internal notes..."
+                      />
+                    </div>
+                    
+                    {/* Options */}
+                    <div className="col-md-12">
+                      <div className="form-check">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          checked={memberForm.active}
+                          onChange={(e) => setMemberForm({ ...memberForm, active: e.target.checked })}
+                          id="memberActive"
+                        />
+                        <label className="form-check-label" htmlFor="memberActive">
+                          Active Member
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-md-12">
+                      <div className="form-check">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          checked={memberForm.isExecutiveDirector}
+                          onChange={(e) => setMemberForm({ ...memberForm, isExecutiveDirector: e.target.checked })}
+                          id="memberIsExec"
+                        />
+                        <label className="form-check-label" htmlFor="memberIsExec">
+                          Executive Director
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowMemberModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    onClick={handleSaveMember}
+                  >
+                    Add Member
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Application View Modal */}
+      {showApplicationModal && selectedApplication && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowApplicationModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg" style={{ maxWidth: '800px' }}>
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Application: {selectedApplication.full_name}</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowApplicationModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                  <div className="row g-3 mb-3">
+                    <div className="col-md-6">
+                      <strong>Email:</strong>
+                      <p><a href={`mailto:${selectedApplication.email}`}>{selectedApplication.email}</a></p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Phone:</strong>
+                      <p><a href={`tel:${selectedApplication.phone_number}`}>{selectedApplication.phone_number}</a></p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Age:</strong>
+                      <p>{selectedApplication.age || 'Not provided'}</p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Grade:</strong>
+                      <p>{selectedApplication.grade}</p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>School:</strong>
+                      <p>{selectedApplication.school}</p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>State:</strong>
+                      <p>{selectedApplication.state}</p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Hours per Week:</strong>
+                      <p>{selectedApplication.hours_per_week}</p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>How they heard about SPAN:</strong>
+                      <p>{selectedApplication.referral_source}</p>
+                    </div>
+                    <div className="col-12">
+                      <strong>Additional Info:</strong>
+                      <p>{selectedApplication.additional_info || 'None provided'}</p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Submitted:</strong>
+                      <p>{formatDateLong(selectedApplication.submitted_at)}</p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Status:</strong>
+                      <p>
+                        <span className={`badge ${
+                          selectedApplication.status === 'pending' ? 'bg-warning text-dark' :
+                          selectedApplication.status === 'accepted' ? 'bg-success' :
+                          'bg-danger'
+                        }`}>
+                          {selectedApplication.status.charAt(0).toUpperCase() + selectedApplication.status.slice(1)}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label"><strong>Notes:</strong></label>
+                    <textarea
+                      className="form-control"
+                      rows="3"
+                      value={applicationNotes}
+                      onChange={(e) => setApplicationNotes(e.target.value)}
+                      placeholder="Add notes about this application..."
+                    />
+                  </div>
+
+                  {selectedApplication.status === 'pending' && (
+                    <div className="alert alert-info">
+                      <i className="bi bi-info-circle me-2"></i>
+                      Review this application and either accept or reject it. You can add notes for your records.
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowApplicationModal(false)}
+                  >
+                    Close
+                  </button>
+                  {selectedApplication.status === 'pending' && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-success"
+                        onClick={() => {
+                          if (window.confirm(`Accept ${selectedApplication.full_name}'s application? This will remove it from the pending list.`)) {
+                            handleUpdateApplicationStatus('accepted')
+                          }
+                        }}
+                      >
+                        <i className="bi bi-check-circle me-1"></i>Accept
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={() => {
+                          if (window.confirm(`Reject ${selectedApplication.full_name}'s application? This will remove it from the pending list.`)) {
+                            handleUpdateApplicationStatus('rejected')
+                          }
+                        }}
+                      >
+                        <i className="bi bi-x-circle me-1"></i>Reject
+                      </button>
+                    </>
+                  )}
+                  {selectedApplication.status !== 'pending' && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary"
+                        onClick={() => {
+                          if (window.confirm(`Reset ${selectedApplication.full_name}'s application to pending?`)) {
+                            handleUpdateApplicationStatus('pending')
+                          }
+                        }}
+                      >
+                        Reset to Pending
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger"
+                        onClick={() => {
+                          setShowDeleteApplicationModal(true)
+                        }}
+                      >
+                        <i className="bi bi-trash me-1"></i>Delete
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Delete Application Confirmation Modal */}
+      {showDeleteApplicationModal && selectedApplication && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1060 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowDeleteApplicationModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title text-danger">Delete Application</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowDeleteApplicationModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <p>Are you sure you want to permanently delete the application from <strong>{selectedApplication.full_name}</strong>?</p>
+                  <p className="text-muted small mb-0">This action cannot be undone.</p>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowDeleteApplicationModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={() => {
+                      handleDeleteApplication()
+                    }}
+                  >
+                    Delete Application
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
         </>
       )}
     </div>

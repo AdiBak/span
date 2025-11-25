@@ -4,6 +4,7 @@ import SchoolsCarousel from '../components/SchoolsCarousel'
 import TeamSection from '../components/TeamSection'
 import ImpactMap from '../components/ImpactMap'
 import BillsStats from '../components/BillsStats'
+import ApplicationForm from '../components/ApplicationForm'
 
 function HomePage() {
   return (
@@ -168,15 +169,8 @@ function HomePage() {
           </div>
         </div>
 
-        <div className="col-md-6 mx-auto text-center" data-aos="fade-left" data-aos-delay="500" data-aos-duration="1000">
-          <div style={{ padding: '1rem', maxWidth: '600px', margin: 'auto' }}>
-            <iframe
-              src="https://docs.google.com/forms/d/e/1FAIpQLSfaeYJhDwZaar4LgNZeJx9oruJLVJ7klBanu0lh_UgLydKHBQ/viewform?embedded=true"
-              width="100%" height="650" frameBorder="0" marginHeight="0" marginWidth="0" title="Join SPAN Form"
-              loading="lazy" style={{ border: 'none' }}>
-              Loading…
-            </iframe>
-          </div>
+        <div className="col-md-6 mx-auto" data-aos="fade-left" data-aos-delay="500" data-aos-duration="1000">
+          <ApplicationForm />
         </div>
       </div>
 

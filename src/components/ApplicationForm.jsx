@@ -1,0 +1,408 @@
+import React, { useState } from 'react'
+import { supabase } from '../lib/supabase'
+
+function ApplicationForm() {
+  const [formData, setFormData] = useState({
+    email: '',
+    phoneNumber: '',
+    fullName: '',
+    age: '',
+    grade: '',
+    gradeOther: '',
+    school: '',
+    state: '',
+    hoursPerWeek: '',
+    additionalInfo: '',
+    referralSource: '',
+    referralSourceOther: ''
+  })
+  const [submitting, setSubmitting] = useState(false)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+
+  const handleChange = (e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setSubmitting(true)
+    setSubmitError('')
+    setSubmitSuccess(false)
+
+    // Determine grade value (use "Other" text if grade is "Other")
+    const gradeValue = formData.grade === 'Other' ? formData.gradeOther : formData.grade
+    const referralValue = formData.referralSource === 'Other' ? formData.referralSourceOther : formData.referralSource
+
+    // Validation
+    if (!formData.email || !formData.phoneNumber || !formData.fullName || !formData.grade || 
+        !formData.school || !formData.state || !formData.hoursPerWeek || !formData.referralSource) {
+      setSubmitError('Please fill in all required fields.')
+      setSubmitting(false)
+      return
+    }
+
+    if (formData.grade === 'Other' && !formData.gradeOther.trim()) {
+      setSubmitError('Please specify your grade.')
+      setSubmitting(false)
+      return
+    }
+
+    if (formData.referralSource === 'Other' && !formData.referralSourceOther.trim()) {
+      setSubmitError('Please specify how you heard about SPAN.')
+      setSubmitting(false)
+      return
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(formData.email)) {
+      setSubmitError('Please enter a valid email address.')
+      setSubmitting(false)
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('applications')
+        .insert([{
+          email: formData.email.trim().toLowerCase(),
+          phone_number: formData.phoneNumber.trim(),
+          full_name: formData.fullName.trim(),
+          age: formData.age ? parseInt(formData.age) : null,
+          grade: gradeValue.trim(),
+          school: formData.school.trim(),
+          state: formData.state.trim(),
+          hours_per_week: formData.hoursPerWeek,
+          additional_info: formData.additionalInfo.trim() || null,
+          referral_source: referralValue.trim(),
+          status: 'pending'
+        }])
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Application submission error:', error)
+        setSubmitError('Failed to submit application. Please try again or contact us directly.')
+        setSubmitting(false)
+        return
+      }
+
+      // Success!
+      setSubmitSuccess(true)
+      setFormData({
+        email: '',
+        phoneNumber: '',
+        fullName: '',
+        age: '',
+        grade: '',
+        gradeOther: '',
+        school: '',
+        state: '',
+        hoursPerWeek: '',
+        additionalInfo: '',
+        referralSource: '',
+        referralSourceOther: ''
+      })
+    } catch (err) {
+      console.error('Error submitting application:', err)
+      setSubmitError('An unexpected error occurred. Please try again or contact us directly.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  if (submitSuccess) {
+    return (
+      <div className="card shadow-sm border-0" style={{ borderRadius: '16px' }}>
+        <div className="card-body p-5 text-center">
+          <div className="mb-4">
+            <i className="bi bi-check-circle-fill text-success" style={{ fontSize: '4rem' }}></i>
+          </div>
+          <h3 className="mb-3">Application Submitted!</h3>
+          <p className="lead mb-4">
+            Thank you for your interest in SPAN. We've received your application and will review it soon.
+            You'll hear from us once we've had a chance to review your submission.
+          </p>
+          <button
+            className="btn btn-dark"
+            onClick={() => setSubmitSuccess(false)}
+          >
+            Submit Another Application
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="card shadow-sm border-0" style={{ borderRadius: '16px', maxHeight: '650px', display: 'flex', flexDirection: 'column' }}>
+      <div className="card-body p-4 p-md-5" style={{ overflowY: 'auto', flex: 1 }}>
+        <div className="mb-4">
+          <h3 className="mb-2">SPAN Application</h3>
+          <p className="text-muted mb-4">
+            We're looking for driven high school and college students who are passionate about healthcare justice 
+            and ready to make a real impact: from organizing campaigns and researching legislation to running our 
+            social media and building national partnerships.
+          </p>
+          <p className="text-muted mb-0">
+            This application helps us learn more about your interests, work ethic, and what you hope to bring to SPAN. 
+            We're not looking for resumes, but for initiative, dedication, and heart. <strong>No prior experience is required, 
+            just a willingness to learn and lead.</strong>
+          </p>
+        </div>
+
+        {submitError && (
+          <div className="alert alert-danger" role="alert">
+            <i className="bi bi-exclamation-triangle-fill me-2"></i>
+            {submitError}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div className="d-flex flex-column gap-3">
+            {/* Email */}
+            <div>
+              <label htmlFor="email" className="form-label">
+                Email <span className="text-danger">*</span>
+              </label>
+              <input
+                type="email"
+                className="form-control"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            {/* Phone Number */}
+            <div>
+              <label htmlFor="phoneNumber" className="form-label">
+                Phone Number <span className="text-danger">*</span>
+              </label>
+              <input
+                type="tel"
+                className="form-control"
+                id="phoneNumber"
+                name="phoneNumber"
+                value={formData.phoneNumber}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            {/* Full Name */}
+            <div>
+              <label htmlFor="fullName" className="form-label">
+                Full Name <span className="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                className="form-control"
+                id="fullName"
+                name="fullName"
+                value={formData.fullName}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            {/* Age */}
+            <div>
+              <label htmlFor="age" className="form-label">Age</label>
+              <input
+                type="number"
+                className="form-control"
+                id="age"
+                name="age"
+                value={formData.age}
+                onChange={handleChange}
+                min="13"
+                max="100"
+              />
+            </div>
+
+            {/* Grade */}
+            <div>
+              <label htmlFor="grade" className="form-label">
+                Grade <span className="text-danger">*</span>
+              </label>
+              <select
+                className="form-select"
+                id="grade"
+                name="grade"
+                value={formData.grade}
+                onChange={handleChange}
+                required
+              >
+                <option value="">Select grade...</option>
+                <option value="HS Freshman">HS Freshman</option>
+                <option value="HS Sophomore">HS Sophomore</option>
+                <option value="HS Junior">HS Junior</option>
+                <option value="HS Senior">HS Senior</option>
+                <option value="Collegiate/Graduate">Collegiate/Graduate</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            {/* Grade Other */}
+            {formData.grade === 'Other' && (
+              <div>
+                <label htmlFor="gradeOther" className="form-label">
+                  Please specify <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="form-control"
+                  id="gradeOther"
+                  name="gradeOther"
+                  value={formData.gradeOther}
+                  onChange={handleChange}
+                  required={formData.grade === 'Other'}
+                />
+              </div>
+            )}
+
+            {/* School */}
+            <div>
+              <label htmlFor="school" className="form-label">
+                School <span className="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                className="form-control"
+                id="school"
+                name="school"
+                value={formData.school}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            {/* State */}
+            <div>
+              <label htmlFor="state" className="form-label">
+                State <span className="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                className="form-control"
+                id="state"
+                name="state"
+                value={formData.state}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            {/* Hours per Week */}
+            <div>
+              <label htmlFor="hoursPerWeek" className="form-label">
+                How many hours per week are you realistically able to commit to SPAN activities? <span className="text-danger">*</span>
+              </label>
+              <select
+                className="form-select"
+                id="hoursPerWeek"
+                name="hoursPerWeek"
+                value={formData.hoursPerWeek}
+                onChange={handleChange}
+                required
+              >
+                <option value="">Select hours...</option>
+                <option value="None">None</option>
+                <option value="1-2 hours">1-2 hours</option>
+                <option value="3-4 hours">3-4 hours</option>
+                <option value="5+ hours">5+ hours</option>
+              </select>
+            </div>
+
+            {/* How'd you hear about SPAN */}
+            <div>
+              <label htmlFor="referralSource" className="form-label">
+                How'd you hear about SPAN? <span className="text-danger">*</span>
+              </label>
+              <select
+                className="form-select"
+                id="referralSource"
+                name="referralSource"
+                value={formData.referralSource}
+                onChange={handleChange}
+                required
+              >
+                <option value="">Select option...</option>
+                <option value="A friend or classmate">A friend or classmate</option>
+                <option value="Social media">Social media</option>
+                <option value="Teacher or mentor">Teacher or mentor</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            {/* Referral Source Other */}
+            {formData.referralSource === 'Other' && (
+              <div>
+                <label htmlFor="referralSourceOther" className="form-label">
+                  Please specify <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="form-control"
+                  id="referralSourceOther"
+                  name="referralSourceOther"
+                  value={formData.referralSourceOther}
+                  onChange={handleChange}
+                  required={formData.referralSource === 'Other'}
+                />
+              </div>
+            )}
+
+            {/* Additional Info */}
+            <div>
+              <label htmlFor="additionalInfo" className="form-label">
+                Is there anything else you'd like us to know about you?
+              </label>
+              <textarea
+                className="form-control"
+                id="additionalInfo"
+                name="additionalInfo"
+                rows="4"
+                value={formData.additionalInfo}
+                onChange={handleChange}
+                placeholder="Optional: Tell us more about yourself, your interests, or why you want to join SPAN..."
+              />
+            </div>
+
+            {/* Submit Button */}
+            <div className="mt-2">
+              <button
+                type="submit"
+                className="btn btn-dark btn-lg w-100"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-send-fill me-2"></i>
+                    Submit Application
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+export default ApplicationForm
+

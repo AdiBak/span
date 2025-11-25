@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import QRCode from 'qrcode'
+import RegistrationForm from '../components/RegistrationForm'
 import './DashboardPage.css'
 
 const IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
@@ -1074,10 +1075,28 @@ function DashboardPage() {
     )
   }
 
+  // Handler to refresh member data after registration
+  const handleRegistrationComplete = async () => {
+    await loadMemberData()
+  }
+
   if (!member) {
     return (
       <div className="container my-5">
         <div className="alert alert-danger">Failed to load member data.</div>
+      </div>
+    )
+  }
+
+  // Show registration form if registration is not complete
+  if (!member.registration_complete) {
+    return (
+      <div className="container my-5">
+        <div className="row justify-content-center">
+          <div className="col-lg-8">
+            <RegistrationForm member={member} onComplete={handleRegistrationComplete} />
+          </div>
+        </div>
       </div>
     )
   }
@@ -1756,7 +1775,7 @@ function DashboardPage() {
         {(member.is_executive_director === true || member.is_executive_director === 'true') && (
           <section className="mt-5">
             <div className="d-flex justify-content-between align-items-center mb-4">
-              <h3>Member Management</h3>
+              <h3>New Member Registration</h3>
               <button className="btn btn-dark" onClick={handleAddMember}>
                 <i className="bi bi-person-plus me-2"></i>Add New Member
               </button>

@@ -45,10 +45,11 @@ npm run preview
 
 ### Bills Page Improvements
 
-1. **PDF Viewer Integration**: Click "View Proposal" to see the PDF inline
+1. **PDF Viewer Integration**: Click "View Proposal" to see the PDF inline with scrollable pages
 2. **Keyword Extraction**: PDFs are automatically scanned for keywords which are then searchable
-3. **Better Performance**: React's virtual DOM and optimized rendering
-4. **Reusable Components**: Pagination and other components can be reused across pages
+3. **Collaborator Search**: Search bills by collaborator names
+4. **Better Performance**: React's virtual DOM and optimized rendering
+5. **Reusable Components**: Pagination and other components can be reused across pages
 
 ### Blog Page Improvements
 
@@ -57,6 +58,55 @@ npm run preview
 3. **Author Detection**: Automatically links to SPAN member profiles when authors are recognized
 4. **Writing Team Section**: Rendered via React with reusable data model for easy updates
 5. **Shared Pagination Component**: Reuses the pagination component introduced for the Bills page
+
+### Application System
+
+1. **Native Application Form**: Replaced Google Forms with a native React form on the homepage
+   - All fields from original Google Form (email, phone, name, age, grade, school, state, hours/week, referral source, additional info)
+   - Form validation and error handling
+   - Success message after submission
+   - Scrollable form container
+   - Single-column layout for better readability
+
+2. **Application Management Dashboard** (Executive Directors only):
+   - View all applications with filtering (All/Pending/Accepted/Rejected)
+   - View application details in modal with all information
+   - Accept/Reject applications with confirmation prompts
+   - Add notes to applications
+   - Delete applications (for accepted/rejected ones)
+   - Status badges and clickable contact info
+
+### Member Management System
+
+1. **Member Creation** (Executive Directors only):
+   - Create new members directly from dashboard
+   - Form includes all member fields (name, email, original_email, role, tier, dates, location, school, contact info, bio, notes)
+   - Automatically triggers member provisioning pipeline (creates auth user, sends email invitation, sets up Cloudflare email routing)
+   - Uses database function (`create_member`) to bypass RLS restrictions
+
+2. **Member Registration Form** (New Members):
+   - Shows on first login if `registration_complete` is false
+   - Pre-filled with existing member data from when they were added
+   - Required fields: name, email, phone, DOB, school, city, state, profile photo
+   - Optional fields: position, LinkedIn, Instagram, additional info
+   - Profile photo upload to Supabase storage with validation
+   - Phone number auto-formatting as user types
+   - State abbreviation auto-uppercase conversion
+   - Blocks access to dashboard until registration is complete
+   - Automatically refreshes member data after successful registration
+
+### Dashboard Improvements
+
+1. **Redesigned "Your Info" Section**: 
+   - Modern split-card layout with dark top section and light grid bottom
+   - Icons and improved typography
+   - Better visual hierarchy
+
+2. **Bill Management** (Executive Directors):
+   - Bills grouped by state in collapsible accordions
+   - State flags/icons for visual organization
+   - Nested accordions for individual bills
+   - Edit and delete functionality for each bill
 
 ## Migration Status
 
@@ -76,13 +126,25 @@ npm run preview
 - ✅ Bills Preview (homepage)
 - ✅ Bills Stats (homepage)
 - ✅ Impact Map (homepage - Google Charts visualization)
+- ✅ ApplicationForm (homepage - native application form)
+- ✅ RegistrationForm (dashboard - member registration)
+
+### Dashboard Migration
+
+- ✅ Dashboard Page (`DashboardPage.jsx`) - Migrated to React
+  - Volunteer hours tracking
+  - Bill management (executive directors)
+  - Application management (executive directors)
+  - Member management (executive directors)
+  - Member registration form (new members)
+  - Password change
+  - SPANCard generation
 
 ### Intentionally Vanilla JS
 
 - Login Page (`auth.js`) - Admin/internal authentication
-- Dashboard (`dashboard.js`) - Admin dashboard functionality
 
-**Status:** All user-facing pages and components have been successfully migrated to React.
+**Status:** All user-facing pages and components have been successfully migrated to React, including the dashboard.
 
 ## Important Notes
 
@@ -109,6 +171,7 @@ npm run preview
 ```
 src/
 ├── components/          # Reusable React components
+│   ├── ApplicationForm.jsx      # Native application form (homepage)
 │   ├── BillCard.jsx
 │   ├── BlogCard.jsx
 │   ├── PDFViewer.jsx
@@ -117,6 +180,7 @@ src/
 │   ├── CollaboratorModal.jsx
 │   ├── Footer.jsx
 │   ├── Navbar.jsx
+│   ├── RegistrationForm.jsx     # Member registration form (dashboard)
 │   ├── SchoolsCarousel.jsx
 │   ├── TeamSection.jsx
 │   ├── BillsPreview.jsx
@@ -125,7 +189,10 @@ src/
 ├── pages/               # Page components
 │   ├── BillsPage.jsx
 │   ├── BlogPage.jsx
+│   ├── DashboardPage.jsx         # Dashboard with all management features
 │   ├── DirectoryPage.jsx
+│   ├── HomePage.jsx
+│   ├── LoginPage.jsx
 │   └── OurStoryPage.jsx
 ├── lib/                 # Utilities and services
 │   └── supabase.js
@@ -149,19 +216,76 @@ The system now includes a fully automated onboarding flow powered by a Supabase 
 - **Features**:
   - Automatic Supabase Auth user creation
   - Cloudflare Email Routing setup (forwards SPAN emails to personal inbox)
-  - Welcome email delivery via EmailJS
+  - Welcome email delivery via EmailJS (with instructions to complete registration)
   - Graceful error handling and logging
 
 **Setup**: See [docs/auth-provisioning.md](./docs/auth-provisioning.md) for deployment and configuration instructions.
 
+## Database Functions and Policies
+
+### Member Management Functions
+
+1. **`create_member()`**: Allows executive directors to create new members
+   - Verifies caller is an executive director
+   - Bypasses RLS to insert member record
+   - Triggers automated provisioning pipeline
+
+2. **`update_member_registration()`**: Allows members to update their own registration
+   - Verifies caller is updating their own record
+   - Handles phone number type conversion (text to bigint)
+   - Updates all registration fields including profile photo
+
+### Storage Policies
+
+- **`members-images` bucket policies**:
+  - Authenticated users can upload/update/delete their own profile images
+  - Files must be named with their `member_id` (e.g., `{member_id}.png`)
+  - Public read access for displaying images on the website
+
+### Application Table
+
+- **`applications` table**: Stores membership applications
+  - RLS policies: Anyone can submit, only exec directors can view/update/delete
+  - Status tracking: pending, accepted, rejected
+  - Review tracking: who reviewed and when
+
+**Setup**: Run SQL migrations in `supabase/migrations/` directory in Supabase SQL Editor.
+
+## Database Migrations
+
+SQL migration files are located in `supabase/migrations/`:
+
+1. **`create_applications_table.sql`**: Creates applications table with RLS policies
+2. **`add_registration_complete_column.sql`**: Adds `registration_complete` boolean to members table
+3. **`add_storage_policies_members_images.sql`**: Storage policies for profile image uploads
+4. **`add_update_member_function.sql`**: Database function for member registration updates
+
+**To apply migrations**: Run each SQL file in Supabase SQL Editor in order.
+
+## Email Templates
+
+### EmailJS Template Variables
+
+- `{{to_name}}` - Member's full name
+- `{{span_email}}` - The SPAN email address (for login)
+- `{{action_link}}` - The Supabase invite/recovery link (to set password)
+- `{{otp}}` - 6-digit code (for invite emails)
+- `{{invite_type}}` - Either "invite" or "recovery"
+
+**Template Content**: The email template instructs new members to:
+1. Set their password using the action link
+2. Complete their registration form in the dashboard
+3. Access full dashboard features after registration
+
 ## Next Steps (Improvements)
 
-1. **Backfill Existing Members**: Script to provision existing members without `user_id`
-2. **QR Login Enhancement**: Modernize QR login to use single-use tokens instead of passwords
-3. **Testing**: Add unit and integration tests
-4. **Performance**: Optimize bundle size and add lazy loading
-5. **Error Handling**: Add React error boundaries
-6. **Documentation**: Update API documentation and component docs
+1. **Auto-create members from applications**: When an application is accepted, automatically create a member record
+2. **Email notifications**: Notify exec directors when new applications are submitted
+3. **QR Login Enhancement**: Modernize QR login to use single-use tokens instead of passwords
+4. **Testing**: Add unit and integration tests
+5. **Performance**: Optimize bundle size and add lazy loading
+6. **Error Handling**: Add React error boundaries
+7. **Documentation**: Update API documentation and component docs
 
 ## Troubleshooting
 

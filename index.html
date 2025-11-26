@@ -4,9 +4,6 @@
 <head>
    <meta charset="UTF-8">
    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-   <meta http-equiv="Pragma" content="no-cache">
-   <meta http-equiv="Expires" content="0">
    <title>SPAN - Students for Patient Advocacy Nationwide</title>
 
    <!-- Google Tag Manager (kept async) -->
@@ -34,10 +31,15 @@
       }
    </script>
 
-   <!-- Styles (kept both CSS files; no duplicates) -->
+   <!-- Critical CSS - Bootstrap (render-blocking for initial layout) -->
    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-LN+7fdVzj6u52u30Kp6M/trliBMCMKTyK833zpbD+pXdCLuTusPj697FH4R/5mcr" crossorigin="anonymous">
-   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-   <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+   
+   <!-- Non-critical CSS - Load asynchronously -->
+   <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"></noscript>
+   
+   <link rel="preload" href="https://unpkg.com/aos@2.3.1/dist/aos.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+   <noscript><link rel="stylesheet" href="https://unpkg.com/aos@2.3.1/dist/aos.css"></noscript>
 
    <!-- Favicon & canonical + social tags -->
    <link rel="icon" type="image/svg+xml" href="/assets/images/index/logo-icon-dark.ico" media="(prefers-color-scheme: light)">
@@ -96,8 +98,8 @@
    </div>
 
    <!-- SCRIPTS - defer so parsing isn't blocked. Keep order important: bootstrap -> navbar -> module app scripts -> footer -->
-   <script  src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
-   <script  src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+   <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/js/bootstrap.bundle.min.js" integrity="sha384-ndDqU0Gzau9qJ1lfW4pNLlhNTkCfHzAVBReH9diLvGRem5+R9g2FzA8ZGN954O5Q" crossorigin="anonymous"></script>
+   <script defer src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
 
 
    <!-- React app entry point for bills preview -->

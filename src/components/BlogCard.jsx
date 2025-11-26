@@ -11,6 +11,8 @@ function AuthorInfo({ author }) {
           alt={author.name}
           height="16"
           width="16"
+          loading="lazy"
+          decoding="async"
           style={{ borderRadius: '50%', marginRight: '6px', objectFit: 'cover' }}
         />
       )}
@@ -41,6 +43,10 @@ function BlogCard({ post, variant = 'default' }) {
           className="card-img-top"
           alt={post.title}
           style={{ objectFit: 'cover', aspectRatio: '16/9' }}
+          loading="lazy"
+          decoding="async"
+          width="600"
+          height="338"
         />
         <div className="card-body d-flex flex-column">
           <h5 className="card-title">{post.title}</h5>

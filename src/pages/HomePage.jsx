@@ -1,10 +1,12 @@
-import React from 'react'
+import React, { lazy, Suspense } from 'react'
 import BillsPreview from '../components/BillsPreview'
 import SchoolsCarousel from '../components/SchoolsCarousel'
 import TeamSection from '../components/TeamSection'
-import ImpactMap from '../components/ImpactMap'
-import BillsStats from '../components/BillsStats'
 import ApplicationForm from '../components/ApplicationForm'
+
+// Lazy load heavy components that use external libraries
+const ImpactMap = lazy(() => import('../components/ImpactMap'))
+const BillsStats = lazy(() => import('../components/BillsStats'))
 
 function HomePage() {
   return (
@@ -110,7 +112,9 @@ function HomePage() {
           {/* Map Section */}
           <div className="row justify-content-center" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
             <div className="col-lg-10">
-              <ImpactMap />
+              <Suspense fallback={<div className="text-center py-5"><div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading map...</span></div></div>}>
+                <ImpactMap />
+              </Suspense>
             </div>
           </div>
 
@@ -123,7 +127,9 @@ function HomePage() {
                   <h3 id="proposals"></h3>
                   <p className="lead mb-1">Proposals Submitted</p>
                   <p className="text-muted small">Across local, state, and federal legislation</p>
-                  <BillsStats />
+                  <Suspense fallback={<div className="spinner-border spinner-border-sm text-primary" role="status"><span className="visually-hidden">Loading...</span></div>}>
+                    <BillsStats />
+                  </Suspense>
                 </div>
               </div>
             </div>

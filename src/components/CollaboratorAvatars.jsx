@@ -47,6 +47,10 @@ function CollaboratorAvatars({ collaborators, members, billIndex, onCollaborator
           alt={`${collab.first_name} ${collab.last_name}`}
           title={`${collab.first_name} ${collab.last_name}`}
           className="collaborator-avatar"
+          loading="lazy"
+          decoding="async"
+          width="35"
+          height="35"
           style={{ 
             zIndex: 100 - i,
             width: '35px',

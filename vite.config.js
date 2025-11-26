@@ -46,6 +46,13 @@ export default defineConfig(({ mode }) => {
   build: {
     outDir: 'dist',
     chunkSizeWarningLimit: 1000, // Increase warning limit to 1MB (optional)
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console.log in production
+        drop_debugger: true
+      }
+    },
     rollupOptions: {
       input: {
         main: './index.html',
@@ -57,12 +64,28 @@ export default defineConfig(({ mode }) => {
         dashboard: './dashboard.html'
       },
       output: {
-        manualChunks: {
+        manualChunks: (id) => {
           // Split vendor chunks for better caching
-          'react-vendor': ['react', 'react-dom'],
-          'supabase': ['@supabase/supabase-js'],
-          'pdf-vendor': ['pdfjs-dist', 'react-pdf']
-        }
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'react-vendor'
+            }
+            if (id.includes('@supabase')) {
+              return 'supabase'
+            }
+            if (id.includes('pdfjs') || id.includes('react-pdf')) {
+              return 'pdf-vendor'
+            }
+            if (id.includes('react-router')) {
+              return 'router'
+            }
+            // Other vendor libraries
+            return 'vendor'
+          }
+        },
+        chunkFileNames: 'assets/js/[name]-[hash].js',
+        entryFileNames: 'assets/js/[name]-[hash].js',
+        assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
       }
     }
   },

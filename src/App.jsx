@@ -1,50 +1,97 @@
-import React from 'react'
-import BillsPage from './pages/BillsPage'
-import BlogPage from './pages/BlogPage'
-import DirectoryPage from './pages/DirectoryPage'
-import OurStoryPage from './pages/OurStoryPage'
-import LoginPage from './pages/LoginPage'
-import HomePage from './pages/HomePage'
-import DashboardPage from './pages/DashboardPage'
-import BillsPreview from './components/BillsPreview'
-import BillsStats from './components/BillsStats'
+import React, { lazy, Suspense } from 'react'
 import './App.css'
+
+// Lazy load heavy components for better initial load performance
+const BillsPage = lazy(() => import('./pages/BillsPage'))
+const BlogPage = lazy(() => import('./pages/BlogPage'))
+const DirectoryPage = lazy(() => import('./pages/DirectoryPage'))
+const OurStoryPage = lazy(() => import('./pages/OurStoryPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const HomePage = lazy(() => import('./pages/HomePage'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const BillsPreview = lazy(() => import('./components/BillsPreview'))
+const BillsStats = lazy(() => import('./components/BillsStats'))
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '50vh' }}>
+    <div className="spinner-border text-primary" role="status">
+      <span className="visually-hidden">Loading...</span>
+    </div>
+  </div>
+)
 
 function App({ page }) {
   if (page === 'home') {
-    return <HomePage />
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <HomePage />
+      </Suspense>
+    )
   }
 
   if (page === 'bills') {
-    return <BillsPage />
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <BillsPage />
+      </Suspense>
+    )
   }
 
   if (page === 'blog') {
-    return <BlogPage />
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <BlogPage />
+      </Suspense>
+    )
   }
 
   if (page === 'directory') {
-    return <DirectoryPage />
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <DirectoryPage />
+      </Suspense>
+    )
   }
 
   if (page === 'our-story') {
-    return <OurStoryPage />
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <OurStoryPage />
+      </Suspense>
+    )
   }
 
   if (page === 'login') {
-    return <LoginPage />
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <LoginPage />
+      </Suspense>
+    )
   }
 
   if (page === 'dashboard') {
-    return <DashboardPage />
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <DashboardPage />
+      </Suspense>
+    )
   }
 
   if (page === 'bills-preview') {
-    return <BillsPreview />
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <BillsPreview />
+      </Suspense>
+    )
   }
 
   if (page === 'bills-stats') {
-    return <BillsStats />
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <BillsStats />
+      </Suspense>
+    )
   }
 
   return null

@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
-import PDFViewer from './PDFViewer'
 import CollaboratorAvatars from './CollaboratorAvatars'
 import './BillCard.css'
+
+// Lazy load PDFViewer since it's heavy (includes PDF.js)
+const PDFViewer = lazy(() => import('./PDFViewer'))
 
 function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, currentUser, onEdit, onDelete }) {
   const [showPDF, setShowPDF] = useState(false)
@@ -318,7 +320,9 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
                     </div>
                     <div className="modal-body">
                       {pdfPath ? (
-                        <PDFViewer url={pdfPath} onTextExtracted={handlePDFTextExtracted} />
+                        <Suspense fallback={<div className="text-center py-5"><div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading PDF...</span></div></div>}>
+                          <PDFViewer url={pdfPath} onTextExtracted={handlePDFTextExtracted} />
+                        </Suspense>
                       ) : (
                         <div className="text-center p-5">
                           <div className="spinner-border" role="status">

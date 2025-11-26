@@ -17,7 +17,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
 const INVITE_REDIRECT_URL =
-  Deno.env.get("ONBOARDING_REDIRECT_URL") ?? "https://spanationwide.org/login.html"
+  Deno.env.get("ONBOARDING_REDIRECT_URL") ?? "https://spanationwide.org/dashboard.html"
 const PRODUCTION_URL = Deno.env.get("PRODUCTION_URL") ?? "https://spanationwide.org"
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {

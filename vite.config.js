@@ -64,28 +64,20 @@ export default defineConfig(({ mode }) => {
         dashboard: './dashboard.html'
       },
       output: {
-        manualChunks: (id) => {
-          // Split vendor chunks for better caching
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'react-vendor'
-            }
-            if (id.includes('@supabase')) {
-              return 'supabase'
-            }
-            if (id.includes('pdfjs') || id.includes('react-pdf')) {
-              return 'pdf-vendor'
-            }
-            if (id.includes('react-router')) {
-              return 'router'
-            }
-            // Other vendor libraries
-            return 'vendor'
-          }
+        manualChunks: {
+          // Use object syntax for more reliable chunking
+          // React must be in a single chunk and loaded first
+          'react-vendor': ['react', 'react-dom'],
+          'supabase': ['@supabase/supabase-js'],
+          'pdf-vendor': ['pdfjs-dist', 'react-pdf']
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
+      },
+      // Ensure proper module resolution
+      resolve: {
+        dedupe: ['react', 'react-dom']
       }
     }
   },

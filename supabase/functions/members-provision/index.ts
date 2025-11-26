@@ -18,6 +18,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
 const INVITE_REDIRECT_URL =
   Deno.env.get("ONBOARDING_REDIRECT_URL") ?? "https://spanationwide.org/login.html"
+const PRODUCTION_URL = Deno.env.get("PRODUCTION_URL") ?? "https://spanationwide.org"
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables")
@@ -498,11 +499,24 @@ serve(
     }
 
     if (linkData?.properties?.action_link) {
+      // Replace any localhost URLs in the action link with production URL
+      let actionLink = linkData.properties.action_link
+      // Replace localhost:3000, localhost:5173 (Vite default), or any localhost with production URL
+      actionLink = actionLink.replace(
+        /https?:\/\/localhost(:\d+)?/g,
+        PRODUCTION_URL
+      )
+      // Also replace 127.0.0.1 if present
+      actionLink = actionLink.replace(
+        /https?:\/\/127\.0\.0\.1(:\d+)?/g,
+        PRODUCTION_URL
+      )
+      
       const sendResult = await sendEmailViaEmailJS({
         toEmail: deliveryEmail,
         toName: displayName || email,
         spanEmail: email,
-        actionLink: linkData.properties.action_link,
+        actionLink: actionLink,
         otp: linkData.properties.email_otp,
         inviteType,
       })

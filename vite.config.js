@@ -74,11 +74,11 @@ export default defineConfig(({ mode }) => {
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
-      },
-      // Ensure proper module resolution
-      resolve: {
-        dedupe: ['react', 'react-dom']
       }
+    },
+    // Ensure proper module resolution
+    resolve: {
+      dedupe: ['react', 'react-dom']
     }
   },
   server: {

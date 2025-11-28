@@ -1,5 +1,16 @@
 import React, { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
+
+// Create an anonymous client for public application submissions
+// This ensures we never use an authenticated session
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
+const anonymousSupabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false
+  }
+})
 
 function ApplicationForm() {
   const [formData, setFormData] = useState({
@@ -67,7 +78,8 @@ function ApplicationForm() {
     }
 
     try {
-      const { data, error } = await supabase
+      // Use anonymous client to ensure no authenticated session is used
+      const { data, error } = await anonymousSupabase
         .from('applications')
         .insert([{
           email: formData.email.trim().toLowerCase(),

@@ -21,8 +21,13 @@ if (existsSync(path.join(rootDir, ".env.local"))) {
 //  Setup clients
 // -----------------------------
 
+const token = process.env.GITHUB_TOKEN;
+const endpoint = "https://models.github.ai/inference";
+const model = "openai/gpt-4.1";
+
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  baseURL: endpoint,
+  apiKey: token
 });
 
 // Support both VITE_ prefixed and non-prefixed env vars
@@ -63,14 +68,26 @@ ${proposalText}
 `;
 
     // -----------------------------
-    // 2. Call OpenAI
+    // 2. Call GitHub Models API
     // -----------------------------
-    const response = await openai.responses.create({
-      model: "gpt-4.1-mini",
-      input: prompt
+    const response = await openai.chat.completions.create({
+      model: model,
+      messages: [
+        {
+          role: "system",
+          content: "You are a policy evaluator. Return ONLY valid JSON in your responses."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 1.0,
+      top_p: 1.0,
+      response_format: { type: "json_object" }
     });
 
-    const textOutput = response.output_text;
+    const textOutput = response.choices[0].message.content;
     const parsed = JSON.parse(textOutput); // turn into JS object
 
     // Confirm required fields exist

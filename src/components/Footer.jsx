@@ -21,7 +21,7 @@ function Footer() {
                 href="https://www.linkedin.com/company/spanationwide/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-white me-2"
+                className="text-white me-3"
               >
                 <i className="bi bi-linkedin" style={{ fontSize: '1.5rem' }}></i>
               </a>
@@ -29,7 +29,7 @@ function Footer() {
                 href="https://www.instagram.com/spanationwide_/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-white me-2"
+                className="text-white me-3"
               >
                 <i className="bi bi-instagram" style={{ fontSize: '1.5rem' }}></i>
               </a>
@@ -37,7 +37,7 @@ function Footer() {
                 href="https://www.tiktok.com/@spanationwide"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-white"
+                className="text-white me-3"
               >
                 <i className="bi bi-tiktok" style={{ fontSize: '1.5rem' }}></i>
               </a>
@@ -45,7 +45,7 @@ function Footer() {
                 href="https://x.com/spanationwide"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-white me-2"
+                className="text-white me-3"
               >
                 <i className="bi bi-twitter-x" style={{ fontSize: '1.5rem' }}></i>
               </a>

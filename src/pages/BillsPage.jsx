@@ -5,7 +5,7 @@ import Pagination from '../components/Pagination'
 import CollaboratorModal from '../components/CollaboratorModal'
 import '../pages/BillsPage.css'
 
-const ITEMS_PER_PAGE = 9
+const ITEMS_PER_PAGE = 6
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"

@@ -210,7 +210,7 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
 
   return (
     <div
-      className="bill-card-wrapper col-12 col-sm-6 col-lg-4 mb-4"
+      className="bill-card-wrapper col-12 col-sm-6 col-lg-4"
       data-aos="fade-up"
       data-aos-duration="700"
       data-aos-delay={aosDelay}

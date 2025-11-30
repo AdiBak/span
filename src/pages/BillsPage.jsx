@@ -523,8 +523,8 @@ function BillsPage() {
           <div className="row mb-4">
             <div className="col-12">
               <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
-                {/* Filter Buttons */}
-                <div className="btn-group btn-filter-group flex-wrap" role="group">
+                {/* Filter Buttons - Desktop */}
+                <div className="btn-group btn-filter-group d-none d-md-flex" role="group">
                   {['All', 'Support', 'Support If Amended', 'Oppose', 'Oppose Unless Amended'].map(filter => (
                     <button
                       key={filter}
@@ -537,6 +537,19 @@ function BillsPage() {
                     </button>
                   ))}
                 </div>
+                {/* Filter Dropdown - Mobile */}
+                <select
+                  className="form-select d-md-none filter-select"
+                  value={currentFilter}
+                  onChange={(e) => setCurrentFilter(e.target.value)}
+                  aria-label="Filter bills by position"
+                >
+                  {['All', 'Support', 'Support If Amended', 'Oppose', 'Oppose Unless Amended'].map(filter => (
+                    <option key={filter} value={filter}>
+                      {filter}
+                    </option>
+                  ))}
+                </select>
                 {/* Search Bar */}
                 <div className="col-12 col-md-4 px-0">
                   <input

@@ -17,7 +17,6 @@ function ApplicationForm() {
     email: '',
     phoneNumber: '',
     fullName: '',
-    age: '',
     grade: '',
     gradeOther: '',
     school: '',
@@ -85,7 +84,6 @@ function ApplicationForm() {
           email: formData.email.trim().toLowerCase(),
           phone_number: formData.phoneNumber.trim(),
           full_name: formData.fullName.trim(),
-          age: formData.age ? parseInt(formData.age) : null,
           grade: gradeValue.trim(),
           school: formData.school.trim(),
           state: formData.state.trim(),
@@ -110,7 +108,6 @@ function ApplicationForm() {
         email: '',
         phoneNumber: '',
         fullName: '',
-        age: '',
         grade: '',
         gradeOther: '',
         school: '',
@@ -222,21 +219,6 @@ function ApplicationForm() {
                 value={formData.fullName}
                 onChange={handleChange}
                 required
-              />
-            </div>
-
-            {/* Age */}
-            <div>
-              <label htmlFor="age" className="form-label">Age</label>
-              <input
-                type="number"
-                className="form-control"
-                id="age"
-                name="age"
-                value={formData.age}
-                onChange={handleChange}
-                min="13"
-                max="100"
               />
             </div>
 
@@ -376,16 +358,16 @@ function ApplicationForm() {
             {/* Additional Info */}
             <div>
               <label htmlFor="additionalInfo" className="form-label">
-                Is there anything else you'd like us to know about you?
+                Tell us about any experience you have in policy, healthcare, advocacy, or related areas. Why are you interested in joining SPAN, and how do you see yourself contributing to our mission? Feel free to include any skills, strengths, or additional information that would help us get to know you better.
               </label>
               <textarea
                 className="form-control"
                 id="additionalInfo"
                 name="additionalInfo"
-                rows="4"
+                rows="6"
                 value={formData.additionalInfo}
                 onChange={handleChange}
-                placeholder="Optional: Tell us more about yourself, your interests, or why you want to join SPAN..."
+                placeholder="Share your experience, interests, and how you'd like to contribute to SPAN..."
               />
             </div>
 

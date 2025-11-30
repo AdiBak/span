@@ -339,7 +339,24 @@ function ImpactMap() {
           style={{ visibility: loading ? 'hidden' : 'visible' }}
         ></div>
         {!loading && !error && federalCount > 0 && (
-          <div className="impact-map-federal-card" role="note" aria-label="Federal bills summary">
+          <div 
+            className="impact-map-federal-card" 
+            role="button"
+            tabIndex={0}
+            aria-label={`View ${federalCount === 1 ? '1 federal bill' : `${federalCount} federal bills`}`}
+            onClick={() => {
+              // Navigate to bills page with search for federal bills
+              // Using "United States" as the search term to match federal bills
+              window.location.href = `/bills.html?search=${encodeURIComponent('United States')}`
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                window.location.href = `/bills.html?search=${encodeURIComponent('United States')}`
+              }
+            }}
+            style={{ cursor: 'pointer' }}
+          >
             <span className="impact-map-federal-label">U.S.</span>
             <span className="impact-map-federal-count">
               {federalCount === 1 ? '1 federal bill' : `${federalCount} federal bills`}

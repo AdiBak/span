@@ -28,6 +28,17 @@
   gap: 0.25rem;
   align-items: flex-start;
   min-width: 140px;
+  transition: all 0.3s ease;
+}
+
+.impact-map-federal-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.18);
+  background: rgba(255, 255, 255, 1);
+}
+
+.impact-map-federal-card:active {
+  transform: translateY(0);
 }
 
 .impact-map-federal-label {

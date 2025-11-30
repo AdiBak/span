@@ -1,6 +1,32 @@
 import React, { useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 
+const FEDERAL_ALIASES = [
+  'federal',
+  'federal (us)',
+  'united states',
+  'united states of america',
+  'usa',
+  'u.s.',
+  'u.s',
+  'us',
+  'national'
+]
+
+const normalizeStateValue = (value = '') =>
+  value
+    .toString()
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+function isFederalBill(state) {
+  if (!state) return false
+  const normalized = normalizeStateValue(state)
+  return FEDERAL_ALIASES.includes(normalized) || /federal/.test(normalized) || /united states/.test(normalized)
+}
+
 function BillsStats() {
   useEffect(() => {
     updateStats()
@@ -23,7 +49,9 @@ function BillsStats() {
       }
 
       if (statesElem) {
-        const uniqueStates = new Set(bills?.map(b => b.state).filter(Boolean))
+        // Filter out federal bills and get unique states
+        const stateBills = bills?.filter(b => b.state && !isFederalBill(b.state)) || []
+        const uniqueStates = new Set(stateBills.map(b => b.state).filter(Boolean))
         statesElem.textContent = uniqueStates.size || 0
       }
     } catch (error) {

@@ -13,7 +13,10 @@
   z-index: 10;
 }
 
-.our-story-page .subpage-hero h1,
-.our-story-page .subpage-hero p {
+.our-story-page .subpage-hero h1 {
   color: #ffffff;
+}
+
+.our-story-page .subpage-hero p {
+  color: #fdf0d5;
 }

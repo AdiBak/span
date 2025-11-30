@@ -31,9 +31,14 @@
   min-height: 100% !important;
 }
 
-.dashboard-page .subpage-hero h1,
-.dashboard-page .subpage-hero p {
+.dashboard-page .subpage-hero h1 {
   color: #ffffff;
+  z-index: 10;
+  position: relative;
+}
+
+.dashboard-page .subpage-hero p {
+  color: #fdf0d5;
   z-index: 10;
   position: relative;
 }

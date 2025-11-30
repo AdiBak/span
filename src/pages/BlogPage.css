@@ -1,4 +1,8 @@
 /* Blog Page styles */
+.blog-page .subpage-hero p {
+  color: #fdf0d5;
+}
+
 .blog-page .news-card img {
   border-top-left-radius: 0.5rem;
   border-top-right-radius: 0.5rem;

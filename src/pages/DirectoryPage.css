@@ -12,9 +12,12 @@
   z-index: 10;
 }
 
-.directory-page .subpage-hero h1,
-.directory-page .subpage-hero p {
+.directory-page .subpage-hero h1 {
   color: #ffffff;
+}
+
+.directory-page .subpage-hero p {
+  color: #fdf0d5;
 }
 
 .directory-loading {

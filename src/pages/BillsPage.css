@@ -27,9 +27,14 @@
   min-height: 100% !important;
 }
 
-.bills-page .subpage-hero h1,
-.bills-page .subpage-hero p {
+.bills-page .subpage-hero h1 {
   color: #ffffff;
+  z-index: 10;
+  position: relative;
+}
+
+.bills-page .subpage-hero p {
+  color: #fdf0d5;
   z-index: 10;
   position: relative;
 }

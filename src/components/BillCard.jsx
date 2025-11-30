@@ -166,7 +166,6 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
       "Support": "bg-success",
       "Oppose": "bg-danger",
       "Support If Amended": "bg-warning text-dark",
-      "Oppose Unless Amended": "bg-warning text-dark",
     }
     const cls = badgeClasses[position] || "bg-secondary"
     return cls

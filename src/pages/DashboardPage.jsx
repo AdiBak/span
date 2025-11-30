@@ -2244,7 +2244,6 @@ function DashboardPage() {
                       <option value="Support">Support</option>
                       <option value="Oppose">Oppose</option>
                       <option value="Support If Amended">Support If Amended</option>
-                      <option value="Oppose Unless Amended">Oppose Unless Amended</option>
                     </select>
                   </div>
                   <div className="mb-3">
@@ -2404,7 +2403,6 @@ function DashboardPage() {
                       <option value="Support">Support</option>
                       <option value="Oppose">Oppose</option>
                       <option value="Support If Amended">Support If Amended</option>
-                      <option value="Oppose Unless Amended">Oppose Unless Amended</option>
                     </select>
                   </div>
                   <div className="mb-3">

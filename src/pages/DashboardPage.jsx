@@ -1585,47 +1585,6 @@ function DashboardPage() {
           </div>
         </section>
 
-        {/* Password Change */}
-        <section className="mt-5">
-          <h3>Change Password</h3>
-          <div className="card mt-3">
-            <div className="card-body">
-              <form onSubmit={handlePasswordChange}>
-                <div className="row">
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="newPassword" className="form-label">New Password</label>
-                    <input
-                      type="password"
-                      className="form-control"
-                      id="newPassword"
-                      value={passwordForm.newPassword}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="confirmPassword" className="form-label">Confirm Password</label>
-                    <input
-                      type="password"
-                      className="form-control"
-                      id="confirmPassword"
-                      value={passwordForm.confirmPassword}
-                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
-                      required
-                    />
-                  </div>
-                </div>
-                <button type="submit" className="btn btn-dark">Update Password</button>
-                {passwordMessage && (
-                  <div className={`mt-2 ${passwordMessage.includes('success') ? 'text-success' : 'text-danger'}`}>
-                    {passwordMessage}
-                  </div>
-                )}
-              </form>
-            </div>
-          </div>
-        </section>
-
         {/* Bill Upload Section - Executive Directors Only */}
         {(member.is_executive_director === true || member.is_executive_director === 'true') && (
           <section className="mt-5">
@@ -1883,6 +1842,47 @@ function DashboardPage() {
             )}
           </section>
         )}
+
+        {/* Password Change */}
+        <section className="mt-5">
+          <h3>Change Password</h3>
+          <div className="card mt-3">
+            <div className="card-body">
+              <form onSubmit={handlePasswordChange}>
+                <div className="row">
+                  <div className="col-md-6 mb-3">
+                    <label htmlFor="newPassword" className="form-label">New Password</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      id="newPassword"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label htmlFor="confirmPassword" className="form-label">Confirm Password</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      id="confirmPassword"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+                <button type="submit" className="btn btn-dark">Update Password</button>
+                {passwordMessage && (
+                  <div className={`mt-2 ${passwordMessage.includes('success') ? 'text-success' : 'text-danger'}`}>
+                    {passwordMessage}
+                  </div>
+                )}
+              </form>
+            </div>
+          </div>
+        </section>
       </div>
 
       {/* SPAN Card Password Modal */}

@@ -96,6 +96,20 @@ function DashboardPage() {
   const [showApplicationModal, setShowApplicationModal] = useState(false)
   const [applicationNotes, setApplicationNotes] = useState('')
   const [showDeleteApplicationModal, setShowDeleteApplicationModal] = useState(false)
+  const [hrReports, setHrReports] = useState([])
+  const [hrReportFilter, setHrReportFilter] = useState('all') // 'all', 'pending', 'reviewed', 'resolved', 'dismissed'
+  const [showHrReportModal, setShowHrReportModal] = useState(false)
+  const [hrReportForm, setHrReportForm] = useState({
+    nature: '',
+    regardingMemberId: '',
+    regardingName: '',
+    dateOccurred: '',
+    details: ''
+  })
+  const [hrReportError, setHrReportError] = useState('')
+  const [hrReportSuccess, setHrReportSuccess] = useState('')
+  const [selectedHrReport, setSelectedHrReport] = useState(null)
+  const [showHrReportViewModal, setShowHrReportViewModal] = useState(false)
 
   // Helper functions
   const formatDate = (dateStr) => {
@@ -167,6 +181,7 @@ function DashboardPage() {
       }
       if (hasPermission('registration')) {
         loadAllMembersForManagement()
+        loadHrReports()
       }
     }
   }, [member])
@@ -230,6 +245,221 @@ function DashboardPage() {
 
     setApplications(applicationsData || [])
   }
+
+  // Load HR reports (executive directors only, filtered to exclude reports about themselves)
+  const loadHrReports = async () => {
+    if (!member) return
+    
+    const { data: reportsData, error } = await supabase
+      .from('hr_reports')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error loading HR reports:', error)
+      return
+    }
+    
+    // Fetch member details for submitted_by and regarding_member_id
+    if (reportsData && reportsData.length > 0) {
+      const memberIds = new Set()
+      reportsData.forEach(report => {
+        if (report.submitted_by) memberIds.add(report.submitted_by)
+        if (report.regarding_member_id) memberIds.add(report.regarding_member_id)
+      })
+      
+      if (memberIds.size > 0) {
+        const { data: membersData } = await supabase
+          .from('members')
+          .select('member_id, first_name, last_name, email')
+          .in('member_id', Array.from(memberIds))
+        
+        const membersMap = {}
+        if (membersData) {
+          membersData.forEach(m => {
+            membersMap[m.member_id] = m
+          })
+        }
+        
+        // Attach member data to reports
+        reportsData.forEach(report => {
+          report.submitted_by_member = membersMap[report.submitted_by]
+          report.regarding_member = membersMap[report.regarding_member_id]
+        })
+      }
+    }
+
+    // Filter out reports about the current member (if they're an exec director)
+    const filtered = (reportsData || []).filter(report => {
+      // If the report is about the current member, exclude it
+      if (report.regarding_member_id === member.member_id) {
+        return false
+      }
+      return true
+    })
+
+    setHrReports(filtered)
+  }
+
+  // HR Report handlers
+  const handleSubmitHrReport = async () => {
+    const { nature, regardingMemberId, regardingName, dateOccurred, details } = hrReportForm
+    setHrReportError('')
+    setHrReportSuccess('')
+
+    // Validation
+    if (!nature || !dateOccurred) {
+      setHrReportError('Nature of complaint and date occurred are required.')
+      return
+    }
+
+    if (!member) {
+      setHrReportError('Member data not loaded.')
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('hr_reports')
+        .insert({
+          submitted_by: member.member_id,
+          nature_of_complaint: nature.trim(),
+          regarding_member_id: regardingMemberId || null,
+          regarding_name: regardingName.trim() || null,
+          date_occurred: dateOccurred,
+          details: details.trim() || null
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error submitting HR report:', error)
+        setHrReportError('Failed to submit report. ' + error.message)
+        return
+      }
+
+      setHrReportSuccess('HR report submitted successfully. Executive directors have been notified.')
+      setHrReportForm({
+        nature: '',
+        regardingMemberId: '',
+        regardingName: '',
+        dateOccurred: '',
+        details: ''
+      })
+      
+      // Refresh reports if user has permission to view them
+      if (hasPermission('registration')) {
+        await loadHrReports()
+      }
+      
+      // Close modal after 3 seconds
+      setTimeout(() => {
+        setShowHrReportModal(false)
+        setHrReportSuccess('')
+      }, 3000)
+    } catch (err) {
+      console.error('Error submitting HR report:', err)
+      setHrReportError(err.message || 'Failed to submit report.')
+    }
+  }
+
+  // Update HR report status
+  const handleUpdateHrReportStatus = async (reportId, newStatus) => {
+    if (!member) {
+      console.error('No member data available')
+      return
+    }
+
+    console.log('Updating HR report status:', { reportId, newStatus, memberId: member.member_id })
+
+    try {
+      const { data: updateResult, error } = await supabase
+        .from('hr_reports')
+        .update({
+          status: newStatus,
+          reviewed_by: member.member_id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('report_id', reportId)
+        .select()
+
+      if (error) {
+        console.error('Error updating HR report status:', error)
+        alert('Failed to update report status: ' + error.message)
+        return
+      }
+
+      console.log('Update result:', updateResult)
+
+      if (!updateResult || updateResult.length === 0) {
+        console.error('Update returned no rows - RLS policy may be blocking the update')
+        alert('Failed to update report status. You may not have permission to update this report.')
+        return
+      }
+
+      console.log('Status updated in database, fetching updated report...')
+
+      // Small delay to ensure database commit
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Fetch the updated report with all related data
+      const { data: updatedReportData, error: fetchError } = await supabase
+        .from('hr_reports')
+        .select('*')
+        .eq('report_id', reportId)
+        .single()
+
+      if (fetchError) {
+        console.error('Error fetching updated report:', fetchError)
+      } else if (updatedReportData) {
+        console.log('Fetched updated report:', updatedReportData)
+        
+        // Fetch member details
+        const memberIds = new Set()
+        if (updatedReportData.submitted_by) memberIds.add(updatedReportData.submitted_by)
+        if (updatedReportData.regarding_member_id) memberIds.add(updatedReportData.regarding_member_id)
+        if (updatedReportData.reviewed_by) memberIds.add(updatedReportData.reviewed_by)
+        
+        if (memberIds.size > 0) {
+          const { data: membersData } = await supabase
+            .from('members')
+            .select('member_id, first_name, last_name, email')
+            .in('member_id', Array.from(memberIds))
+          
+          const membersMap = {}
+          if (membersData) {
+            membersData.forEach(m => {
+              membersMap[m.member_id] = m
+            })
+          }
+          
+          updatedReportData.submitted_by_member = membersMap[updatedReportData.submitted_by]
+          updatedReportData.regarding_member = membersMap[updatedReportData.regarding_member_id]
+          updatedReportData.reviewed_by_member = membersMap[updatedReportData.reviewed_by]
+        }
+        
+        console.log('Setting selectedHrReport to:', updatedReportData)
+        setSelectedHrReport(updatedReportData)
+      }
+
+      // Refresh reports to get updated data
+      await loadHrReports()
+      
+      // If the new status doesn't match the current filter, switch to "all" to show the updated report
+      if (hrReportFilter !== 'all' && hrReportFilter !== newStatus) {
+        setHrReportFilter('all')
+      }
+    } catch (err) {
+      console.error('Error updating HR report status:', err)
+      alert('Failed to update report status.')
+    }
+  }
+
+  // Filter HR reports by status
+  const filteredHrReports = hrReports.filter(report => {
+    if (hrReportFilter === 'all') return true
+    return report.status === hrReportFilter
+  })
 
   const loadMemberData = async () => {
     try {
@@ -2201,6 +2431,146 @@ function DashboardPage() {
           </section>
         )}
 
+        {/* HR Report Submission - All Members */}
+        <section className="mt-5">
+          <h3>Submit HR Report</h3>
+          <div className="card mt-3">
+            <div className="card-body">
+              <p className="text-muted mb-3">
+                Use this form to submit an HR complaint or report. All reports are confidential and will be reviewed by executive directors.
+              </p>
+              <button className="btn btn-dark" onClick={() => {
+                setHrReportForm({
+                  nature: '',
+                  regardingMemberId: '',
+                  regardingName: '',
+                  dateOccurred: '',
+                  details: ''
+                })
+                setHrReportError('')
+                setHrReportSuccess('')
+                setShowHrReportModal(true)
+              }}>
+                <i className="bi bi-file-earmark-text me-2"></i>Submit HR Report
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* HR Reports Viewing - Executive Directors Only */}
+        {hasPermission('registration') && (
+          <section className="mt-5">
+            <div className="d-flex justify-content-between align-items-center mb-4">
+              <h3>HR Reports</h3>
+              <div className="btn-group" role="group">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${hrReportFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setHrReportFilter('all')}
+                >
+                  All ({hrReports.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${hrReportFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
+                  onClick={() => setHrReportFilter('pending')}
+                >
+                  Pending ({hrReports.filter(r => r.status === 'pending').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${hrReportFilter === 'reviewed' ? 'btn-info' : 'btn-outline-info'}`}
+                  onClick={() => setHrReportFilter('reviewed')}
+                >
+                  Reviewed ({hrReports.filter(r => r.status === 'reviewed').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${hrReportFilter === 'resolved' ? 'btn-success' : 'btn-outline-success'}`}
+                  onClick={() => setHrReportFilter('resolved')}
+                >
+                  Resolved ({hrReports.filter(r => r.status === 'resolved').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${hrReportFilter === 'dismissed' ? 'btn-secondary' : 'btn-outline-secondary'}`}
+                  onClick={() => setHrReportFilter('dismissed')}
+                >
+                  Dismissed ({hrReports.filter(r => r.status === 'dismissed').length})
+                </button>
+              </div>
+            </div>
+            
+            <div className="alert alert-info">
+              <i className="bi bi-info-circle me-2"></i>
+              You can view all HR reports except those that involve you directly.
+            </div>
+
+            {filteredHrReports.length > 0 ? (
+              <div className="table-responsive">
+                <table className="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Submitted</th>
+                      <th>Submitted By</th>
+                      <th>Nature of Complaint</th>
+                      <th>Regarding</th>
+                      <th>Date Occurred</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredHrReports.map(report => (
+                      <tr key={report.report_id}>
+                        <td>{formatDateLong(report.created_at)}</td>
+                        <td>
+                          {report.submitted_by_member ? (
+                            `${report.submitted_by_member.first_name} ${report.submitted_by_member.last_name}`
+                          ) : 'Unknown'}
+                        </td>
+                        <td>{report.nature_of_complaint}</td>
+                        <td>
+                          {report.regarding_member ? (
+                            `${report.regarding_member.first_name} ${report.regarding_member.last_name}`
+                          ) : report.regarding_name || 'N/A'}
+                        </td>
+                        <td>{formatDate(report.date_occurred)}</td>
+                        <td>
+                          <span className={`badge ${
+                            report.status === 'pending' ? 'bg-warning text-dark' :
+                            report.status === 'resolved' ? 'bg-success' :
+                            report.status === 'dismissed' ? 'bg-secondary' :
+                            'bg-info'
+                          }`}>
+                            {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => {
+                              setSelectedHrReport(report)
+                              setShowHrReportViewModal(true)
+                            }}
+                          >
+                            <i className="bi bi-eye me-1"></i>View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-5 text-muted">
+                <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
+                <p>No {hrReportFilter === 'all' ? '' : hrReportFilter} HR reports found.</p>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Password Change */}
         <section className="mt-5">
           <h3>Change Password</h3>
@@ -3460,6 +3830,292 @@ function DashboardPage() {
             </div>
           </div>
           <div className="modal-backdrop fade show" style={{ zIndex: 1060 }}></div>
+        </>
+      )}
+
+      {/* HR Report Submission Modal */}
+      {showHrReportModal && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowHrReportModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Submit HR Report</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowHrReportModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  {hrReportError && <div className="alert alert-danger">{hrReportError}</div>}
+                  {hrReportSuccess && <div className="alert alert-success">{hrReportSuccess}</div>}
+                  
+                  <div className="alert alert-info">
+                    <i className="bi bi-info-circle me-2"></i>
+                    All HR reports are confidential and will be reviewed by executive directors. Reports involving an executive director will not be visible to that person.
+                  </div>
+
+                  <div className="row g-3">
+                    <div className="col-md-12">
+                      <label className="form-label">Nature of Complaint <span className="text-danger">*</span></label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={hrReportForm.nature}
+                        onChange={(e) => setHrReportForm({ ...hrReportForm, nature: e.target.value })}
+                        placeholder="e.g., Harassment, Discrimination, Policy Violation, etc."
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label">Regarding (Member Name)</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={hrReportForm.regardingName}
+                        onChange={(e) => setHrReportForm({ ...hrReportForm, regardingName: e.target.value })}
+                        placeholder="Name of person this report is about (optional)"
+                      />
+                      <small className="text-muted">If this is about a specific member, enter their name</small>
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label">Date Occurred <span className="text-danger">*</span></label>
+                      <input
+                        type="date"
+                        className="form-control"
+                        value={hrReportForm.dateOccurred}
+                        onChange={(e) => setHrReportForm({ ...hrReportForm, dateOccurred: e.target.value })}
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-12">
+                      <label className="form-label">Details</label>
+                      <textarea
+                        className="form-control"
+                        rows="5"
+                        value={hrReportForm.details}
+                        onChange={(e) => setHrReportForm({ ...hrReportForm, details: e.target.value })}
+                        placeholder="Provide additional details about the incident..."
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowHrReportModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    onClick={handleSubmitHrReport}
+                  >
+                    Submit Report
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* HR Report View Modal */}
+      {showHrReportViewModal && selectedHrReport && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1060 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowHrReportViewModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">HR Report Details</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowHrReportViewModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                  <div className="row g-3 mb-3">
+                    <div className="col-md-6">
+                      <strong>Submitted By:</strong>
+                      <p>
+                        {selectedHrReport.submitted_by_member ? (
+                          `${selectedHrReport.submitted_by_member.first_name} ${selectedHrReport.submitted_by_member.last_name}`
+                        ) : 'Unknown'}
+                      </p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Submitted:</strong>
+                      <p>{formatDateLong(selectedHrReport.created_at)}</p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Nature of Complaint:</strong>
+                      <p>{selectedHrReport.nature_of_complaint}</p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Regarding:</strong>
+                      <p>
+                        {selectedHrReport.regarding_member ? (
+                          `${selectedHrReport.regarding_member.first_name} ${selectedHrReport.regarding_member.last_name}`
+                        ) : selectedHrReport.regarding_name || 'N/A'}
+                      </p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Date Occurred:</strong>
+                      <p>{formatDate(selectedHrReport.date_occurred)}</p>
+                    </div>
+                    <div className="col-md-6">
+                      <strong>Status:</strong>
+                      {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? (
+                        <div className="d-flex flex-wrap gap-2 mt-2">
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${
+                              selectedHrReport.status === 'pending' 
+                                ? 'btn-warning' 
+                                : 'btn-outline-warning'
+                            }`}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              console.log('Pending button clicked', { reportId: selectedHrReport?.report_id })
+                              if (selectedHrReport?.report_id) {
+                                handleUpdateHrReportStatus(selectedHrReport.report_id, 'pending')
+                              } else {
+                                console.error('No report_id found')
+                              }
+                            }}
+                          >
+                            Pending
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${
+                              selectedHrReport.status === 'reviewed' 
+                                ? 'btn-info' 
+                                : 'btn-outline-info'
+                            }`}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              console.log('Reviewed button clicked', { reportId: selectedHrReport?.report_id })
+                              if (selectedHrReport?.report_id) {
+                                handleUpdateHrReportStatus(selectedHrReport.report_id, 'reviewed')
+                              } else {
+                                console.error('No report_id found')
+                              }
+                            }}
+                          >
+                            Reviewed
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${
+                              selectedHrReport.status === 'resolved' 
+                                ? 'btn-success' 
+                                : 'btn-outline-success'
+                            }`}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              console.log('Resolved button clicked', { reportId: selectedHrReport?.report_id })
+                              if (selectedHrReport?.report_id) {
+                                handleUpdateHrReportStatus(selectedHrReport.report_id, 'resolved')
+                              } else {
+                                console.error('No report_id found')
+                              }
+                            }}
+                          >
+                            Resolved
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${
+                              selectedHrReport.status === 'dismissed' 
+                                ? 'btn-secondary' 
+                                : 'btn-outline-secondary'
+                            }`}
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              console.log('Dismissed button clicked', { reportId: selectedHrReport?.report_id })
+                              if (selectedHrReport?.report_id) {
+                                handleUpdateHrReportStatus(selectedHrReport.report_id, 'dismissed')
+                              } else {
+                                console.error('No report_id found')
+                              }
+                            }}
+                          >
+                            Dismissed
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="mt-2">
+                          <span className={`badge ${
+                            selectedHrReport.status === 'pending' ? 'bg-warning text-dark' :
+                            selectedHrReport.status === 'resolved' ? 'bg-success' :
+                            selectedHrReport.status === 'dismissed' ? 'bg-secondary' :
+                            'bg-info'
+                          }`}>
+                            {selectedHrReport.status.charAt(0).toUpperCase() + selectedHrReport.status.slice(1)}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="col-12">
+                      <strong>Details:</strong>
+                      <p style={{ whiteSpace: 'pre-wrap' }}>{selectedHrReport.details || 'No additional details provided.'}</p>
+                    </div>
+                    {selectedHrReport.review_notes && (
+                      <div className="col-12">
+                        <strong>Review Notes:</strong>
+                        <p style={{ whiteSpace: 'pre-wrap' }}>{selectedHrReport.review_notes}</p>
+                      </div>
+                    )}
+                    {selectedHrReport.reviewed_by && selectedHrReport.reviewed_at && (
+                      <div className="col-md-6">
+                        <strong>Reviewed:</strong>
+                        <p>{formatDateLong(selectedHrReport.reviewed_at)}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowHrReportViewModal(false)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
         </>
       )}
 

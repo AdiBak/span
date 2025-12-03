@@ -65,6 +65,7 @@ function DashboardPage() {
   const [showImportApplicationModal, setShowImportApplicationModal] = useState(false)
   const [editingMemberId, setEditingMemberId] = useState(null)
   const [allMembersForManagement, setAllMembersForManagement] = useState([])
+  const emailManuallyEdited = useRef(false)
   const [memberForm, setMemberForm] = useState({
     firstName: '',
     lastName: '',
@@ -924,6 +925,7 @@ function DashboardPage() {
   // Member management handlers
   const handleAddMember = () => {
     setEditingMemberId(null)
+    emailManuallyEdited.current = false
     setMemberForm({
       firstName: '',
       lastName: '',
@@ -991,13 +993,20 @@ function DashboardPage() {
 
   // Auto-update SPAN email when first/last name changes
   useEffect(() => {
-    if (!editingMemberId && showMemberModal && memberForm.firstName && memberForm.lastName && !memberForm.email) {
+    if (!editingMemberId && showMemberModal && memberForm.firstName && memberForm.lastName && !emailManuallyEdited.current) {
       const generatedEmail = generateSpanEmail(memberForm.firstName, memberForm.lastName)
       if (generatedEmail) {
         setMemberForm(prev => ({ ...prev, email: generatedEmail }))
       }
     }
   }, [memberForm.firstName, memberForm.lastName, editingMemberId, showMemberModal])
+
+  // Reset manual edit flag when modal opens/closes
+  useEffect(() => {
+    if (showMemberModal && !editingMemberId) {
+      emailManuallyEdited.current = false
+    }
+  }, [showMemberModal, editingMemberId])
 
   const handleEditMember = (memberToEdit) => {
     setEditingMemberId(memberToEdit.member_id)
@@ -2973,7 +2982,10 @@ function DashboardPage() {
                         type="email"
                         className="form-control"
                         value={memberForm.email}
-                        onChange={(e) => setMemberForm({ ...memberForm, email: e.target.value })}
+                        onChange={(e) => {
+                          emailManuallyEdited.current = true
+                          setMemberForm({ ...memberForm, email: e.target.value })
+                        }}
                         placeholder="firstname.lastname@spanationwide.org"
                         required
                       />

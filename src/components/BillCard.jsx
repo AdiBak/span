@@ -246,8 +246,8 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
             </div>
           )}
 
-          {/* Executive Director Actions */}
-          {currentUser && (currentUser.is_executive_director === true || currentUser.is_executive_director === 'true') && (
+          {/* Bill Management Actions */}
+          {currentUser && (currentUser.bills === true || currentUser.bills === 'true') && (
             <div className="mt-3 pt-3 border-top d-flex gap-2">
               <button
                 className="btn btn-outline-primary btn-sm flex-fill"

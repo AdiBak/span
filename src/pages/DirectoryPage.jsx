@@ -134,6 +134,7 @@ function DirectoryPage() {
         .from('members')
         .select('*')
         .eq('active', true)
+        .eq('registration_complete', true)
 
       if (fetchError) throw fetchError
 

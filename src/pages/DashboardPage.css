@@ -70,3 +70,18 @@
   }
 }
 
+/* Scrollable member tables */
+.member-table-container {
+  max-height: 600px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+/* Sticky table header when scrolling */
+.member-table-container table thead {
+  position: sticky;
+  top: 0;
+  background-color: #fff;
+  z-index: 10;
+}
+

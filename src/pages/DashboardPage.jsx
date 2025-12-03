@@ -7,6 +7,7 @@ import './DashboardPage.css'
 const IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
 
 function DashboardPage() {
+  console.log('DashboardPage component rendering...')
   const [member, setMember] = useState(null)
   const [loading, setLoading] = useState(true)
   const [volunteerEntries, setVolunteerEntries] = useState([])
@@ -61,13 +62,15 @@ function DashboardPage() {
   })
   const [editBillPdfFile, setEditBillPdfFile] = useState(null)
   const [showMemberModal, setShowMemberModal] = useState(false)
+  const [showImportApplicationModal, setShowImportApplicationModal] = useState(false)
+  const [editingMemberId, setEditingMemberId] = useState(null)
+  const [allMembersForManagement, setAllMembersForManagement] = useState([])
   const [memberForm, setMemberForm] = useState({
     firstName: '',
     lastName: '',
     email: '',
     originalEmail: '',
     role: '',
-    tier: '',
     active: true,
     startDate: '',
     dob: '',
@@ -79,7 +82,10 @@ function DashboardPage() {
     instagram: '',
     notes: '',
     bio: '',
-    isExecutiveDirector: false
+    volunteer: false,
+    applications: false,
+    bills: false,
+    registration: false
   })
   const [memberError, setMemberError] = useState('')
   const [memberSuccess, setMemberSuccess] = useState('')
@@ -133,15 +139,36 @@ function DashboardPage() {
     return size
   }
 
+  // Helper function to check if member has a specific permission
+  const hasPermission = (permission) => {
+    if (!member) {
+      console.log(`hasPermission(${permission}): No member data`)
+      return false
+    }
+    const hasPerm = member[permission] === true || member[permission] === 'true'
+    return hasPerm
+  }
+
   // Load member data
   useEffect(() => {
     loadMemberData()
     loadAllMembers()
-    if (member && (member.is_executive_director === true || member.is_executive_director === 'true')) {
+  }, [])
+
+  // Load additional data based on permissions after member is loaded
+  useEffect(() => {
+    if (member) {
+      if (hasPermission('bills')) {
         loadAllBills()
+      }
+      if (hasPermission('applications')) {
         loadApplications()
       }
-    }, [member])
+      if (hasPermission('registration')) {
+        loadAllMembersForManagement()
+      }
+    }
+  }, [member])
 
   // Load all members for collaborator selection
   const loadAllMembers = async () => {
@@ -156,6 +183,21 @@ function DashboardPage() {
     }
 
     setAllMembers(membersData || [])
+  }
+
+  // Load all members for management (registration permission required)
+  const loadAllMembersForManagement = async () => {
+    const { data: membersData, error } = await supabase
+      .from('members')
+      .select('*')
+      .order('last_name', { ascending: true })
+
+    if (error) {
+      console.error('Error loading members for management:', error)
+      return
+    }
+
+    setAllMembersForManagement(membersData || [])
   }
 
   // Load all bills for management (executive directors only)
@@ -189,28 +231,59 @@ function DashboardPage() {
   }
 
   const loadMemberData = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      window.location.href = '/login.html'
-      return
-    }
+    try {
+      console.log('Loading member data...')
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('Session error:', sessionError)
+        setLoading(false)
+        return
+      }
+      
+      if (!session) {
+        console.log('No session, redirecting to login')
+        window.location.href = '/login.html'
+        return
+      }
 
-    const email = session.user.email
-    const { data: memberData, error } = await supabase
-      .from('members')
-      .select('*')
-      .eq('email', email)
-      .maybeSingle()
+      const email = session.user.email
+      console.log('Fetching member data for email:', email)
+      
+      const { data: memberData, error } = await supabase
+        .from('members')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle()
 
-    if (error || !memberData) {
-      console.error(error)
+      if (error) {
+        console.error('Error fetching member data:', error)
+        setLoading(false)
+        return
+      }
+
+      if (!memberData) {
+        console.error('No member data found for email:', email)
+        setLoading(false)
+        return
+      }
+
+      console.log('Member data loaded:', {
+        email: memberData.email,
+        registration_complete: memberData.registration_complete,
+        volunteer: memberData.volunteer,
+        applications: memberData.applications,
+        bills: memberData.bills,
+        registration: memberData.registration
+      })
+      
+      setMember(memberData)
       setLoading(false)
-      return
+      loadVolunteerEntries(memberData)
+    } catch (err) {
+      console.error('Unexpected error in loadMemberData:', err)
+      setLoading(false)
     }
-
-    setMember(memberData)
-    setLoading(false)
-    loadVolunteerEntries(memberData)
   }
 
   // Load volunteer entries
@@ -255,10 +328,10 @@ function DashboardPage() {
       })
     }
 
-    // Filter entries - executive directors see all, others see only their own
-    const isExecutiveDirector = memberData.is_executive_director === true || memberData.is_executive_director === 'true'
+    // Filter entries - members with volunteer permission see all, others see only their own
+    const canManageVolunteers = memberData.volunteer === true || memberData.volunteer === 'true'
     const filtered = entries.filter(e => 
-      isExecutiveDirector || e.member_id === memberData.member_id
+      canManageVolunteers || e.member_id === memberData.member_id
     )
 
     setVolunteerEntries(filtered || [])
@@ -840,15 +913,23 @@ function DashboardPage() {
     }
   }
 
+  // Helper function to generate SPAN email from first and last name
+  const generateSpanEmail = (firstName, lastName) => {
+    if (!firstName || !lastName) return ''
+    const first = firstName.toLowerCase().trim()
+    const last = lastName.toLowerCase().trim()
+    return `${first}.${last}@spanationwide.org`
+  }
+
   // Member management handlers
   const handleAddMember = () => {
+    setEditingMemberId(null)
     setMemberForm({
       firstName: '',
       lastName: '',
       email: '',
       originalEmail: '',
       role: '',
-      tier: '',
       active: true,
       startDate: '',
       dob: '',
@@ -860,7 +941,87 @@ function DashboardPage() {
       instagram: '',
       notes: '',
       bio: '',
-      isExecutiveDirector: false
+      volunteer: false,
+      applications: false,
+      bills: false,
+      registration: false
+    })
+    setMemberError('')
+    setMemberSuccess('')
+    setShowMemberModal(true)
+  }
+
+  const handleImportFromApplication = (application) => {
+    // Parse full_name into first and last name
+    const nameParts = (application.full_name || '').trim().split(/\s+/)
+    const firstName = nameParts[0] || ''
+    const lastName = nameParts.slice(1).join(' ') || ''
+    
+    // Generate SPAN email
+    const spanEmail = generateSpanEmail(firstName, lastName)
+    
+    // Prefill form with application data
+    setMemberForm({
+      firstName: firstName,
+      lastName: lastName,
+      email: spanEmail,
+      originalEmail: application.email || '',
+      role: '', // Leave role empty for admin to fill
+      active: true,
+      startDate: '',
+      dob: '',
+      schoolName: application.school || '',
+      city: '',
+      state: application.state || '',
+      phone: application.phone_number || '',
+      linkedin: '',
+      instagram: '',
+      notes: application.additional_info || '',
+      bio: '',
+      volunteer: false,
+      applications: false,
+      bills: false,
+      registration: false
+    })
+    
+    setShowImportApplicationModal(false)
+    setMemberError('')
+    setMemberSuccess('')
+  }
+
+  // Auto-update SPAN email when first/last name changes
+  useEffect(() => {
+    if (!editingMemberId && showMemberModal && memberForm.firstName && memberForm.lastName && !memberForm.email) {
+      const generatedEmail = generateSpanEmail(memberForm.firstName, memberForm.lastName)
+      if (generatedEmail) {
+        setMemberForm(prev => ({ ...prev, email: generatedEmail }))
+      }
+    }
+  }, [memberForm.firstName, memberForm.lastName, editingMemberId, showMemberModal])
+
+  const handleEditMember = (memberToEdit) => {
+    setEditingMemberId(memberToEdit.member_id)
+    setMemberForm({
+      firstName: memberToEdit.first_name || '',
+      lastName: memberToEdit.last_name || '',
+      email: memberToEdit.email || '',
+      originalEmail: memberToEdit.original_email || '',
+      role: memberToEdit.role || '',
+      active: memberToEdit.active !== false,
+      startDate: memberToEdit.start_date || '',
+      dob: memberToEdit.dob || '',
+      schoolName: memberToEdit.school_name || '',
+      city: memberToEdit.city || '',
+      state: memberToEdit.state || '',
+      phone: memberToEdit.phone ? formatPhone(memberToEdit.phone.toString()) : '',
+      linkedin: memberToEdit.linkedin || '',
+      instagram: memberToEdit.instagram || '',
+      notes: memberToEdit.notes || '',
+      bio: memberToEdit.bio || '',
+      volunteer: memberToEdit.volunteer === true || memberToEdit.volunteer === 'true',
+      applications: memberToEdit.applications === true || memberToEdit.applications === 'true',
+      bills: memberToEdit.bills === true || memberToEdit.bills === 'true',
+      registration: memberToEdit.registration === true || memberToEdit.registration === 'true'
     })
     setMemberError('')
     setMemberSuccess('')
@@ -868,7 +1029,7 @@ function DashboardPage() {
   }
 
   const handleSaveMember = async () => {
-    const { firstName, lastName, email, originalEmail, role, tier, active, startDate, dob, schoolName, city, state, phone, linkedin, instagram, notes, bio, isExecutiveDirector } = memberForm
+    const { firstName, lastName, email, originalEmail, role, active, startDate, dob, schoolName, city, state, phone, linkedin, instagram, notes, bio, volunteer, applications, bills, registration } = memberForm
     setMemberError('')
     setMemberSuccess('')
 
@@ -890,64 +1051,80 @@ function DashboardPage() {
     }
 
     try {
-      // Prepare member data
-      const memberData = {
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        email: email.trim().toLowerCase(),
-        original_email: originalEmail.trim().toLowerCase(),
-        role: role.trim(),
-        tier: tier ? parseInt(tier) : null,
-        active: active,
-        start_date: startDate || null,
-        dob: dob || null,
-        school_name: schoolName.trim() || null,
-        city: city.trim() || null,
-        state: state.trim() || null,
-        phone: phone ? phone.replace(/\D/g, '') : null,
-        linkedin: linkedin.trim() || null,
-        instagram: instagram.trim() || null,
-        notes: notes.trim() || null,
-        bio: bio.trim() || null,
-        is_executive_director: isExecutiveDirector
+      if (editingMemberId) {
+        // Update existing member
+        const { data: memberDataResult, error: updateError } = await supabase.rpc('update_member', {
+          p_member_id: editingMemberId,
+          p_first_name: firstName.trim(),
+          p_last_name: lastName.trim(),
+          p_email: email.trim().toLowerCase(),
+          p_original_email: originalEmail.trim().toLowerCase(),
+          p_role: role.trim(),
+          p_active: active,
+          p_start_date: startDate || null,
+          p_dob: dob || null,
+          p_school_name: schoolName.trim() || null,
+          p_city: city.trim() || null,
+          p_state: state.trim() || null,
+          p_phone: phone ? phone.replace(/\D/g, '') : null,
+          p_linkedin: linkedin.trim() || null,
+          p_instagram: instagram.trim() || null,
+          p_notes: notes.trim() || null,
+          p_bio: bio.trim() || null,
+          p_volunteer: volunteer,
+          p_applications: applications,
+          p_bills: bills,
+          p_registration: registration
+        })
+
+        if (updateError) {
+          console.error('Member update error:', updateError)
+          setMemberError('Failed to update member. ' + updateError.message)
+          return
+        }
+
+        setMemberSuccess(`Member "${firstName} ${lastName}" updated successfully!`)
+      } else {
+        // Create new member
+        const { data: memberDataResult, error: insertError } = await supabase.rpc('create_member', {
+          p_first_name: firstName.trim(),
+          p_last_name: lastName.trim(),
+          p_email: email.trim().toLowerCase(),
+          p_original_email: originalEmail.trim().toLowerCase(),
+          p_role: role.trim(),
+          p_active: active,
+          p_start_date: startDate || null,
+          p_dob: dob || null,
+          p_school_name: schoolName.trim() || null,
+          p_city: city.trim() || null,
+          p_state: state.trim() || null,
+          p_phone: phone ? phone.replace(/\D/g, '') : null,
+          p_linkedin: linkedin.trim() || null,
+          p_instagram: instagram.trim() || null,
+          p_notes: notes.trim() || null,
+          p_bio: bio.trim() || null,
+          p_volunteer: volunteer,
+          p_applications: applications,
+          p_bills: bills,
+          p_registration: registration
+        })
+
+        if (insertError) {
+          console.error('Member insert error:', insertError)
+          setMemberError('Failed to save member. ' + insertError.message)
+          return
+        }
+
+        setMemberSuccess(`Member "${firstName} ${lastName}" added successfully! They will receive an email invitation to set up their account.`)
       }
 
-      // Call the database function to create member (bypasses RLS)
-      const { data: memberDataResult, error: insertError } = await supabase.rpc('create_member', {
-        p_first_name: firstName.trim(),
-        p_last_name: lastName.trim(),
-        p_email: email.trim().toLowerCase(),
-        p_original_email: originalEmail.trim().toLowerCase(),
-        p_role: role.trim(),
-        p_tier: tier ? parseInt(tier) : null,
-        p_active: active,
-        p_start_date: startDate || null,
-        p_dob: dob || null,
-        p_school_name: schoolName.trim() || null,
-        p_city: city.trim() || null,
-        p_state: state.trim() || null,
-        p_phone: phone ? phone.replace(/\D/g, '') : null,
-        p_linkedin: linkedin.trim() || null,
-        p_instagram: instagram.trim() || null,
-        p_notes: notes.trim() || null,
-        p_bio: bio.trim() || null,
-        p_is_executive_director: isExecutiveDirector
-      })
-
-      if (insertError) {
-        console.error('Member insert error:', insertError)
-        setMemberError('Failed to save member. ' + insertError.message)
-        return
-      }
-
-      setMemberSuccess(`Member "${firstName} ${lastName}" added successfully! They will receive an email invitation to set up their account.`)
+      // Reset form
       setMemberForm({
         firstName: '',
         lastName: '',
         email: '',
         originalEmail: '',
         role: '',
-        tier: '',
         active: true,
         startDate: '',
         dob: '',
@@ -959,12 +1136,17 @@ function DashboardPage() {
         instagram: '',
         notes: '',
         bio: '',
-        isExecutiveDirector: false
+        volunteer: false,
+        applications: false,
+        bills: false,
+        registration: false
       })
+      setEditingMemberId(null)
       
-      // Refresh members list if needed
-      if (allMembers.length > 0) {
-        await loadAllMembers()
+      // Refresh members lists
+      await loadAllMembers()
+      if (hasPermission('registration')) {
+        await loadAllMembersForManagement()
       }
       
       // Close modal after 3 seconds
@@ -1533,7 +1715,7 @@ function DashboardPage() {
                                   <p><i className="bi bi-person-workspace me-1"></i>Supervisor Comment: {entry.supervisor_comment || '-'}</p>
                                   <p><i className="bi bi-upload me-1"></i>Submitted: {new Date(entry.request_submit_timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                   <div className="mt-2 d-flex gap-2 flex-wrap">
-                                    {(member.is_executive_director === true || member.is_executive_director === 'true') && !isOwn && (
+                                    {hasPermission('volunteer') && !isOwn && (
                                       <>
                                         <button
                                           className="btn btn-sm btn-outline-success"
@@ -1585,8 +1767,12 @@ function DashboardPage() {
           </div>
         </section>
 
-        {/* Bill Upload Section - Executive Directors Only */}
-        {(member.is_executive_director === true || member.is_executive_director === 'true') && (
+        {/* Bill Upload Section - Bills Permission Required */}
+        {(() => {
+          const hasBills = hasPermission('bills')
+          console.log('Rendering Bills section?', hasBills, 'member.bills =', member?.bills)
+          return hasBills
+        })() && (
           <section className="mt-5">
             <div className="d-flex justify-content-between align-items-center mb-4">
               <h3>Bill Management</h3>
@@ -1730,11 +1916,15 @@ function DashboardPage() {
           </section>
         )}
 
-        {/* Member Management Section - Executive Directors Only */}
-        {(member.is_executive_director === true || member.is_executive_director === 'true') && (
+        {/* Member Management Section - Registration Permission Required */}
+        {(() => {
+          const hasReg = hasPermission('registration')
+          console.log('Rendering Member Management section?', hasReg, 'member.registration =', member?.registration)
+          return hasReg
+        })() && (
           <section className="mt-5">
             <div className="d-flex justify-content-between align-items-center mb-4">
-              <h3>New Member Registration</h3>
+              <h3>Member Management</h3>
               <button className="btn btn-dark" onClick={handleAddMember}>
                 <i className="bi bi-person-plus me-2"></i>Add New Member
               </button>
@@ -1744,11 +1934,170 @@ function DashboardPage() {
               <i className="bi bi-info-circle me-2"></i>
               When you add a new member, they will automatically receive an email invitation to set up their account.
             </div>
+
+            {/* Active and Inactive Members in 2 columns */}
+            <div className="row g-4">
+              {/* Active Members */}
+              <div className="col-lg-6">
+                <div className="mb-4">
+                  <h4 className="mb-3">Active Members</h4>
+                  {allMembersForManagement.filter(m => m.active !== false).length > 0 ? (
+                    <div className="table-responsive member-table-container">
+                      <table className="table table-hover">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Phone</th>
+                            <th>Permissions</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allMembersForManagement.filter(m => m.active !== false).map(memberItem => (
+                            <tr key={memberItem.member_id}>
+                              <td>{memberItem.first_name} {memberItem.last_name}</td>
+                              <td>
+                                <a href={`mailto:${memberItem.email}`}>{memberItem.email}</a>
+                              </td>
+                              <td>{memberItem.role || '-'}</td>
+                              <td>
+                                {memberItem.phone ? (
+                                  <a href={`tel:${memberItem.phone}`}>{formatPhone(memberItem.phone.toString())}</a>
+                                ) : '-'}
+                              </td>
+                              <td>
+                                <div className="d-flex gap-1 flex-wrap">
+                                  {memberItem.volunteer && <span className="badge bg-primary">Volunteer</span>}
+                                  {memberItem.applications && <span className="badge bg-success">Applications</span>}
+                                  {memberItem.bills && <span className="badge bg-info">Bills</span>}
+                                  {memberItem.registration && <span className="badge bg-warning text-dark">Registration</span>}
+                                </div>
+                              </td>
+                              <td>
+                                <div className="d-flex gap-2">
+                                  <button
+                                    className="btn btn-sm btn-outline-primary"
+                                    onClick={() => handleEditMember(memberItem)}
+                                    title="Edit"
+                                  >
+                                    <i className="bi bi-pencil"></i>
+                                  </button>
+                                  <a
+                                    href={`mailto:${memberItem.email}`}
+                                    className="btn btn-sm btn-outline-secondary"
+                                    title="Email"
+                                  >
+                                    <i className="bi bi-envelope"></i>
+                                  </a>
+                                  {memberItem.phone && (
+                                    <a
+                                      href={`sms:${memberItem.phone}`}
+                                      className="btn btn-sm btn-outline-secondary"
+                                      title="Text"
+                                    >
+                                      <i className="bi bi-chat-dots"></i>
+                                    </a>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-muted">No active members found.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Inactive Members */}
+              <div className="col-lg-6">
+                <div className="mb-4">
+                  <h4 className="mb-3">Inactive Members</h4>
+                  {allMembersForManagement.filter(m => m.active === false).length > 0 ? (
+                    <div className="table-responsive member-table-container">
+                      <table className="table table-hover">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Phone</th>
+                            <th>Permissions</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allMembersForManagement.filter(m => m.active === false).map(memberItem => (
+                            <tr key={memberItem.member_id} className="opacity-75">
+                              <td>{memberItem.first_name} {memberItem.last_name}</td>
+                              <td>
+                                <a href={`mailto:${memberItem.email}`}>{memberItem.email}</a>
+                              </td>
+                              <td>{memberItem.role || '-'}</td>
+                              <td>
+                                {memberItem.phone ? (
+                                  <a href={`tel:${memberItem.phone}`}>{formatPhone(memberItem.phone.toString())}</a>
+                                ) : '-'}
+                              </td>
+                              <td>
+                                <div className="d-flex gap-1 flex-wrap">
+                                  {memberItem.volunteer && <span className="badge bg-primary">Volunteer</span>}
+                                  {memberItem.applications && <span className="badge bg-success">Applications</span>}
+                                  {memberItem.bills && <span className="badge bg-info">Bills</span>}
+                                  {memberItem.registration && <span className="badge bg-warning text-dark">Registration</span>}
+                                </div>
+                              </td>
+                              <td>
+                                <div className="d-flex gap-2">
+                                  <button
+                                    className="btn btn-sm btn-outline-primary"
+                                    onClick={() => handleEditMember(memberItem)}
+                                    title="Edit"
+                                  >
+                                    <i className="bi bi-pencil"></i>
+                                  </button>
+                                  <a
+                                    href={`mailto:${memberItem.email}`}
+                                    className="btn btn-sm btn-outline-secondary"
+                                    title="Email"
+                                  >
+                                    <i className="bi bi-envelope"></i>
+                                  </a>
+                                  {memberItem.phone && (
+                                    <a
+                                      href={`sms:${memberItem.phone}`}
+                                      className="btn btn-sm btn-outline-secondary"
+                                      title="Text"
+                                    >
+                                      <i className="bi bi-chat-dots"></i>
+                                    </a>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-muted">No inactive members found.</p>
+                  )}
+                </div>
+              </div>
+            </div>
           </section>
         )}
 
-        {/* Applications Section - Executive Directors Only */}
-        {(member.is_executive_director === true || member.is_executive_director === 'true') && (
+        {/* Applications Section - Applications Permission Required */}
+        {(() => {
+          const hasApps = hasPermission('applications')
+          console.log('Rendering Applications section?', hasApps, 'member.applications =', member?.applications)
+          return hasApps
+        })() && (
           <section className="mt-5">
             <div className="d-flex justify-content-between align-items-center mb-4">
               <h3>New Member Applications</h3>
@@ -2570,13 +2919,27 @@ function DashboardPage() {
           >
             <div className="modal-dialog modal-dialog-centered modal-lg" style={{ maxWidth: '800px' }}>
               <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Add New Member</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowMemberModal(false)}
-                  ></button>
+                <div className="modal-header d-flex justify-content-between align-items-center w-100">
+                  <h5 className="modal-title mb-0">{editingMemberId ? 'Edit Member' : 'Add New Member'}</h5>
+                  <div className="d-flex gap-2 align-items-center">
+                    {!editingMemberId && (
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary btn-sm"
+                        onClick={() => setShowImportApplicationModal(true)}
+                      >
+                        <i className="bi bi-download me-1"></i>Import from Application
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-close"
+                      onClick={() => {
+                        setShowMemberModal(false)
+                        setEditingMemberId(null)
+                      }}
+                    ></button>
+                  </div>
                 </div>
                 <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                   {memberError && <div className="alert alert-danger">{memberError}</div>}
@@ -2614,7 +2977,7 @@ function DashboardPage() {
                         placeholder="firstname.lastname@spanationwide.org"
                         required
                       />
-                      <small className="text-muted">This will be their login email</small>
+                      <small className="text-muted">Auto-generated from name, or enter manually</small>
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Original Email (Personal Email) <span className="text-danger">*</span></label>
@@ -2635,20 +2998,10 @@ function DashboardPage() {
                         className="form-control"
                         value={memberForm.role}
                         onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })}
-                        placeholder="e.g., Volunteer, Director, etc."
+                        placeholder="e.g., Content Writer, Advocate, Analyst, etc."
                         required
                       />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Tier</label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        value={memberForm.tier}
-                        onChange={(e) => setMemberForm({ ...memberForm, tier: e.target.value })}
-                        placeholder="1, 2, 3, etc."
-                        min="1"
-                      />
+                      <small className="text-muted">This is the official role shown in the directory</small>
                     </div>
                     
                     {/* Dates */}
@@ -2756,33 +3109,71 @@ function DashboardPage() {
                       />
                     </div>
                     
-                    {/* Options */}
+                    {/* Permissions */}
                     <div className="col-md-12">
-                      <div className="form-check">
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          checked={memberForm.active}
-                          onChange={(e) => setMemberForm({ ...memberForm, active: e.target.checked })}
-                          id="memberActive"
-                        />
-                        <label className="form-check-label" htmlFor="memberActive">
-                          Active Member
-                        </label>
-                      </div>
-                    </div>
-                    <div className="col-md-12">
-                      <div className="form-check">
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          checked={memberForm.isExecutiveDirector}
-                          onChange={(e) => setMemberForm({ ...memberForm, isExecutiveDirector: e.target.checked })}
-                          id="memberIsExec"
-                        />
-                        <label className="form-check-label" htmlFor="memberIsExec">
-                          Executive Director
-                        </label>
+                      <label className="form-label fw-bold">Permissions</label>
+                      <small className="text-muted d-block mb-2">Select which dashboard functions this member can access</small>
+                      <div className="row g-2">
+                        <div className="col-md-6">
+                          <div className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              checked={memberForm.volunteer}
+                              onChange={(e) => setMemberForm({ ...memberForm, volunteer: e.target.checked })}
+                              id="memberVolunteer"
+                            />
+                            <label className="form-check-label" htmlFor="memberVolunteer">
+                              Volunteer Hours Management
+                            </label>
+                            <small className="text-muted d-block">Can approve/manage volunteer hours</small>
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              checked={memberForm.applications}
+                              onChange={(e) => setMemberForm({ ...memberForm, applications: e.target.checked })}
+                              id="memberApplications"
+                            />
+                            <label className="form-check-label" htmlFor="memberApplications">
+                              Application Review
+                            </label>
+                            <small className="text-muted d-block">Can review new member applications</small>
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              checked={memberForm.bills}
+                              onChange={(e) => setMemberForm({ ...memberForm, bills: e.target.checked })}
+                              id="memberBills"
+                            />
+                            <label className="form-check-label" htmlFor="memberBills">
+                              Bill Management
+                            </label>
+                            <small className="text-muted d-block">Can add/edit/delete bills</small>
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="form-check">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              checked={memberForm.registration}
+                              onChange={(e) => setMemberForm({ ...memberForm, registration: e.target.checked })}
+                              id="memberRegistration"
+                            />
+                            <label className="form-check-label" htmlFor="memberRegistration">
+                              Member Management
+                            </label>
+                            <small className="text-muted d-block">Can add/edit members and manage roles</small>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2800,7 +3191,7 @@ function DashboardPage() {
                     className="btn btn-dark"
                     onClick={handleSaveMember}
                   >
-                    Add Member
+                    {editingMemberId ? 'Update Member' : 'Add Member'}
                   </button>
                 </div>
               </div>
@@ -2969,6 +3360,94 @@ function DashboardPage() {
             </div>
           </div>
           <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Import Application Modal */}
+      {showImportApplicationModal && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1065 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowImportApplicationModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Import from Application</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowImportApplicationModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+                  <p className="text-muted mb-3">Select an application to import data into the member form:</p>
+                  {applications.filter(app => app.status === 'pending' || app.status === 'accepted').length > 0 ? (
+                    <div className="table-responsive">
+                      <table className="table table-hover">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>School</th>
+                            <th>State</th>
+                            <th>Submitted</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {applications.filter(app => app.status === 'pending' || app.status === 'accepted').map(app => (
+                            <tr key={app.application_id}>
+                              <td>{app.full_name}</td>
+                              <td>{app.email}</td>
+                              <td>{app.school || '-'}</td>
+                              <td>{app.state || '-'}</td>
+                              <td>{formatDateLong(app.submitted_at)}</td>
+                              <td>
+                                <span className={`badge ${
+                                  app.status === 'pending' ? 'bg-warning text-dark' :
+                                  app.status === 'accepted' ? 'bg-success' :
+                                  'bg-danger'
+                                }`}>
+                                  {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                                </span>
+                              </td>
+                              <td>
+                                <button
+                                  className="btn btn-sm btn-primary"
+                                  onClick={() => handleImportFromApplication(app)}
+                                >
+                                  <i className="bi bi-download me-1"></i>Import
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-muted text-center py-4">No pending or accepted applications found.</p>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowImportApplicationModal(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1060 }}></div>
         </>
       )}
 

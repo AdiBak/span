@@ -166,8 +166,34 @@ function DashboardPage() {
 
   // Load member data
   useEffect(() => {
-    loadMemberData()
+    // Check if there's a hash in the URL (from invite link)
+    const hasHash = window.location.hash && window.location.hash.length > 0
+    
+    // Set up auth state listener to handle invite link callbacks
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('Auth state changed:', event, session ? 'session exists' : 'no session')
+      // Handle various auth events that might occur from invite links
+      // SIGNED_IN: User signs in (including from invite link)
+      // TOKEN_REFRESHED: Session token refreshed (might happen on page load with hash)
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+        console.log('Session established, loading member data...')
+        loadMemberData(false) // Don't skip redirect now that we have a session
+      } else if (event === 'SIGNED_OUT') {
+        console.log('User signed out, redirecting to login...')
+        window.location.href = '/login.html'
+      }
+    })
+
+    // Initial load - skip redirect if hash is present (wait for auth state change)
+    loadMemberData(hasHash)
     loadAllMembers()
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [])
 
   // Load additional data based on permissions after member is loaded
@@ -461,9 +487,23 @@ function DashboardPage() {
     return report.status === hrReportFilter
   })
 
-  const loadMemberData = async () => {
+  const loadMemberData = async (skipRedirect = false) => {
     try {
       console.log('Loading member data...')
+      
+      // Check if there's a hash in the URL (from invite link callback)
+      // Supabase processes these automatically, but we should wait a bit for it to complete
+      const hasHash = window.location.hash && window.location.hash.length > 0
+      if (hasHash) {
+        console.log('Detected URL hash (likely from invite link), waiting for auth processing...')
+        // Wait a moment for Supabase to process the hash
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Clear the hash from URL after processing
+        if (window.history.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        }
+      }
+      
       const { data: { session }, error: sessionError } = await supabase.auth.getSession()
       
       if (sessionError) {
@@ -473,8 +513,15 @@ function DashboardPage() {
       }
       
       if (!session) {
-        console.log('No session, redirecting to login')
-        window.location.href = '/login.html'
+        // Don't redirect if we're waiting for hash processing (skipRedirect = true)
+        // The onAuthStateChange listener will handle it
+        if (!skipRedirect && !hasHash) {
+          console.log('No session, redirecting to login')
+          window.location.href = '/login.html'
+        } else if (hasHash) {
+          console.log('No session yet, but hash detected - waiting for auth state change...')
+        }
+        setLoading(false)
         return
       }
 

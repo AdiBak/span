@@ -8,6 +8,7 @@ function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [showQRModal, setShowQRModal] = useState(false)
+  const [showTechSupportModal, setShowTechSupportModal] = useState(false)
   const [qrError, setQrError] = useState('')
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -108,6 +109,45 @@ function LoginPage() {
     }
   }, [scanLoop])
 
+  // Check if user is already authenticated (e.g., from invite link hash)
+  useEffect(() => {
+    // Check if there's a hash in the URL (from invite link callback)
+    const hasHash = window.location.hash && window.location.hash.length > 0
+    
+    // Set up auth state listener to handle invite link callbacks
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed on login page:', event, session ? 'session exists' : 'no session')
+      // If user gets authenticated (from hash or other means), redirect to dashboard
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+        console.log('User authenticated, redirecting to dashboard...')
+        window.location.href = '/dashboard.html'
+      }
+    })
+
+    // Also check for existing session on mount
+    const checkAuth = async () => {
+      if (hasHash) {
+        // Wait a moment for Supabase to process the hash
+        await new Promise(resolve => setTimeout(resolve, 1000))
+      }
+      
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        // User is already authenticated, redirect to dashboard
+        window.location.href = '/dashboard.html'
+      }
+    }
+    
+    checkAuth()
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
   useEffect(() => {
     if (showQRModal) {
       startQRScan()
@@ -179,6 +219,16 @@ function LoginPage() {
               </button>
               <p className="text-muted mt-2 text-center small">Use your SPANCard QR code to log in</p>
             </div>
+
+            <div className="text-center mt-4 pt-3 border-top">
+              <button
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => setShowTechSupportModal(true)}
+                style={{ fontSize: '0.85rem' }}
+              >
+                <i className="bi bi-question-circle me-1"></i> Having technical issues?
+              </button>
+            </div>
           </div>
         </div>
       </main>
@@ -217,6 +267,54 @@ function LoginPage() {
                     style={{ width: '100%', height: 'auto', minHeight: '300px', background: 'black', objectFit: 'cover' }}
                   ></video>
                   <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Technical Support Modal */}
+      {showTechSupportModal && (
+        <>
+          <div
+            className="modal fade show"
+            id="techSupportModal"
+            tabIndex="-1"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.id === 'techSupportModal') {
+                setShowTechSupportModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Technical Support</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowTechSupportModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <p className="mb-3">
+                    If you're experiencing technical issues with logging in, please contact our tech lead for assistance.
+                  </p>
+                  <div className="d-grid">
+                    <a
+                      href="mailto:aditya.bakshi@spanationwide.org?subject=Login Technical Issue&body=Hi Aditya,%0D%0A%0D%0AI'm experiencing a technical issue with logging in. Here are the details:%0D%0A%0D%0A[Please describe your issue here]%0D%0A%0D%0AThank you!"
+                      className="btn btn-dark"
+                      onClick={() => setShowTechSupportModal(false)}
+                    >
+                      <i className="bi bi-envelope me-2"></i> Email Tech Lead
+                    </a>
+                  </div>
+                  <p className="text-muted small mt-3 mb-0">
+                    This will open your default email client to send a message to Aditya Bakshi, our tech lead.
+                  </p>
                 </div>
               </div>
             </div>

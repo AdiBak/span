@@ -17,7 +17,7 @@ const corsHeaders = {
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
 const INVITE_REDIRECT_URL =
-  Deno.env.get("ONBOARDING_REDIRECT_URL") ?? "https://spanationwide.org/dashboard.html"
+  Deno.env.get("ONBOARDING_REDIRECT_URL") ?? "https://spanationwide.org/login.html"
 const PRODUCTION_URL = Deno.env.get("PRODUCTION_URL") ?? "https://spanationwide.org"
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
@@ -251,6 +251,7 @@ async function sendEmailViaEmailJS({
   spanEmail,
   actionLink,
   otp,
+  tempPassword,
   inviteType,
 }: {
   toEmail: string
@@ -258,6 +259,7 @@ async function sendEmailViaEmailJS({
   spanEmail: string
   actionLink: string
   otp?: string
+  tempPassword?: string
   inviteType: "invite" | "recovery"
 }) {
   const serviceId = Deno.env.get("EMAILJS_SERVICE_ID")
@@ -270,20 +272,28 @@ async function sendEmailViaEmailJS({
     return { ok: false, reason: "missing_credentials" }
   }
 
-  const payload = {
-    service_id: serviceId,
-    template_id: templateId,
-    user_id: publicKey,
-    accessToken: privateKey,
-    template_params: {
+    const templateParams = {
       to_email: toEmail,
       to_name: toName,
       span_email: spanEmail,
       action_link: actionLink,
       invite_type: inviteType,
       otp: otp ?? "",
-    },
-  }
+      temp_password: tempPassword ?? "",
+    }
+    
+    console.log("EmailJS template params (password masked):", {
+      ...templateParams,
+      temp_password: templateParams.temp_password ? "***" + templateParams.temp_password.slice(-4) : "empty"
+    })
+    
+    const payload = {
+      service_id: serviceId,
+      template_id: templateId,
+      user_id: publicKey,
+      accessToken: privateKey,
+      template_params: templateParams,
+    }
 
   const response = await fetch(EMAILJS_ENDPOINT, {
     method: "POST",
@@ -361,6 +371,7 @@ serve(
     let createdNewUser = false
 
     const password = generateRandomPassword()
+    console.log("Generated password for", email, "length:", password.length)
     const displayName = [member.first_name, member.last_name]
       .map((value) => (typeof value === "string" ? value.trim() : ""))
       .filter(Boolean)
@@ -512,12 +523,18 @@ serve(
         PRODUCTION_URL
       )
       
+      // Only send temp password for new invites, not recovery
+      const passwordToSend = inviteType === "invite" ? password : undefined
+      
+      console.log("Sending email with temp password:", passwordToSend ? "***" + passwordToSend.slice(-4) : "none (recovery)")
+      
       const sendResult = await sendEmailViaEmailJS({
         toEmail: deliveryEmail,
         toName: displayName || email,
         spanEmail: email,
         actionLink: actionLink,
         otp: linkData.properties.email_otp,
+        tempPassword: passwordToSend, // Send the actual password used to create the user (only for new invites)
         inviteType,
       })
       console.log("EmailJS send result", sendResult)

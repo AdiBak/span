@@ -1,0 +1,101 @@
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-family:'Helvetica Neue', Arial, sans-serif; background:#f5f7fb; padding:32px 0;">
+
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 12px 30px rgba(25,42,86,0.08);">
+        <tr>
+          <td style="padding:40px 48px 24px;">
+            <img src="https://spanationwide.org/images/index/logo-wide-dark.svg" alt="SPAN" width="150" style="display:block; margin-bottom:24px;">
+
+            <p style="color:#1e2746; font-size:16px; margin:0 0 16px;">Hi {{to_name}},</p>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 24px;">
+              Welcome to <strong>SPAN (Students for Patient Advocacy Nationwide)</strong>! We're thrilled to have you join our community and can't wait to see the impact you'll make.
+            </p>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 24px;">
+              Here's how to get started with your new SPAN login (<strong>{{span_email}}</strong>):
+            </p>
+
+            <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:16px; margin:24px 0; border-radius:4px;">
+              <p style="color:#1e2746; font-size:15px; line-height:1.6; margin:0 0 12px;">
+                <strong>Your Temporary Password:</strong>
+              </p>
+              <p style="color:#1e2746; font-size:18px; font-family:'Courier New', monospace; background:#ffffff; padding:12px; border-radius:4px; margin:0; word-break:break-all; text-align:center; font-weight:600; letter-spacing:1px;">
+                {{temp_password}}
+              </p>
+              <p style="color:#856404; font-size:13px; margin:12px 0 0; line-height:1.5;">
+                <strong>Important:</strong> Please save this password. You'll use it to log in for the first time. After completing registration, you can change your password in the dashboard.
+              </p>
+            </div>
+
+            <ol style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 24px; padding-left:20px;">
+              <li style="margin-bottom:16px;">
+                <strong>Log in to your account:</strong><br>
+                Click the button below to go to the login page. Enter your SPAN email (<strong>{{span_email}}</strong>) and the temporary password shown above. Alternatively, you can click the link in this email which will automatically log you in.
+              </li>
+              <li style="margin-bottom:16px;">
+                <strong>Complete your registration:</strong><br>
+                After logging in, you'll see a registration form that's been pre-filled with your information. Please review and complete all required fields, including uploading a profile photo. This form collects your contact information, school details, and other important background information.
+              </li>
+              <li style="margin-bottom:16px;">
+                <strong>Set your password:</strong><br>
+                After completing the registration form, you'll have full access to your dashboard where you can change your password to something more memorable.
+              </li>
+              <li style="margin-bottom:16px;">
+                <strong>Verify email routing:</strong><br>
+                Look out for a Cloudflare email asking you to verify this forwarding address so SPAN mail reaches your inbox.
+              </li>
+              <li style="margin-bottom:16px;">
+                <strong>Explore the dashboard:</strong><br>
+                Once your registration is complete, you'll have full access to track volunteer hours, browse resources, and get to know the team.
+              </li>
+              <li>
+                <strong>Join Slack:</strong><br>
+                Hop into our <a href="https://join.slack.com/t/span-nhi9797/shared_invite/zt-3f7aqyhh2-qm4D6ZSgQkQIYL_rKa0pXA" style="color:#0b6ef9; text-decoration:none;">team workspace</a> for ongoing updates.
+              </li>
+            </ol>
+
+            <div style="text-align:center; margin-bottom:32px;">
+              <a href="{{action_link}}" style="background:#0b6ef9; color:#ffffff; padding:14px 28px; border-radius:999px; text-decoration:none; font-weight:600; display:inline-block;">
+                Go to Login Page
+              </a>
+            </div>
+
+            <div style="background:#f0f7ff; border-left:4px solid #0b6ef9; padding:16px; margin:24px 0; border-radius:4px;">
+              <p style="color:#1e2746; font-size:15px; line-height:1.6; margin:0;">
+                <strong>Important:</strong> You'll need to complete the registration form before you can access all dashboard features. The form is pre-filled with information we have on file, so you just need to review, update if needed, and add any missing details (like your profile photo).
+              </p>
+            </div>
+
+            <h3 style="color:#1e2746; font-size:18px; margin:0 0 12px;">Member Expectations</h3>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 16px;">
+              As part of SPAN, you'll help advance youth-led healthcare advocacy and education. We ask members to stay engaged, represent SPAN professionally, collaborate across projects, and keep learning.
+            </p>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 16px;">
+              Questions? Contact Ben Kurian at <a href="tel:6145885400" style="color:#0b6ef9; text-decoration:none;">(614) 588-5400</a> or email <a href="mailto:contact@spanationwide.org" style="color:#0b6ef9; text-decoration:none;">contact@spanationwide.org</a>.
+            </p>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0;">
+              We're excited to have you on board and can't wait to see what you accomplish with SPAN!
+            </p>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:24px 0 0;">
+              Best regards,<br>
+              <strong>Ben Kurian</strong><br>
+              Executive Director, SPAN
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#0b6ef9; color:#ffffff; text-align:center; padding:16px; font-size:13px;">
+            © {{span_email}} · {{invite_type | uppercase}}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+

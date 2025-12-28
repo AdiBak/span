@@ -380,8 +380,8 @@ serve(
     const { data: createdUser, error: createError } = await adminClient.auth.admin.createUser({
       email,
       password,
-      // Leave email_confirm false so invite link can be sent
-      email_confirm: false,
+      // Set email_confirm to true so new members can log in immediately with the temporary password
+      email_confirm: true,
       user_metadata: {
         display_name: displayName,
         first_name: member.first_name ?? null,

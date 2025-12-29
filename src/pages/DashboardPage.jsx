@@ -525,24 +525,67 @@ function DashboardPage() {
         return
       }
 
+      const userId = session.user.id
       const email = session.user.email
-      console.log('Fetching member data for email:', email)
+      console.log('Fetching member data for user_id:', userId, 'email:', email)
       
-      const { data: memberData, error } = await supabase
-        .from('members')
-        .select('*')
-        .eq('email', email)
-        .maybeSingle()
+      // Try to fetch by user_id first (more reliable), fallback to email if user_id is null
+      let memberData = null
+      let error = null
+      
+      if (userId) {
+        const { data, error: userIdError } = await supabase
+          .from('members')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle()
+        memberData = data
+        error = userIdError
+        
+        // If not found by user_id, try email as fallback
+        if (!memberData && !error) {
+          console.log('Member not found by user_id, trying email...')
+          const { data: emailData, error: emailError } = await supabase
+            .from('members')
+            .select('*')
+            .eq('email', email)
+            .maybeSingle()
+          memberData = emailData
+          error = emailError
+        }
+      } else {
+        // No user_id, fallback to email
+        console.log('No user_id in session, using email lookup')
+        const { data: emailData, error: emailError } = await supabase
+          .from('members')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle()
+        memberData = emailData
+        error = emailError
+      }
 
       if (error) {
         console.error('Error fetching member data:', error)
+        console.error('Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        })
         setLoading(false)
+        setMember(null) // Explicitly set to null to show error message
         return
       }
 
       if (!memberData) {
-        console.error('No member data found for email:', email)
+        console.error('No member data found for user_id:', userId, 'email:', email)
+        console.error('This might mean:')
+        console.error('1. The member record does not exist in the members table')
+        console.error('2. The user_id is not linked to the member record')
+        console.error('3. An RLS policy is blocking the query')
         setLoading(false)
+        setMember(null) // Explicitly set to null to show error message
         return
       }
 

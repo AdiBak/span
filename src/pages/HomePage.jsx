@@ -92,6 +92,47 @@ function HomePage() {
         </div>
       </div>
 
+      {/* Partners Section */}
+      <a id="partners"></a>
+      <div className="p-3 p-md-5 m-md-3 bg-light">
+        <div className="container">
+          <h2 className="text-center display-5 fw-bold" data-aos="fade" data-aos-duration="1000">Our Partners</h2>
+          <p className="lead text-center mb-5" data-aos="fade" data-aos-duration="1000">We're grateful for the support of our partners in advancing healthcare advocacy.</p>
+          <div className="row justify-content-center align-items-center g-4" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
+            <div className="col-md-4 col-sm-6 text-center">
+              <img 
+                src="/images/misc/beyond-partisan-logo.png" 
+                alt="Beyond Partisan" 
+                className="img-fluid partner-logo"
+                style={{ maxHeight: '120px', objectFit: 'contain' }}
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div className="col-md-4 col-sm-6 text-center">
+              <img 
+                src="/images/misc/stanford-ddl-logo.png" 
+                alt="Stanford Deliberative Democracy Lab" 
+                className="img-fluid partner-logo"
+                style={{ maxHeight: '120px', objectFit: 'contain' }}
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div className="col-md-4 col-sm-6 text-center">
+              <img 
+                src="/images/misc/unite-america-logo.png" 
+                alt="Unite America" 
+                className="img-fluid partner-logo"
+                style={{ maxHeight: '120px', objectFit: 'contain' }}
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Schools Section */}
       <a id="schools"></a>
       <div className="p-3 p-md-5 m-md-3 bg-light">

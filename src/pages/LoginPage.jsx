@@ -8,8 +8,18 @@ function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [showQRModal, setShowQRModal] = useState(false)
-  const [showTechSupportModal, setShowTechSupportModal] = useState(false)
   const [qrError, setQrError] = useState('')
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false)
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('')
+  const [forgotPasswordError, setForgotPasswordError] = useState('')
+  const [forgotPasswordSuccess, setForgotPasswordSuccess] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [showResetPasswordForm, setShowResetPasswordForm] = useState(false)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [resetPasswordError, setResetPasswordError] = useState('')
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState(false)
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const canvasRef = useRef(null)
@@ -33,6 +43,90 @@ function LoginPage() {
       window.location.href = '/dashboard.html'
     } catch (err) {
       setError(err.message || 'Login failed. Please try again.')
+    }
+  }
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault()
+    setForgotPasswordError('')
+    setForgotPasswordSuccess(false)
+    setIsLoading(true)
+
+    let recoveryEmail = forgotPasswordEmail.trim()
+    // Auto-append domain if missing
+    if (!recoveryEmail.includes('@')) {
+      recoveryEmail += '@spanationwide.org'
+    }
+
+    try {
+      // Call the password-reset Edge Function which uses EmailJS
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL not configured')
+      }
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/hyper-endpoint`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ email: recoveryEmail }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || data.details || 'Failed to send password reset email')
+      }
+      
+      setForgotPasswordSuccess(true)
+      setForgotPasswordEmail('')
+    } catch (err) {
+      console.error('Password reset failed:', err)
+      setForgotPasswordError(err.message || 'Failed to send password reset email. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault()
+    setResetPasswordError('')
+    setResetPasswordSuccess(false)
+
+    if (newPassword !== confirmPassword) {
+      setResetPasswordError('Passwords do not match.')
+      return
+    }
+
+    if (newPassword.length < 6) {
+      setResetPasswordError('Password must be at least 6 characters long.')
+      return
+    }
+
+    setIsResettingPassword(true)
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      })
+      
+      if (error) throw error
+      
+      setResetPasswordSuccess(true)
+      setNewPassword('')
+      setConfirmPassword('')
+      
+      // Redirect to dashboard after a short delay
+      setTimeout(() => {
+        window.location.href = '/dashboard.html'
+      }, 2000)
+    } catch (err) {
+      setResetPasswordError(err.message || 'Failed to reset password. Please try again.')
+    } finally {
+      setIsResettingPassword(false)
     }
   }
 
@@ -110,29 +204,60 @@ function LoginPage() {
   }, [scanLoop])
 
   // Check if user is already authenticated (e.g., from invite link hash)
+  // Also detect password reset hash
   useEffect(() => {
-    // Check if there's a hash in the URL (from invite link callback)
+    // Check if there's a hash in the URL (from invite link or password reset callback)
     const hasHash = window.location.hash && window.location.hash.length > 0
+    const hashParams = new URLSearchParams(window.location.hash.substring(1))
+    const type = hashParams.get('type')
     
-    // Set up auth state listener to handle invite link callbacks
+    // Set up auth state listener to handle invite link callbacks and password recovery
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth state changed on login page:', event, session ? 'session exists' : 'no session')
+      
+      // If this is a password recovery, show the reset form after session is established
+      if (type === 'recovery' && (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session))) {
+        console.log('Password recovery detected, showing reset form')
+        setShowResetPasswordForm(true)
+        // Clear the hash from URL
+        window.history.replaceState(null, '', window.location.pathname)
+        return
+      }
+      
       // If user gets authenticated (from hash or other means), redirect to dashboard
-      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+      // (but not if it's a password recovery)
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && type !== 'recovery') {
         console.log('User authenticated, redirecting to dashboard...')
         window.location.href = '/dashboard.html'
       }
     })
 
-    // Also check for existing session on mount
+    // Also check for existing session on mount and process hash
     const checkAuth = async () => {
       if (hasHash) {
         // Wait a moment for Supabase to process the hash
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise(resolve => setTimeout(resolve, 1500))
       }
       
+      // If it's a recovery type, check if we have a session (Supabase should have processed the hash)
+      if (type === 'recovery') {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          console.log('Recovery session established, showing reset form')
+          setShowResetPasswordForm(true)
+          // Clear the hash from URL
+          window.history.replaceState(null, '', window.location.pathname)
+        } else {
+          console.error('Recovery hash detected but no session established')
+          setResetPasswordError('Invalid or expired password reset link. Please request a new one.')
+          setShowResetPasswordForm(true)
+        }
+        return
+      }
+      
+      // For non-recovery flows, check if user is already authenticated
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         // User is already authenticated, redirect to dashboard
@@ -159,6 +284,7 @@ function LoginPage() {
       }
     }
   }, [showQRModal, startQRScan])
+
 
   return (
     <div className="login-page">
@@ -200,8 +326,22 @@ function LoginPage() {
                   required
                 />
               </div>
-              <button type="submit" className="btn btn-dark w-100 mb-3">Sign In</button>
+              <button type="submit" className="btn btn-dark w-100 mb-2">Sign In</button>
               {error && <p className="text-danger mt-1 mb-0 text-center">{error}</p>}
+              <div className="text-center mt-2 mb-2">
+                <button
+                  type="button"
+                  id="forgot-password-button"
+                  className="btn btn-outline-primary"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    setShowForgotPasswordModal(true)
+                  }}
+                  style={{ fontSize: '0.9rem', width: '100%' }}
+                >
+                  Forgot Password?
+                </button>
+              </div>
             </form>
 
             <div className="d-flex align-items-center my-3">
@@ -218,16 +358,6 @@ function LoginPage() {
                 <i className="bi bi-qr-code-scan me-2"></i> Scan SPANCard
               </button>
               <p className="text-muted mt-2 text-center small">Use your SPANCard QR code to log in</p>
-            </div>
-
-            <div className="text-center mt-4 pt-3 border-top">
-              <button
-                className="btn btn-sm btn-outline-secondary"
-                onClick={() => setShowTechSupportModal(true)}
-                style={{ fontSize: '0.85rem' }}
-              >
-                <i className="bi bi-question-circle me-1"></i> Having technical issues?
-              </button>
             </div>
           </div>
         </div>
@@ -275,46 +405,83 @@ function LoginPage() {
         </>
       )}
 
-      {/* Technical Support Modal */}
-      {showTechSupportModal && (
+      {/* Reset Password Modal (shown when user arrives from recovery link) */}
+      {showResetPasswordForm && (
         <>
           <div
             className="modal fade show"
-            id="techSupportModal"
+            id="resetPasswordModal"
             tabIndex="-1"
             style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.id === 'techSupportModal') {
-                setShowTechSupportModal(false)
-              }
-            }}
           >
             <div className="modal-dialog modal-dialog-centered">
               <div className="modal-content">
                 <div className="modal-header">
-                  <h5 className="modal-title">Technical Support</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowTechSupportModal(false)}
-                  ></button>
+                  <h5 className="modal-title">Reset Your Password</h5>
                 </div>
                 <div className="modal-body">
-                  <p className="mb-3">
-                    If you're experiencing technical issues with logging in, please contact our tech lead for assistance.
-                  </p>
-                  <div className="d-grid">
-                    <a
-                      href="mailto:aditya.bakshi@spanationwide.org?subject=Login Technical Issue&body=Hi Aditya,%0D%0A%0D%0AI'm experiencing a technical issue with logging in. Here are the details:%0D%0A%0D%0A[Please describe your issue here]%0D%0A%0D%0AThank you!"
-                      className="btn btn-dark"
-                      onClick={() => setShowTechSupportModal(false)}
-                    >
-                      <i className="bi bi-envelope me-2"></i> Email Tech Lead
-                    </a>
-                  </div>
-                  <p className="text-muted small mt-3 mb-0">
-                    This will open your default email client to send a message to Aditya Bakshi, our tech lead.
-                  </p>
+                  {resetPasswordSuccess ? (
+                    <div className="text-center">
+                      <div className="alert alert-success mb-3">
+                        <i className="bi bi-check-circle me-2"></i>
+                        Password reset successfully! Redirecting to dashboard...
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleResetPassword}>
+                      <p className="text-muted mb-3">
+                        Please enter your new password below.
+                      </p>
+                      <div className="mb-3">
+                        <label htmlFor="newPassword" className="form-label">New Password</label>
+                        <input
+                          type="password"
+                          className="form-control"
+                          id="newPassword"
+                          placeholder="Enter new password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          required
+                          disabled={isResettingPassword}
+                          minLength={6}
+                        />
+                        <small className="text-muted">Password must be at least 6 characters long</small>
+                      </div>
+                      <div className="mb-3">
+                        <label htmlFor="confirmPassword" className="form-label">Confirm Password</label>
+                        <input
+                          type="password"
+                          className="form-control"
+                          id="confirmPassword"
+                          placeholder="Confirm new password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          required
+                          disabled={isResettingPassword}
+                          minLength={6}
+                        />
+                      </div>
+                      {resetPasswordError && (
+                        <div className="alert alert-danger mb-3">{resetPasswordError}</div>
+                      )}
+                      <div className="d-grid">
+                        <button
+                          type="submit"
+                          className="btn btn-primary"
+                          disabled={isResettingPassword}
+                        >
+                          {isResettingPassword ? (
+                            <>
+                              <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                              Resetting...
+                            </>
+                          ) : (
+                            'Reset Password'
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               </div>
             </div>
@@ -322,6 +489,120 @@ function LoginPage() {
           <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
         </>
       )}
+
+      {/* Forgot Password Modal */}
+      {showForgotPasswordModal && (
+        <>
+          <div
+            className="modal fade show"
+            id="forgotPasswordModal"
+            tabIndex="-1"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.id === 'forgotPasswordModal') {
+                setShowForgotPasswordModal(false)
+                setForgotPasswordEmail('')
+                setForgotPasswordError('')
+                setForgotPasswordSuccess(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Reset Password</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => {
+                      setShowForgotPasswordModal(false)
+                      setForgotPasswordEmail('')
+                      setForgotPasswordError('')
+                      setForgotPasswordSuccess(false)
+                    }}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  {forgotPasswordSuccess ? (
+                    <div className="text-center">
+                      <div className="alert alert-success mb-3">
+                        <i className="bi bi-check-circle me-2"></i>
+                        Password reset email sent! Please check your inbox for a temporary password. Use it to log in, then change your password from your dashboard.
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => {
+                          setShowForgotPasswordModal(false)
+                          setForgotPasswordEmail('')
+                          setForgotPasswordError('')
+                          setForgotPasswordSuccess(false)
+                        }}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleForgotPassword}>
+                      <p className="text-muted mb-3">
+                        Enter your SPAN email address and we'll send you a temporary password to log in.
+                      </p>
+                      <div className="mb-3">
+                        <label htmlFor="forgotPasswordEmail" className="form-label">SPAN Email</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          id="forgotPasswordEmail"
+                          placeholder="Enter your SPAN email"
+                          value={forgotPasswordEmail}
+                          onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                          required
+                          disabled={isLoading}
+                        />
+                        <small className="text-muted">You can enter just the username (e.g., "john.doe") or the full email</small>
+                      </div>
+                      {forgotPasswordError && (
+                        <div className="alert alert-danger mb-3">{forgotPasswordError}</div>
+                      )}
+                      <div className="d-grid gap-2">
+                        <button
+                          type="submit"
+                          className="btn btn-primary"
+                          disabled={isLoading}
+                        >
+                          {isLoading ? (
+                            <>
+                              <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                              Sending...
+                            </>
+                          ) : (
+                            'Send Reset Link'
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-secondary"
+                          onClick={() => {
+                            setShowForgotPasswordModal(false)
+                            setForgotPasswordEmail('')
+                            setForgotPasswordError('')
+                            setForgotPasswordSuccess(false)
+                          }}
+                          disabled={isLoading}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
     </div>
   )
 }

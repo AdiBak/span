@@ -369,6 +369,7 @@ serve(
     let userId: string | null = null
     let inviteType: "invite" | "recovery" = "invite"
     let createdNewUser = false
+    let shouldSendEmail = true
 
     const password = generateRandomPassword()
     console.log("Generated password for", email, "length:", password.length)
@@ -377,56 +378,144 @@ serve(
       .filter(Boolean)
       .join(" ")
 
-    const { data: createdUser, error: createError } = await adminClient.auth.admin.createUser({
-      email,
-      password,
-      // Set email_confirm to true so new members can log in immediately with the temporary password
-      email_confirm: true,
-      user_metadata: {
-        display_name: displayName,
-        first_name: member.first_name ?? null,
-        last_name: member.last_name ?? null,
-        role: member.role ?? null,
-      },
+    // First, check if user already exists to avoid unnecessary createUser call
+    const normalizedEmail = email.toLowerCase()
+    const { data: listData, error: listError } = await adminClient.auth.admin.listUsers({
+      perPage: 200,
     })
+    
+    let existingUser: { id: string; email?: string | null } | null = null
+    if (!listError && listData?.users) {
+      existingUser = listData.users.find(
+        (user) => (user.email ?? "").toLowerCase() === normalizedEmail,
+      ) || null
+    }
 
-    if (createError) {
-      const code = (createError as { code?: string }).code
-      console.log("createUser error code", code, "message", (createError as { message?: string }).message)
-      console.error("createUser error detail", createError)
-      if (code === "email_exists") {
-        inviteType = "recovery"
-        const { data: listData, error: listError } = await adminClient.auth.admin.listUsers({
-          perPage: 200,
-        })
-        if (listError) {
-          console.error("Failed to list users after email_exists", listError)
-          return new Response("Failed to list existing users", {
-            status: 500,
-            headers: corsHeaders,
-          })
-        }
-        const normalizedEmail = email.toLowerCase()
-        const existing = listData?.users?.find(
-          (user) => (user.email ?? "").toLowerCase() === normalizedEmail,
-        )
-        if (!existing) {
-          console.error("email_exists but user not found in listUsers", JSON.stringify(listData))
-          return new Response("Failed to locate existing user", {
-            status: 500,
-            headers: corsHeaders,
-          })
-        }
-        console.log("Found existing auth user", existing.id, "for", email)
-        userId = existing.id
+    // Generate invite link BEFORE creating user (for new users)
+    // This avoids the "email_exists" error when generating invite links
+    let linkData:
+      | Awaited<ReturnType<typeof adminClient.auth.admin.generateLink>>["data"]
+      | null = null
+
+    if (existingUser) {
+      // User already exists - use their existing user_id
+      console.log("User already exists in auth", existingUser.id, "for", email)
+      userId = existingUser.id
+      inviteType = "recovery"
+      createdNewUser = false
+      // Only send email if user_id wasn't already linked to this member
+      if (userIdInRow && userIdInRow === userId) {
+        console.log("User already linked to member, skipping email send")
+        shouldSendEmail = false
       } else {
-        console.error("Failed to create auth user", createError)
-        return new Response("Failed to create auth user", { status: 500, headers: corsHeaders })
+        // Generate recovery link for existing user
+        const { data: recoveryData, error: recoveryError } = await adminClient.auth.admin.generateLink({
+          type: "recovery",
+          email,
+          options: {
+            redirectTo: INVITE_REDIRECT_URL,
+          },
+        })
+
+        if (recoveryError) {
+          console.error("Failed to generate recovery link", recoveryError)
+          return new Response("Failed to generate recovery link", {
+            status: 500,
+            headers: corsHeaders,
+          })
+        }
+
+        linkData = recoveryData
+        console.log("Recovery link generated", inviteType, recoveryData)
       }
     } else {
-      userId = createdUser?.user?.id ?? null
-      createdNewUser = true
-      inviteType = "invite"
+      // User doesn't exist - create user FIRST, then generate invite link
+      // Note: We create the user first because generateLink with type "invite" may create the user automatically
+      console.log("User doesn't exist, creating user first")
+      const { data: createdUser, error: createError } = await adminClient.auth.admin.createUser({
+        email,
+        password,
+        // Set email_confirm to true so new members can log in immediately with the temporary password
+        email_confirm: true,
+        user_metadata: {
+          display_name: displayName,
+          first_name: member.first_name ?? null,
+          last_name: member.last_name ?? null,
+          role: member.role ?? null,
+        },
+      })
+
+      if (createError) {
+        const code = (createError as { code?: string }).code
+        console.log("createUser error code", code, "message", (createError as { message?: string }).message)
+        console.error("createUser error detail", createError)
+        
+        // If email_exists error occurs (shouldn't happen after our check, but handle it anyway)
+        if (code === "email_exists") {
+          inviteType = "recovery"
+          // Try to find the user again
+          const { data: retryListData, error: retryListError } = await adminClient.auth.admin.listUsers({
+            perPage: 200,
+          })
+          if (retryListError) {
+            console.error("Failed to list users after email_exists", retryListError)
+            return new Response("Failed to list existing users", {
+              status: 500,
+              headers: corsHeaders,
+            })
+          }
+          const existing = retryListData?.users?.find(
+            (user) => (user.email ?? "").toLowerCase() === normalizedEmail,
+          )
+          if (!existing) {
+            console.error("email_exists but user not found in listUsers", JSON.stringify(retryListData))
+            return new Response("Failed to locate existing user", {
+              status: 500,
+              headers: corsHeaders,
+            })
+          }
+          console.log("Found existing auth user", existing.id, "for", email)
+          userId = existing.id
+          if (userIdInRow && userIdInRow === userId) {
+            shouldSendEmail = false
+          }
+          // Generate recovery link for existing user
+          const { data: recoveryData, error: recoveryError } = await adminClient.auth.admin.generateLink({
+            type: "recovery",
+            email,
+            options: {
+              redirectTo: INVITE_REDIRECT_URL,
+            },
+          })
+          if (recoveryError) {
+            console.error("Failed to generate recovery link", recoveryError)
+            return new Response("Failed to generate recovery link", {
+              status: 500,
+              headers: corsHeaders,
+            })
+          }
+          linkData = recoveryData
+        } else {
+          console.error("Failed to create auth user", createError)
+          return new Response("Failed to create auth user", { status: 500, headers: corsHeaders })
+        }
+      } else {
+        // User created successfully - create action link manually since user can log in with temp password
+        userId = createdUser?.user?.id ?? null
+        createdNewUser = true
+        inviteType = "invite"
+        
+        console.log("User created successfully, creating action link for login page")
+        // Since email_confirm is true, user can log in directly with temp password
+        // Create a simple action link pointing to login page
+        linkData = {
+          properties: {
+            action_link: INVITE_REDIRECT_URL,
+            email_otp: "",
+          },
+        } as typeof linkData
+        console.log("Action link created for new user", linkData)
+      }
     }
 
     if (!userId) {
@@ -451,54 +540,8 @@ serve(
       }
     }
 
-    let linkData:
-      | Awaited<ReturnType<typeof adminClient.auth.admin.generateLink>>["data"]
-      | null = null
-
-    if (inviteType === "invite") {
-      const { data: inviteData, error: inviteError } = await adminClient.auth.admin.generateLink({
-        type: "invite",
-        email,
-        options: {
-          redirectTo: INVITE_REDIRECT_URL,
-          data: {
-            first_name: member.first_name ?? null,
-            last_name: member.last_name ?? null,
-            role: member.role ?? null,
-          },
-        },
-      })
-
-      if (inviteError) {
-        console.error("Failed to send invite email", inviteError)
-        return new Response("Failed to send invite email", {
-          status: 500,
-          headers: corsHeaders,
-        })
-      }
-
-      linkData = inviteData
-      console.log("Invite link generated", inviteType, inviteData)
-    } else {
-      const { data: recoveryData, error: recoveryError } = await adminClient.auth.admin.generateLink({
-        type: "recovery",
-        email,
-        options: {
-          redirectTo: INVITE_REDIRECT_URL,
-        },
-      })
-
-      if (recoveryError) {
-        console.error("Failed to send recovery email", recoveryError)
-        return new Response("Failed to send invite email", {
-          status: 500,
-          headers: corsHeaders,
-        })
-      }
-
-      linkData = recoveryData
-      console.log("Recovery link generated", inviteType, recoveryData)
-    }
+    // Link has already been generated above (before user creation for new users, or for existing users)
+    // Now we just need to send the email if needed
 
     // Set up Cloudflare email routing (non-blocking - if it fails, member provisioning still succeeds)
     if (deliveryEmail && deliveryEmail !== email) {
@@ -509,7 +552,8 @@ serve(
       console.log("Cloudflare email routing setup result", cloudflareResult)
     }
 
-    if (linkData?.properties?.action_link) {
+    // Only send email if we should and have a valid link
+    if (shouldSendEmail && linkData?.properties?.action_link) {
       // Replace any localhost URLs in the action link with production URL
       let actionLink = linkData.properties.action_link
       // Replace localhost:3000, localhost:5173 (Vite default), or any localhost with production URL
@@ -524,7 +568,7 @@ serve(
       )
       
       // Only send temp password for new invites, not recovery
-      const passwordToSend = inviteType === "invite" ? password : undefined
+      const passwordToSend = inviteType === "invite" && createdNewUser ? password : undefined
       
       console.log("Sending email with temp password:", passwordToSend ? "***" + passwordToSend.slice(-4) : "none (recovery)")
       
@@ -538,6 +582,8 @@ serve(
         inviteType,
       })
       console.log("EmailJS send result", sendResult)
+    } else if (!shouldSendEmail) {
+      console.log("Skipping email send - user already linked to member")
     } else {
       console.warn("No action link returned for", email, "skipping EmailJS send")
     }

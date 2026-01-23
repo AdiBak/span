@@ -35,18 +35,77 @@ function SchoolsCarousel() {
 
   async function fetchSchools() {
     try {
-      const { data, error } = await supabase
+      // First, get schools from database (primary source)
+      const { data: dbSchools, error: dbError } = await supabase
         .from('schools')
-        .select('school_name, school_image')
+        .select('school_name, school_image, display_order')
 
-      if (error) throw error
+      if (dbError) {
+        console.error('Failed to fetch schools from database:', dbError)
+        setSchools([])
+        setLoading(false)
+        return
+      }
 
-      const sortedSchools = [...(data || [])].sort((a, b) => a.display_order - b.display_order)
+      // Try to list images from storage bucket to find any new images not in database
+      let storageFiles = []
+      try {
+        const { data: files, error: storageError } = await supabase.storage
+          .from('schools-images')
+          .list('', {
+            limit: 100,
+            sortBy: { column: 'name', order: 'asc' }
+          })
+        
+        if (!storageError && files) {
+          storageFiles = files.filter(file => file.name && !file.name.startsWith('.'))
+        }
+      } catch (storageErr) {
+        // Storage listing failed (likely permissions), but that's okay - we'll use database
+        console.warn('Could not list storage files (this is okay if bucket is not publicly listable):', storageErr)
+      }
+
+      // Create a map of database schools by image filename
+      const dbSchoolMap = new Map()
+      const dbImageSet = new Set()
+      if (dbSchools) {
+        dbSchools.forEach(school => {
+          if (school.school_image) {
+            dbSchoolMap.set(school.school_image, school)
+            dbImageSet.add(school.school_image)
+          }
+        })
+      }
+
+      // Start with database schools
+      const allSchools = [...(dbSchools || [])]
+
+      // Add any storage files that aren't in the database
+      if (storageFiles.length > 0) {
+        storageFiles.forEach(file => {
+          if (!dbImageSet.has(file.name)) {
+            // Extract school name from filename (remove extension, replace dashes/underscores)
+            const schoolName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ')
+            allSchools.push({
+              school_name: schoolName,
+              school_image: file.name,
+              display_order: 999 // New schools go to the end
+            })
+          }
+        })
+      }
+
+      // Sort by display_order
+      const sortedSchools = allSchools.sort((a, b) => 
+        (a.display_order ?? 999) - (b.display_order ?? 999)
+      )
+
       setSchools(sortedSchools)
       setLoading(false)
     } catch (error) {
-      console.error('Failed to fetch schools from Supabase:', error)
+      console.error('Failed to fetch schools:', error)
       setLoading(false)
+      setSchools([])
     }
   }
 

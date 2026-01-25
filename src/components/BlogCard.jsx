@@ -62,7 +62,7 @@ function BlogCard({ post, variant = 'default' }) {
             </small>
           </p>
           <p className="card-text">{post.excerpt}</p>
-          <a href={post.link} target="_blank" rel="noopener noreferrer" className="btn btn-dark mt-auto">
+          <a href={post.internalLink || post.link} className="btn btn-dark mt-auto">
             Read More
           </a>
         </div>

@@ -157,10 +157,14 @@ function normalizePost(item, memberLookup) {
 
   const author = resolveAuthor(item, memberLookup)
 
+  // Generate a URL-friendly ID from the post
+  const postId = item.guid || item.link
+
   return {
-    id: item.guid || item.link,
+    id: postId,
     title: item.title,
-    link: item.link,
+    link: item.link, // Keep original Medium link
+    internalLink: `/blog-post.html?id=${encodeURIComponent(postId)}`, // Internal link
     image,
     formattedDate,
     author,

@@ -4,6 +4,7 @@ import './App.css'
 // Lazy load heavy components for better initial load performance
 const BillsPage = lazy(() => import('./pages/BillsPage'))
 const BlogPage = lazy(() => import('./pages/BlogPage'))
+const BlogPostPage = lazy(() => import('./pages/BlogPostPage'))
 const DirectoryPage = lazy(() => import('./pages/DirectoryPage'))
 const OurStoryPage = lazy(() => import('./pages/OurStoryPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
@@ -22,6 +23,7 @@ const LoadingFallback = () => (
 )
 
 function App({ page }) {
+  console.log('App component rendered with page:', page)
   if (page === 'home') {
     return (
       <Suspense fallback={<LoadingFallback />}>
@@ -42,6 +44,17 @@ function App({ page }) {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <BlogPage />
+      </Suspense>
+    )
+  }
+
+  if (page === 'blog-post') {
+    // Get post ID from URL query parameter
+    const urlParams = new URLSearchParams(window.location.search)
+    const postId = urlParams.get('id')
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <BlogPostPage postId={postId} />
       </Suspense>
     )
   }

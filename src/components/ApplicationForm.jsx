@@ -24,7 +24,9 @@ function ApplicationForm() {
     hoursPerWeek: '',
     additionalInfo: '',
     referralSource: '',
-    referralSourceOther: ''
+    referralSourceOther: '',
+    linkedinUrl: '',
+    instagramUrl: ''
   })
   const [submitting, setSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
@@ -90,6 +92,8 @@ function ApplicationForm() {
           hours_per_week: formData.hoursPerWeek,
           additional_info: formData.additionalInfo.trim() || null,
           referral_source: referralValue.trim(),
+          linkedin_url: formData.linkedinUrl.trim() || null,
+          instagram_url: formData.instagramUrl.trim() || null,
           status: 'pending'
         }])
         .select()
@@ -115,7 +119,9 @@ function ApplicationForm() {
         hoursPerWeek: '',
         additionalInfo: '',
         referralSource: '',
-        referralSourceOther: ''
+        referralSourceOther: '',
+        linkedinUrl: '',
+        instagramUrl: ''
       })
     } catch (err) {
       console.error('Error submitting application:', err)
@@ -368,6 +374,38 @@ function ApplicationForm() {
                 value={formData.additionalInfo}
                 onChange={handleChange}
                 placeholder="Share your experience, interests, and how you'd like to contribute to SPAN..."
+              />
+            </div>
+
+            {/* LinkedIn */}
+            <div>
+              <label htmlFor="linkedinUrl" className="form-label">
+                LinkedIn Profile (Optional)
+              </label>
+              <input
+                type="url"
+                className="form-control"
+                id="linkedinUrl"
+                name="linkedinUrl"
+                value={formData.linkedinUrl}
+                onChange={handleChange}
+                placeholder="https://linkedin.com/in/yourprofile"
+              />
+            </div>
+
+            {/* Instagram */}
+            <div>
+              <label htmlFor="instagramUrl" className="form-label">
+                Instagram Profile (Optional)
+              </label>
+              <input
+                type="url"
+                className="form-control"
+                id="instagramUrl"
+                name="instagramUrl"
+                value={formData.instagramUrl}
+                onChange={handleChange}
+                placeholder="https://instagram.com/yourprofile"
               />
             </div>
 

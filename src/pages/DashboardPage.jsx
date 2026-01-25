@@ -3729,6 +3729,28 @@ function DashboardPage() {
                       <strong>How they heard about SPAN:</strong>
                       <p>{selectedApplication.referral_source}</p>
                     </div>
+                    {selectedApplication.linkedin_url && (
+                      <div className="col-md-6">
+                        <strong>LinkedIn:</strong>
+                        <p>
+                          <a href={selectedApplication.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-decoration-none">
+                            <i className="bi bi-linkedin me-1"></i>
+                            {selectedApplication.linkedin_url}
+                          </a>
+                        </p>
+                      </div>
+                    )}
+                    {selectedApplication.instagram_url && (
+                      <div className="col-md-6">
+                        <strong>Instagram:</strong>
+                        <p>
+                          <a href={selectedApplication.instagram_url} target="_blank" rel="noopener noreferrer" className="text-decoration-none">
+                            <i className="bi bi-instagram me-1"></i>
+                            {selectedApplication.instagram_url}
+                          </a>
+                        </p>
+                      </div>
+                    )}
                     <div className="col-12">
                       <strong>Additional Info:</strong>
                       <p>{selectedApplication.additional_info || 'None provided'}</p>

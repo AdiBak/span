@@ -58,6 +58,7 @@ export default defineConfig(({ mode }) => {
         main: './index.html',
         bills: './bills.html',
         blog: './blog.html',
+        'blog-post': './blog-post.html',
         directory: './directory.html',
         'our-story': './our-story.html',
         login: './login.html',

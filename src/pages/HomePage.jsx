@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react'
 import BillsPreview from '../components/BillsPreview'
 import SchoolsCarousel from '../components/SchoolsCarousel'
+import PartnersCarousel from '../components/PartnersCarousel'
 import TeamSection from '../components/TeamSection'
 import ApplicationForm from '../components/ApplicationForm'
 
@@ -94,44 +95,7 @@ function HomePage() {
         <div className="container">
           <h2 className="text-center display-5 fw-bold" data-aos="fade" data-aos-duration="1000">Our Partners</h2>
           <p className="lead text-center mb-5" data-aos="fade" data-aos-duration="1000">We're grateful for the support of our partners in advancing healthcare advocacy.</p>
-          <div className="row justify-content-center align-items-center g-4" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-            <div className="col-md-4 col-sm-6 text-center">
-              <a href="https://beyondpartisan.org/" target="_blank" rel="noopener noreferrer" className="text-decoration-none">
-                <img 
-                  src="/images/misc/beyond-partisan-logo.png" 
-                  alt="Beyond Partisan" 
-                  className="img-fluid partner-logo"
-                  style={{ maxHeight: '120px', objectFit: 'contain' }}
-                  loading="lazy"
-                  decoding="async"
-                />
-              </a>
-            </div>
-            <div className="col-md-4 col-sm-6 text-center">
-              <a href="https://www.uniteamerica.org/" target="_blank" rel="noopener noreferrer" className="text-decoration-none">
-                <img 
-                  src="/images/misc/unite-america-logo.png" 
-                  alt="Unite America" 
-                  className="img-fluid partner-logo"
-                  style={{ maxHeight: '120px', objectFit: 'contain' }}
-                  loading="lazy"
-                  decoding="async"
-                />
-              </a>
-            </div>
-            <div className="col-md-4 col-sm-6 text-center">
-              <a href="https://deliberation.stanford.edu/" target="_blank" rel="noopener noreferrer" className="text-decoration-none">
-                <img 
-                  src="/images/misc/stanford-ddl-logo.png" 
-                  alt="Stanford Deliberative Democracy Lab" 
-                  className="img-fluid partner-logo"
-                  style={{ maxHeight: '120px', objectFit: 'contain' }}
-                  loading="lazy"
-                  decoding="async"
-                />
-              </a>
-            </div>
-          </div>
+          <PartnersCarousel />
         </div>
       </div>
 

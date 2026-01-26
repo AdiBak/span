@@ -110,6 +110,28 @@ function DashboardPage() {
   const [hrReportSuccess, setHrReportSuccess] = useState('')
   const [selectedHrReport, setSelectedHrReport] = useState(null)
   const [showHrReportViewModal, setShowHrReportViewModal] = useState(false)
+  const [partners, setPartners] = useState([])
+  const [showPartnerModal, setShowPartnerModal] = useState(false)
+  const [editingPartnerId, setEditingPartnerId] = useState(null)
+  const [partnerForm, setPartnerForm] = useState({
+    partnerName: '',
+    websiteUrl: '',
+    displayOrder: 999,
+    active: true
+  })
+  const [partnerLogoFile, setPartnerLogoFile] = useState(null)
+  const [partnerError, setPartnerError] = useState('')
+  const [partnerSuccess, setPartnerSuccess] = useState('')
+  const [schools, setSchools] = useState([])
+  const [showSchoolModal, setShowSchoolModal] = useState(false)
+  const [editingSchoolId, setEditingSchoolId] = useState(null)
+  const [schoolForm, setSchoolForm] = useState({
+    schoolName: '',
+    displayOrder: 999
+  })
+  const [schoolLogoFile, setSchoolLogoFile] = useState(null)
+  const [schoolError, setSchoolError] = useState('')
+  const [schoolSuccess, setSchoolSuccess] = useState('')
 
   // Helper functions
   const formatDate = (dateStr) => {
@@ -208,6 +230,8 @@ function DashboardPage() {
       if (hasPermission('registration')) {
         loadAllMembersForManagement()
         loadHrReports()
+        loadPartners()
+        loadSchools()
       }
     }
   }, [member])
@@ -270,6 +294,36 @@ function DashboardPage() {
     }
 
     setApplications(applicationsData || [])
+  }
+
+  // Load all partners
+  const loadPartners = async () => {
+    const { data: partnersData, error } = await supabase
+      .from('partners')
+      .select('*')
+      .order('display_order', { ascending: true })
+
+    if (error) {
+      console.error('Error loading partners:', error)
+      return
+    }
+
+    setPartners(partnersData || [])
+  }
+
+  // Load all schools
+  const loadSchools = async () => {
+    const { data: schoolsData, error } = await supabase
+      .from('schools')
+      .select('*')
+      .order('display_order', { ascending: true })
+
+    if (error) {
+      console.error('Error loading schools:', error)
+      return
+    }
+
+    setSchools(schoolsData || [])
   }
 
   // Load HR reports (executive directors only, filtered to exclude reports about themselves)
@@ -1556,6 +1610,302 @@ function DashboardPage() {
     ? applications 
     : applications.filter(app => app.status === applicationFilter)
 
+  // Partner management handlers
+  const handleAddPartner = () => {
+    setEditingPartnerId(null)
+    setPartnerForm({
+      partnerName: '',
+      websiteUrl: '',
+      displayOrder: 999,
+      active: true
+    })
+    setPartnerLogoFile(null)
+    setPartnerError('')
+    setPartnerSuccess('')
+    setShowPartnerModal(true)
+  }
+
+  const handleEditPartner = (partner) => {
+    setEditingPartnerId(partner.partner_id)
+    setPartnerForm({
+      partnerName: partner.partner_name,
+      websiteUrl: partner.website_url || '',
+      displayOrder: partner.display_order || 999,
+      active: partner.active !== false
+    })
+    setPartnerLogoFile(null)
+    setPartnerError('')
+    setPartnerSuccess('')
+    setShowPartnerModal(true)
+  }
+
+  const handleSavePartner = async () => {
+    const { partnerName, websiteUrl, displayOrder, active } = partnerForm
+    setPartnerError('')
+    setPartnerSuccess('')
+
+    if (!partnerName.trim()) {
+      setPartnerError('Partner name is required.')
+      return
+    }
+
+    try {
+      let logoFilename = null
+
+      // Upload logo if a new file was selected
+      if (partnerLogoFile) {
+        const fileExt = partnerLogoFile.name.split('.').pop()
+        const fileName = `${Date.now()}-${partnerName.replace(/[^a-zA-Z0-9]/g, '_')}.${fileExt}`
+        
+        const { error: uploadError } = await supabase.storage
+          .from('partners-images')
+          .upload(fileName, partnerLogoFile, {
+            cacheControl: '3600',
+            upsert: false
+          })
+
+        if (uploadError) {
+          console.error('Error uploading logo:', uploadError)
+          setPartnerError('Failed to upload logo: ' + uploadError.message)
+          return
+        }
+
+        logoFilename = fileName
+      }
+
+      if (editingPartnerId) {
+        // Update existing partner
+        const updateData = {
+          partner_name: partnerName.trim(),
+          website_url: websiteUrl.trim() || null,
+          display_order: parseInt(displayOrder) || 999,
+          active: active
+        }
+
+        if (logoFilename) {
+          // Get old logo filename to delete it
+          const oldPartner = partners.find(p => p.partner_id === editingPartnerId)
+          if (oldPartner?.partner_logo) {
+            await supabase.storage
+              .from('partners-images')
+              .remove([oldPartner.partner_logo])
+          }
+          updateData.partner_logo = logoFilename
+        }
+
+        const { error } = await supabase
+          .from('partners')
+          .update(updateData)
+          .eq('partner_id', editingPartnerId)
+
+        if (error) throw error
+        setPartnerSuccess('Partner updated successfully!')
+      } else {
+        // Create new partner
+        if (!logoFilename) {
+          setPartnerError('Logo is required for new partners.')
+          return
+        }
+
+        const { error } = await supabase
+          .from('partners')
+          .insert({
+            partner_name: partnerName.trim(),
+            partner_logo: logoFilename,
+            website_url: websiteUrl.trim() || null,
+            display_order: parseInt(displayOrder) || 999,
+            active: active
+          })
+
+        if (error) throw error
+        setPartnerSuccess('Partner added successfully!')
+      }
+
+      await loadPartners()
+      setTimeout(() => {
+        setShowPartnerModal(false)
+        setPartnerSuccess('')
+      }, 2000)
+    } catch (err) {
+      console.error('Error saving partner:', err)
+      setPartnerError(err.message || 'Failed to save partner.')
+    }
+  }
+
+  const handleDeletePartner = async (partnerId) => {
+    if (!window.confirm('Are you sure you want to delete this partner? This cannot be undone.')) {
+      return
+    }
+
+    try {
+      const partner = partners.find(p => p.partner_id === partnerId)
+      
+      // Delete logo from storage
+      if (partner?.partner_logo) {
+        await supabase.storage
+          .from('partners-images')
+          .remove([partner.partner_logo])
+      }
+
+      // Delete partner from database
+      const { error } = await supabase
+        .from('partners')
+        .delete()
+        .eq('partner_id', partnerId)
+
+      if (error) throw error
+
+      await loadPartners()
+    } catch (err) {
+      console.error('Error deleting partner:', err)
+      alert('Failed to delete partner: ' + err.message)
+    }
+  }
+
+  // School management handlers
+  const handleAddSchool = () => {
+    setEditingSchoolId(null)
+    setSchoolForm({
+      schoolName: '',
+      displayOrder: 999
+    })
+    setSchoolLogoFile(null)
+    setSchoolError('')
+    setSchoolSuccess('')
+    setShowSchoolModal(true)
+  }
+
+  const handleEditSchool = (school) => {
+    setEditingSchoolId(school.id)
+    setSchoolForm({
+      schoolName: school.school_name,
+      displayOrder: school.display_order || 999
+    })
+    setSchoolLogoFile(null)
+    setSchoolError('')
+    setSchoolSuccess('')
+    setShowSchoolModal(true)
+  }
+
+  const handleSaveSchool = async () => {
+    const { schoolName, displayOrder } = schoolForm
+    setSchoolError('')
+    setSchoolSuccess('')
+
+    if (!schoolName.trim()) {
+      setSchoolError('School name is required.')
+      return
+    }
+
+    try {
+      let logoFilename = null
+
+      // Upload logo if a new file was selected
+      if (schoolLogoFile) {
+        const fileExt = schoolLogoFile.name.split('.').pop()
+        const fileName = `${Date.now()}-${schoolName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()}.${fileExt}`
+        
+        const { error: uploadError } = await supabase.storage
+          .from('schools-images')
+          .upload(fileName, schoolLogoFile, {
+            cacheControl: '3600',
+            upsert: false
+          })
+
+        if (uploadError) {
+          console.error('Error uploading logo:', uploadError)
+          setSchoolError('Failed to upload logo: ' + uploadError.message)
+          return
+        }
+
+        logoFilename = fileName
+      }
+
+      if (editingSchoolId) {
+        // Update existing school
+        const updateData = {
+          school_name: schoolName.trim(),
+          display_order: parseInt(displayOrder) || 999
+        }
+
+        if (logoFilename) {
+          // Get old logo filename to delete it
+          const oldSchool = schools.find(s => s.id === editingSchoolId)
+          if (oldSchool?.school_image) {
+            await supabase.storage
+              .from('schools-images')
+              .remove([oldSchool.school_image])
+          }
+          updateData.school_image = logoFilename
+        }
+
+        const { error } = await supabase
+          .from('schools')
+          .update(updateData)
+          .eq('id', editingSchoolId)
+
+        if (error) throw error
+        setSchoolSuccess('School updated successfully!')
+      } else {
+        // Create new school
+        if (!logoFilename) {
+          setSchoolError('Logo is required for new schools.')
+          return
+        }
+
+        const { error } = await supabase
+          .from('schools')
+          .insert({
+            school_name: schoolName.trim(),
+            school_image: logoFilename,
+            display_order: parseInt(displayOrder) || 999
+          })
+
+        if (error) throw error
+        setSchoolSuccess('School added successfully!')
+      }
+
+      await loadSchools()
+      setTimeout(() => {
+        setShowSchoolModal(false)
+        setSchoolSuccess('')
+      }, 2000)
+    } catch (err) {
+      console.error('Error saving school:', err)
+      setSchoolError(err.message || 'Failed to save school.')
+    }
+  }
+
+  const handleDeleteSchool = async (schoolId) => {
+    if (!window.confirm('Are you sure you want to delete this school? This cannot be undone.')) {
+      return
+    }
+
+    try {
+      const school = schools.find(s => s.id === schoolId)
+      
+      // Delete logo from storage
+      if (school?.school_image) {
+        await supabase.storage
+          .from('schools-images')
+          .remove([school.school_image])
+      }
+
+      // Delete school from database
+      const { error } = await supabase
+        .from('schools')
+        .delete()
+        .eq('id', schoolId)
+
+      if (error) throw error
+
+      await loadSchools()
+    } catch (err) {
+      console.error('Error deleting school:', err)
+      alert('Failed to delete school: ' + err.message)
+    }
+  }
+
   const handleEditBillCollaboratorToggle = (memberId) => {
     const member = allMembers.find(m => m.member_id === memberId)
     if (!member) return
@@ -2415,6 +2765,161 @@ function DashboardPage() {
                   ) : (
                     <p className="text-muted">No inactive members found.</p>
                   )}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Partners Management - Executive Directors Only */}
+        {hasPermission('registration') && (
+          <section className="mt-5">
+            <h3 className="mb-4">Partners</h3>
+            <div className="alert alert-info mb-4">
+              <i className="bi bi-info-circle me-2"></i>
+              Manage schools and partner organizations displayed on the homepage. Upload logos and they will appear automatically.
+            </div>
+
+            <div className="row g-4">
+              {/* Schools Column */}
+              <div className="col-md-6">
+                <div className="card h-100 shadow-sm">
+                  <div className="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 className="mb-0">Schools</h5>
+                    <button className="btn btn-sm btn-dark" onClick={handleAddSchool}>
+                      <i className="bi bi-plus-circle me-1"></i>Add School
+                    </button>
+                  </div>
+                  <div className="card-body">
+                    {schools.length > 0 ? (
+                      <div className="table-responsive">
+                        <table className="table table-hover table-sm mb-0">
+                          <thead>
+                            <tr>
+                              <th>Logo</th>
+                              <th>Name</th>
+                              <th>Order</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {schools.map(school => (
+                              <tr key={school.id}>
+                                <td>
+                                  {school.school_image && (
+                                    <img
+                                      src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/schools-images/${school.school_image}`}
+                                      alt={school.school_name}
+                                      style={{ maxHeight: '40px', maxWidth: '80px', objectFit: 'contain' }}
+                                    />
+                                  )}
+                                </td>
+                                <td>{school.school_name}</td>
+                                <td>{school.display_order}</td>
+                                <td>
+                                  <div className="d-flex gap-1">
+                                    <button
+                                      className="btn btn-sm btn-outline-primary"
+                                      onClick={() => handleEditSchool(school)}
+                                      title="Edit"
+                                    >
+                                      <i className="bi bi-pencil"></i>
+                                    </button>
+                                    <button
+                                      className="btn btn-sm btn-outline-danger"
+                                      onClick={() => handleDeleteSchool(school.id)}
+                                      title="Delete"
+                                    >
+                                      <i className="bi bi-trash"></i>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted">
+                        <i className="bi bi-building display-6 d-block mb-2"></i>
+                        <p className="small mb-0">No schools found.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Partner Organizations Column */}
+              <div className="col-md-6">
+                <div className="card h-100 shadow-sm">
+                  <div className="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 className="mb-0">Partner Organizations</h5>
+                    <button className="btn btn-sm btn-dark" onClick={handleAddPartner}>
+                      <i className="bi bi-plus-circle me-1"></i>Add Partner
+                    </button>
+                  </div>
+                  <div className="card-body">
+                    {partners.length > 0 ? (
+                      <div className="table-responsive">
+                        <table className="table table-hover table-sm mb-0">
+                          <thead>
+                            <tr>
+                              <th>Logo</th>
+                              <th>Name</th>
+                              <th>Order</th>
+                              <th>Status</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {partners.map(partner => (
+                              <tr key={partner.partner_id}>
+                                <td>
+                                  {partner.partner_logo && (
+                                    <img
+                                      src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/partners-images/${partner.partner_logo}`}
+                                      alt={partner.partner_name}
+                                      style={{ maxHeight: '40px', maxWidth: '80px', objectFit: 'contain' }}
+                                    />
+                                  )}
+                                </td>
+                                <td>{partner.partner_name}</td>
+                                <td>{partner.display_order}</td>
+                                <td>
+                                  <span className={`badge ${partner.active ? 'bg-success' : 'bg-secondary'}`}>
+                                    {partner.active ? 'Active' : 'Inactive'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div className="d-flex gap-1">
+                                    <button
+                                      className="btn btn-sm btn-outline-primary"
+                                      onClick={() => handleEditPartner(partner)}
+                                      title="Edit"
+                                    >
+                                      <i className="bi bi-pencil"></i>
+                                    </button>
+                                    <button
+                                      className="btn btn-sm btn-outline-danger"
+                                      onClick={() => handleDeletePartner(partner.partner_id)}
+                                      title="Delete"
+                                    >
+                                      <i className="bi bi-trash"></i>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted">
+                        <i className="bi bi-handshake display-6 d-block mb-2"></i>
+                        <p className="small mb-0">No partners found.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -4279,6 +4784,229 @@ function DashboardPage() {
             </div>
           </div>
           <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
+        </>
+      )}
+
+      {/* Partner Add/Edit Modal */}
+      {showPartnerModal && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowPartnerModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">{editingPartnerId ? 'Edit Partner' : 'Add Partner'}</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowPartnerModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  {partnerError && <div className="alert alert-danger">{partnerError}</div>}
+                  {partnerSuccess && <div className="alert alert-success">{partnerSuccess}</div>}
+
+                  <div className="row g-3">
+                    <div className="col-md-12">
+                      <label className="form-label">Partner Name <span className="text-danger">*</span></label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={partnerForm.partnerName}
+                        onChange={(e) => setPartnerForm({ ...partnerForm, partnerName: e.target.value })}
+                        placeholder="e.g., Beyond Partisan"
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-12">
+                      <label className="form-label">Website URL (Optional)</label>
+                      <input
+                        type="url"
+                        className="form-control"
+                        value={partnerForm.websiteUrl}
+                        onChange={(e) => setPartnerForm({ ...partnerForm, websiteUrl: e.target.value })}
+                        placeholder="https://example.org"
+                      />
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label">Display Order</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={partnerForm.displayOrder}
+                        onChange={(e) => setPartnerForm({ ...partnerForm, displayOrder: parseInt(e.target.value) || 999 })}
+                        placeholder="999"
+                      />
+                      <small className="text-muted">Lower numbers appear first</small>
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label">Status</label>
+                      <select
+                        className="form-select"
+                        value={partnerForm.active ? 'true' : 'false'}
+                        onChange={(e) => setPartnerForm({ ...partnerForm, active: e.target.value === 'true' })}
+                      >
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                      </select>
+                    </div>
+
+                    <div className="col-md-12">
+                      <label className="form-label">
+                        Logo {!editingPartnerId && <span className="text-danger">*</span>}
+                      </label>
+                      <input
+                        type="file"
+                        className="form-control"
+                        accept="image/*"
+                        onChange={(e) => setPartnerLogoFile(e.target.files[0] || null)}
+                      />
+                      <small className="text-muted">
+                        {editingPartnerId ? 'Leave empty to keep current logo' : 'Upload partner organization logo'}
+                      </small>
+                      {editingPartnerId && partners.find(p => p.partner_id === editingPartnerId)?.partner_logo && (
+                        <div className="mt-2">
+                          <p className="small mb-1">Current logo:</p>
+                          <img
+                            src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/partners-images/${partners.find(p => p.partner_id === editingPartnerId)?.partner_logo}`}
+                            alt="Current logo"
+                            style={{ maxHeight: '100px', maxWidth: '200px', objectFit: 'contain' }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowPartnerModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    onClick={handleSavePartner}
+                  >
+                    {editingPartnerId ? 'Update Partner' : 'Add Partner'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* School Add/Edit Modal */}
+      {showSchoolModal && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowSchoolModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">{editingSchoolId ? 'Edit School' : 'Add School'}</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowSchoolModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  {schoolError && <div className="alert alert-danger">{schoolError}</div>}
+                  {schoolSuccess && <div className="alert alert-success">{schoolSuccess}</div>}
+
+                  <div className="row g-3">
+                    <div className="col-md-12">
+                      <label className="form-label">School Name <span className="text-danger">*</span></label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={schoolForm.schoolName}
+                        onChange={(e) => setSchoolForm({ ...schoolForm, schoolName: e.target.value })}
+                        placeholder="e.g., Rice University"
+                        required
+                      />
+                    </div>
+
+                    <div className="col-md-12">
+                      <label className="form-label">Display Order</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={schoolForm.displayOrder}
+                        onChange={(e) => setSchoolForm({ ...schoolForm, displayOrder: parseInt(e.target.value) || 999 })}
+                        placeholder="999"
+                      />
+                      <small className="text-muted">Lower numbers appear first</small>
+                    </div>
+
+                    <div className="col-md-12">
+                      <label className="form-label">
+                        Logo {!editingSchoolId && <span className="text-danger">*</span>}
+                      </label>
+                      <input
+                        type="file"
+                        className="form-control"
+                        accept="image/*"
+                        onChange={(e) => setSchoolLogoFile(e.target.files[0] || null)}
+                      />
+                      <small className="text-muted">
+                        {editingSchoolId ? 'Leave empty to keep current logo' : 'Upload school logo'}
+                      </small>
+                      {editingSchoolId && schools.find(s => s.id === editingSchoolId)?.school_image && (
+                        <div className="mt-2">
+                          <p className="small mb-1">Current logo:</p>
+                          <img
+                            src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/schools-images/${schools.find(s => s.id === editingSchoolId)?.school_image}`}
+                            alt="Current logo"
+                            style={{ maxHeight: '100px', maxWidth: '200px', objectFit: 'contain' }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowSchoolModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    onClick={handleSaveSchool}
+                  >
+                    {editingSchoolId ? 'Update School' : 'Add School'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
         </>
       )}
     </div>

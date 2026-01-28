@@ -47,6 +47,8 @@ function DashboardPage() {
   const [billSuccess, setBillSuccess] = useState('')
   const [allMembers, setAllMembers] = useState([])
   const [allBills, setAllBills] = useState([])
+  const [mySubmittedBills, setMySubmittedBills] = useState([])
+  const [billFilter, setBillFilter] = useState('all') // 'all', 'under_review', 'approved', 'modified', 'rejected'
   const [showEditBillModal, setShowEditBillModal] = useState(false)
   const [showDeleteBillModal, setShowDeleteBillModal] = useState(false)
   const [selectedBillForEdit, setSelectedBillForEdit] = useState(null)
@@ -132,6 +134,8 @@ function DashboardPage() {
   const [schoolLogoFile, setSchoolLogoFile] = useState(null)
   const [schoolError, setSchoolError] = useState('')
   const [schoolSuccess, setSchoolSuccess] = useState('')
+  const [draggedSchoolId, setDraggedSchoolId] = useState(null)
+  const [draggedPartnerId, setDraggedPartnerId] = useState(null)
 
   // Helper functions
   const formatDate = (dateStr) => {
@@ -221,8 +225,14 @@ function DashboardPage() {
   // Load additional data based on permissions after member is loaded
   useEffect(() => {
     if (member) {
-      if (hasPermission('bills')) {
+      // Load bills based on permissions
+      const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
+      if (isExec) {
+        // Execs see all bills
         loadAllBills()
+      } else if (hasPermission('bills')) {
+        // Members with bills permission see only their submitted bills
+        loadMySubmittedBills()
       }
       if (hasPermission('applications')) {
         loadApplications()
@@ -278,8 +288,27 @@ function DashboardPage() {
       return
     }
 
-      setAllBills(billsData || [])
+    setAllBills(billsData || [])
+  }
+
+
+  // Load bills submitted by current user
+  const loadMySubmittedBills = async () => {
+    if (!member?.member_id) return
+
+    const { data: billsData, error } = await supabase
+      .from('bills')
+      .select('*')
+      .eq('submitted_by', member.member_id)
+      .order('submitted_at', { ascending: false })
+
+    if (error) {
+      console.error('Error loading my submitted bills:', error)
+      return
     }
+
+    setMySubmittedBills(billsData || [])
+  }
 
   // Load all applications (executive directors only)
   const loadApplications = async () => {
@@ -1105,7 +1134,13 @@ function DashboardPage() {
         pdfUploaded = true
       }
 
-      // 2. Insert bill to database
+      // 2. Determine bill status based on permissions
+      // Only execs (all 4 permissions: volunteer, applications, bills, registration) can approve directly
+      // Others with bills=true can only submit for review
+      const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
+      const billStatus = isExec ? 'approved' : 'under_review'
+
+      // 3. Insert bill to database
       const { data: billData, error: insertError } = await supabase
         .from('bills')
         .insert([{
@@ -1115,7 +1150,10 @@ function DashboardPage() {
           description: description.trim(),
           bill_date: billDate,
           legiscan_link: legiscanLink.trim() || null,
-          bill_collaborators: collaborators.length > 0 ? collaborators : null
+          bill_collaborators: collaborators.length > 0 ? collaborators : null,
+          status: billStatus,
+          submitted_by: billStatus === 'under_review' ? member.member_id : null,
+          submitted_at: new Date().toISOString()
         }])
         .select()
         .single()
@@ -1126,7 +1164,11 @@ function DashboardPage() {
         return
       }
 
-      setBillSuccess(`Bill "${state} ${name}" uploaded successfully!`)
+      if (billStatus === 'approved') {
+        setBillSuccess(`Bill "${state} ${name}" uploaded and approved successfully!`)
+      } else {
+        setBillSuccess(`Bill "${state} ${name}" submitted for review. It will appear on the site once approved.`)
+      }
       setBillForm({
         state: '',
         name: '',
@@ -1218,6 +1260,11 @@ function DashboardPage() {
       setBillSuccess(`Bill "${state} ${name}" updated successfully!`)
       await loadAllBills()
       
+      // If this was a review edit, approve it as modified
+      if (selectedBillForEdit?.isReviewEdit) {
+        await handleApproveBill(selectedBillForEdit, true)
+      }
+      
       setTimeout(() => {
         setShowEditBillModal(false)
         setBillSuccess('')
@@ -1286,6 +1333,69 @@ function DashboardPage() {
       setBillError(`Failed to delete bill: ${errorMessage}`)
       // Keep modal open so user can see the error
     }
+  }
+
+  // Bill review handlers (for execs and policy leads)
+  const handleApproveBill = async (bill, modified = false) => {
+    try {
+      const { error } = await supabase
+        .from('bills')
+        .update({
+          status: modified ? 'modified' : 'approved',
+          reviewed_by: member.member_id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('bill_id', bill.bill_id)
+
+      if (error) throw error
+
+      await loadAllBills()
+    } catch (err) {
+      console.error('Error approving bill:', err)
+      alert('Failed to approve bill: ' + err.message)
+    }
+  }
+
+  const handleRejectBill = async (bill, reviewNotes = '') => {
+    try {
+      const { error } = await supabase
+        .from('bills')
+        .update({
+          status: 'rejected',
+          reviewed_by: member.member_id,
+          reviewed_at: new Date().toISOString(),
+          review_notes: reviewNotes || null
+        })
+        .eq('bill_id', bill.bill_id)
+
+      if (error) throw error
+
+      await loadAllBills()
+      await loadMySubmittedBills()
+    } catch (err) {
+      console.error('Error rejecting bill:', err)
+      alert('Failed to reject bill: ' + err.message)
+    }
+  }
+
+  const handleModifyAndApproveBill = async (bill) => {
+    // Open edit modal, then approve after save
+    setSelectedBillForEdit(bill)
+    setEditBillForm({
+      state: bill.state || '',
+      name: bill.name || '',
+      position: bill.position || 'Support',
+      description: bill.description || '',
+      billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
+      legiscanLink: bill.legiscan_link || '',
+      collaborators: bill.bill_collaborators || []
+    })
+    setEditBillPdfFile(null)
+    setBillError('')
+    setBillSuccess('')
+    setShowEditBillModal(true)
+    // Mark that this is a review edit
+    setSelectedBillForEdit({ ...bill, isReviewEdit: true })
   }
 
   // Helper function to generate SPAN email from first and last name
@@ -1906,6 +2016,138 @@ function DashboardPage() {
     }
   }
 
+  // Drag and drop handlers for schools
+  const handleSchoolDragStart = (e, schoolId) => {
+    setDraggedSchoolId(schoolId)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', schoolId.toString())
+    e.currentTarget.style.opacity = '0.5'
+    e.currentTarget.style.cursor = 'grabbing'
+  }
+
+  const handleSchoolDragEnd = (e) => {
+    e.currentTarget.style.opacity = '1'
+    e.currentTarget.style.cursor = 'move'
+    setDraggedSchoolId(null)
+  }
+
+  const handleSchoolDragOver = (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleSchoolDrop = async (e, targetSchoolId) => {
+    e.preventDefault()
+    if (!draggedSchoolId || draggedSchoolId === targetSchoolId) {
+      setDraggedSchoolId(null)
+      return
+    }
+
+    const draggedIndex = schools.findIndex(s => s.id === draggedSchoolId)
+    const targetIndex = schools.findIndex(s => s.id === targetSchoolId)
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedSchoolId(null)
+      return
+    }
+
+    // Reorder schools array
+    const newSchools = [...schools]
+    const [removed] = newSchools.splice(draggedIndex, 1)
+    newSchools.splice(targetIndex, 0, removed)
+
+    // Update display_order for all affected schools
+    const updates = newSchools.map((school, index) => ({
+      id: school.id,
+      display_order: index + 1
+    }))
+
+    try {
+      // Update all schools in parallel
+      await Promise.all(
+        updates.map(update =>
+          supabase
+            .from('schools')
+            .update({ display_order: update.display_order })
+            .eq('id', update.id)
+        )
+      )
+
+      await loadSchools()
+    } catch (err) {
+      console.error('Error reordering schools:', err)
+      alert('Failed to reorder schools: ' + err.message)
+    }
+
+    setDraggedSchoolId(null)
+  }
+
+  // Drag and drop handlers for partners
+  const handlePartnerDragStart = (e, partnerId) => {
+    setDraggedPartnerId(partnerId)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', partnerId.toString())
+    e.currentTarget.style.opacity = '0.5'
+    e.currentTarget.style.cursor = 'grabbing'
+  }
+
+  const handlePartnerDragEnd = (e) => {
+    e.currentTarget.style.opacity = '1'
+    e.currentTarget.style.cursor = 'move'
+    setDraggedPartnerId(null)
+  }
+
+  const handlePartnerDragOver = (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handlePartnerDrop = async (e, targetPartnerId) => {
+    e.preventDefault()
+    if (!draggedPartnerId || draggedPartnerId === targetPartnerId) {
+      setDraggedPartnerId(null)
+      return
+    }
+
+    const draggedIndex = partners.findIndex(p => p.partner_id === draggedPartnerId)
+    const targetIndex = partners.findIndex(p => p.partner_id === targetPartnerId)
+
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedPartnerId(null)
+      return
+    }
+
+    // Reorder partners array
+    const newPartners = [...partners]
+    const [removed] = newPartners.splice(draggedIndex, 1)
+    newPartners.splice(targetIndex, 0, removed)
+
+    // Update display_order for all affected partners
+    const updates = newPartners.map((partner, index) => ({
+      partner_id: partner.partner_id,
+      display_order: index + 1
+    }))
+
+    try {
+      // Update all partners in parallel
+      await Promise.all(
+        updates.map(update =>
+          supabase
+            .from('partners')
+            .update({ display_order: update.display_order })
+            .eq('partner_id', update.partner_id)
+        )
+      )
+
+      await loadPartners()
+    } catch (err) {
+      console.error('Error reordering partners:', err)
+      alert('Failed to reorder partners: ' + err.message)
+    }
+
+    setDraggedPartnerId(null)
+  }
+
   const handleEditBillCollaboratorToggle = (memberId) => {
     const member = allMembers.find(m => m.member_id === memberId)
     if (!member) return
@@ -2446,11 +2688,10 @@ function DashboardPage() {
           </div>
         </section>
 
-        {/* Bill Upload Section - Bills Permission Required */}
+        {/* Bill Management Section - Execs Only (all 4 permissions) */}
         {(() => {
-          const hasBills = hasPermission('bills')
-          console.log('Rendering Bills section?', hasBills, 'member.bills =', member?.bills)
-          return hasBills
+          const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
+          return isExec
         })() && (
           <section className="mt-5">
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -2459,12 +2700,77 @@ function DashboardPage() {
                 <i className="bi bi-plus-circle me-2"></i>Upload New Bill
               </button>
             </div>
-            
-            {/* Bills List - Grouped by State */}
-            {allBills.length > 0 ? (
+
+            {/* Status Filter Buttons */}
+            <div className="mb-4">
+              <div className="d-flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${billFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setBillFilter('all')}
+                >
+                  All ({allBills.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${billFilter === 'under_review' ? 'btn-warning' : 'btn-outline-warning'}`}
+                  onClick={() => setBillFilter('under_review')}
+                >
+                  Under Review ({allBills.filter(b => b.status === 'under_review' || (!b.status && billFilter === 'under_review')).length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${billFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
+                  onClick={() => setBillFilter('approved')}
+                >
+                  Approved ({allBills.filter(b => b.status === 'approved' || (!b.status && billFilter === 'approved')).length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${billFilter === 'modified' ? 'btn-info' : 'btn-outline-info'}`}
+                  onClick={() => setBillFilter('modified')}
+                >
+                  Modified ({allBills.filter(b => b.status === 'modified').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${billFilter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'}`}
+                  onClick={() => setBillFilter('rejected')}
+                >
+                  Rejected ({allBills.filter(b => b.status === 'rejected').length})
+                </button>
+              </div>
+            </div>
+
+            {/* Filtered Bills List */}
+            {(() => {
+              const filteredBills = billFilter === 'all' 
+                ? allBills 
+                : allBills.filter(bill => {
+                    if (billFilter === 'approved' && (!bill.status || bill.status === 'approved')) return true
+                    return bill.status === billFilter
+                  })
+              
+              // Group by state
+              const billsByStateFiltered = {}
+              filteredBills.forEach(bill => {
+                const state = bill.state || 'Unknown'
+                if (!billsByStateFiltered[state]) {
+                  billsByStateFiltered[state] = []
+                }
+                billsByStateFiltered[state].push(bill)
+              })
+              
+              const sortedStatesFiltered = Object.keys(billsByStateFiltered).sort((a, b) => {
+                if (a === 'Unknown') return 1
+                if (b === 'Unknown') return -1
+                return a.localeCompare(b)
+              })
+
+              return filteredBills.length > 0 ? (
               <div>
-                {sortedStates.map(state => {
-                  const stateBills = billsByState[state]
+                {sortedStatesFiltered.map(state => {
+                  const stateBills = billsByStateFiltered[state]
                   const stateFileName = getStateFileName(state)
                   
                   return (
@@ -2508,13 +2814,28 @@ function DashboardPage() {
                                   >
                                     <div className="d-flex w-100 justify-content-between align-items-center">
                                       <span className="fw-bold">{bill.name}</span>
-                                      <span className={`badge me-3 ${
-                                        bill.position === 'Support' ? 'bg-success' :
-                                        bill.position === 'Oppose' ? 'bg-danger' :
-                                        'bg-warning text-dark'
-                                      }`}>
-                                        {bill.position}
-                                      </span>
+                                      <div className="d-flex gap-2 align-items-center">
+                                        <span className={`badge ${
+                                          bill.position === 'Support' ? 'bg-success' :
+                                          bill.position === 'Oppose' ? 'bg-danger' :
+                                          'bg-warning text-dark'
+                                        }`}>
+                                          {bill.position}
+                                        </span>
+                                        {bill.status && bill.status !== 'approved' && (
+                                          <span className={`badge ${
+                                            bill.status === 'under_review' ? 'bg-warning text-dark' :
+                                            bill.status === 'modified' ? 'bg-info' :
+                                            bill.status === 'rejected' ? 'bg-danger' :
+                                            'bg-secondary'
+                                          }`} title={bill.status === 'under_review' ? 'Under Review' : bill.status}>
+                                            {bill.status === 'under_review' ? 'Under Review' :
+                                             bill.status === 'modified' ? 'Modified' :
+                                             bill.status === 'rejected' ? 'Rejected' :
+                                             bill.status}
+                                          </span>
+                                        )}
+                                      </div>
                                       <span className="text-muted">{formatDate(bill.bill_date)}</span>
                                     </div>
                                   </button>
@@ -2543,37 +2864,82 @@ function DashboardPage() {
                                         </p>
                                       </div>
                                     )}
+                                    {bill.status === 'under_review' && bill.submitted_by && (
+                                      <div className="mb-3">
+                                        <strong>Submitted By:</strong>
+                                        <p className="mt-1 mb-0">
+                                          {(() => {
+                                            const submitter = allMembers.find(m => m.member_id === bill.submitted_by)
+                                            return submitter ? `${submitter.first_name} ${submitter.last_name}` : 'Unknown'
+                                          })()}
+                                        </p>
+                                      </div>
+                                    )}
                                     <div className="mt-3 d-flex gap-2 flex-wrap">
-                                      <button
-                                        className="btn btn-sm btn-outline-primary"
-                                        onClick={() => {
-                                          setSelectedBillForEdit(bill)
-                                          setEditBillForm({
-                                            state: bill.state || '',
-                                            name: bill.name || '',
-                                            position: bill.position || 'Support',
-                                            description: bill.description || '',
-                                            billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
-                                            legiscanLink: bill.legiscan_link || '',
-                                            collaborators: bill.bill_collaborators || []
-                                          })
-                                          setEditBillPdfFile(null)
-                                          setBillError('')
-                                          setBillSuccess('')
-                                          setShowEditBillModal(true)
-                                        }}
-                                      >
-                                        <i className="bi bi-pencil me-1"></i>Edit
-                                      </button>
-                                      <button
-                                        className="btn btn-sm btn-outline-danger"
-                                        onClick={() => {
-                                          setSelectedBillForDelete(bill)
-                                          setShowDeleteBillModal(true)
-                                        }}
-                                      >
-                                        <i className="bi bi-trash me-1"></i>Delete
-                                      </button>
+                                      {bill.status === 'under_review' ? (
+                                        <>
+                                          <button
+                                            className="btn btn-sm btn-success"
+                                            onClick={() => {
+                                              if (window.confirm(`Approve "${bill.name}" and make it live?`)) {
+                                                handleApproveBill(bill, false)
+                                              }
+                                            }}
+                                          >
+                                            <i className="bi bi-check-circle me-1"></i>Approve
+                                          </button>
+                                          <button
+                                            className="btn btn-sm btn-primary"
+                                            onClick={() => handleModifyAndApproveBill(bill)}
+                                          >
+                                            <i className="bi bi-pencil me-1"></i>Modify & Approve
+                                          </button>
+                                          <button
+                                            className="btn btn-sm btn-danger"
+                                            onClick={() => {
+                                              const notes = window.prompt('Rejection reason (optional):')
+                                              if (notes !== null) {
+                                                handleRejectBill(bill, notes)
+                                              }
+                                            }}
+                                          >
+                                            <i className="bi bi-x-circle me-1"></i>Reject
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <button
+                                            className="btn btn-sm btn-outline-primary"
+                                            onClick={() => {
+                                              setSelectedBillForEdit(bill)
+                                              setEditBillForm({
+                                                state: bill.state || '',
+                                                name: bill.name || '',
+                                                position: bill.position || 'Support',
+                                                description: bill.description || '',
+                                                billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
+                                                legiscanLink: bill.legiscan_link || '',
+                                                collaborators: bill.bill_collaborators || []
+                                              })
+                                              setEditBillPdfFile(null)
+                                              setBillError('')
+                                              setBillSuccess('')
+                                              setShowEditBillModal(true)
+                                            }}
+                                          >
+                                            <i className="bi bi-pencil me-1"></i>Edit
+                                          </button>
+                                          <button
+                                            className="btn btn-sm btn-outline-danger"
+                                            onClick={() => {
+                                              setSelectedBillForDelete(bill)
+                                              setShowDeleteBillModal(true)
+                                            }}
+                                          >
+                                            <i className="bi bi-trash me-1"></i>Delete
+                                          </button>
+                                        </>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -2589,7 +2955,109 @@ function DashboardPage() {
             ) : (
               <div className="text-center py-5 text-muted">
                 <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
-                <p>No bills found. Upload your first bill to get started.</p>
+                <p>No {billFilter === 'all' ? '' : billFilter.replace('_', ' ')} bills found.</p>
+              </div>
+            )
+            })()}
+          </section>
+        )}
+
+        {/* Bill Submission Section - For Members with Bills Permission (but not execs) */}
+        {(() => {
+          const hasBills = hasPermission('bills')
+          const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
+          return hasBills && !isExec
+        })() && (
+          <section className="mt-5">
+            <div className="d-flex justify-content-between align-items-center mb-4">
+              <h3>Bill Submission</h3>
+              <button className="btn btn-dark" onClick={handleAddBill}>
+                <i className="bi bi-plus-circle me-2"></i>Submit Bill for Review
+              </button>
+            </div>
+
+            {/* My Submitted Bills */}
+            {mySubmittedBills.length > 0 ? (
+              <div>
+                <h4 className="mb-3">My Submitted Bills</h4>
+                <div className="accordion mb-4">
+                  {mySubmittedBills.map(bill => (
+                    <div key={bill.bill_id} className="accordion-item mb-2 shadow-sm border rounded">
+                      <h2 className="accordion-header">
+                        <button
+                          className="accordion-button collapsed bg-white text-dark"
+                          type="button"
+                          data-bs-toggle="collapse"
+                          data-bs-target={`#collapseMyBill${bill.bill_id}`}
+                          aria-expanded="false"
+                        >
+                          <div className="d-flex w-100 justify-content-between align-items-center">
+                            <span className="fw-bold">{bill.name}</span>
+                            <span className={`badge me-3 ${
+                              bill.status === 'approved' ? 'bg-success' :
+                              bill.status === 'modified' ? 'bg-info' :
+                              bill.status === 'rejected' ? 'bg-danger' :
+                              'bg-warning text-dark'
+                            }`}>
+                              {bill.status === 'under_review' ? 'Under Review' :
+                               bill.status === 'approved' ? 'Approved' :
+                               bill.status === 'modified' ? 'Modified' :
+                               bill.status === 'rejected' ? 'Rejected' :
+                               'Pending'}
+                            </span>
+                            <span className="text-muted">{formatDate(bill.bill_date)}</span>
+                          </div>
+                        </button>
+                      </h2>
+                      <div id={`collapseMyBill${bill.bill_id}`} className="accordion-collapse collapse">
+                        <div className="accordion-body">
+                          <div className="mb-3">
+                            <strong>State:</strong>
+                            <p className="mt-1 mb-0">{bill.state}</p>
+                          </div>
+                          <div className="mb-3">
+                            <strong>Description:</strong>
+                            <p className="mt-1 mb-0">{bill.description || '-'}</p>
+                          </div>
+                          <div className="mb-3">
+                            <strong>Status:</strong>
+                            <p className="mt-1 mb-0">
+                              <span className={`badge ${
+                                bill.status === 'approved' ? 'bg-success' :
+                                bill.status === 'modified' ? 'bg-info' :
+                                bill.status === 'rejected' ? 'bg-danger' :
+                                'bg-warning text-dark'
+                              }`}>
+                                {bill.status === 'under_review' ? 'Under Review' :
+                                 bill.status === 'approved' ? 'Approved' :
+                                 bill.status === 'modified' ? 'Modified & Approved' :
+                                 bill.status === 'rejected' ? 'Rejected' :
+                                 'Pending'}
+                              </span>
+                            </p>
+                          </div>
+                          {bill.review_notes && (
+                            <div className="mb-3">
+                              <strong>Review Notes:</strong>
+                              <p className="mt-1 mb-0">{bill.review_notes}</p>
+                            </div>
+                          )}
+                          {bill.reviewed_at && (
+                            <div className="mb-3">
+                              <strong>Reviewed:</strong>
+                              <p className="mt-1 mb-0">{formatDateLong(bill.reviewed_at)}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-5 text-muted">
+                <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
+                <p>No submitted bills yet. Submit your first bill for review.</p>
               </div>
             )}
           </section>
@@ -2614,81 +3082,127 @@ function DashboardPage() {
               When you add a new member, they will automatically receive an email invitation to set up their account.
             </div>
 
-            {/* Active and Inactive Members in 2 columns */}
+            {/* Active and Inactive Members in 2 columns with collapsible accordions */}
             <div className="row g-4">
               {/* Active Members */}
               <div className="col-lg-6">
                 <div className="mb-4">
                   <h4 className="mb-3">Active Members</h4>
-                  {allMembersForManagement.filter(m => m.active !== false).length > 0 ? (
-                    <div className="table-responsive member-table-container">
-                      <table className="table table-hover">
-                        <thead>
-                          <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Phone</th>
-                            <th>Permissions</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {allMembersForManagement.filter(m => m.active !== false).map(memberItem => (
-                            <tr key={memberItem.member_id}>
-                              <td>{memberItem.first_name} {memberItem.last_name}</td>
-                              <td>
-                                <a href={`mailto:${memberItem.email}`}>{memberItem.email}</a>
-                              </td>
-                              <td>{memberItem.role || '-'}</td>
-                              <td>
-                                {memberItem.phone ? (
-                                  <a href={`tel:${memberItem.phone}`}>{formatPhone(memberItem.phone.toString())}</a>
-                                ) : '-'}
-                              </td>
-                              <td>
-                                <div className="d-flex gap-1 flex-wrap">
-                                  {memberItem.volunteer && <span className="badge bg-primary">Volunteer</span>}
-                                  {memberItem.applications && <span className="badge bg-success">Applications</span>}
-                                  {memberItem.bills && <span className="badge bg-info">Bills</span>}
-                                  {memberItem.registration && <span className="badge bg-warning text-dark">Registration</span>}
+                  <div style={{ maxHeight: '600px', overflowY: 'auto', overflowX: 'hidden' }}>
+                    {allMembersForManagement.filter(m => m.active !== false).length > 0 ? (
+                      <div className="accordion" id="activeMembersAccordion">
+                      {allMembersForManagement.filter(m => m.active !== false).map(memberItem => (
+                        <div key={memberItem.member_id} className="accordion-item mb-2 shadow-sm border rounded">
+                          <h2 className="accordion-header">
+                            <button
+                              className="accordion-button collapsed bg-white text-dark"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target={`#collapseActiveMember${memberItem.member_id}`}
+                              aria-expanded="false"
+                            >
+                              <div className="d-flex w-100 flex-column">
+                                <div className="d-flex align-items-center gap-2">
+                                  <span className="fw-bold">{memberItem.first_name} {memberItem.last_name}</span>
+                                  <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
                                 </div>
-                              </td>
-                              <td>
-                                <div className="d-flex gap-2">
-                                  <button
-                                    className="btn btn-sm btn-outline-primary"
-                                    onClick={() => handleEditMember(memberItem)}
-                                    title="Edit"
-                                  >
-                                    <i className="bi bi-pencil"></i>
-                                  </button>
-                                  <a
-                                    href={`mailto:${memberItem.email}`}
-                                    className="btn btn-sm btn-outline-secondary"
-                                    title="Email"
-                                  >
-                                    <i className="bi bi-envelope"></i>
-                                  </a>
-                                  {memberItem.phone && (
-                                    <a
-                                      href={`sms:${memberItem.phone}`}
-                                      className="btn btn-sm btn-outline-secondary"
-                                      title="Text"
+                                <small className="text-muted">{memberItem.email}</small>
+                              </div>
+                            </button>
+                          </h2>
+                          <div id={`collapseActiveMember${memberItem.member_id}`} className="accordion-collapse collapse" data-bs-parent="#activeMembersAccordion">
+                            <div className="accordion-body">
+                              <div className="row g-3">
+                                <div className="col-md-6">
+                                  <strong>Name:</strong>
+                                  <p className="mt-1 mb-0">{memberItem.first_name} {memberItem.last_name}</p>
+                                </div>
+                                <div className="col-md-6">
+                                  <strong>Email:</strong>
+                                  <p className="mt-1 mb-0">
+                                    <a href={`mailto:${memberItem.email}`}>{memberItem.email}</a>
+                                  </p>
+                                </div>
+                                <div className="col-md-6">
+                                  <strong>Role:</strong>
+                                  <p className="mt-1 mb-0">{memberItem.role || '-'}</p>
+                                </div>
+                                <div className="col-md-6">
+                                  <strong>Phone:</strong>
+                                  <p className="mt-1 mb-0">
+                                    {memberItem.phone ? (
+                                      <a href={`tel:${memberItem.phone}`}>{formatPhone(memberItem.phone.toString())}</a>
+                                    ) : '-'}
+                                  </p>
+                                </div>
+                                {memberItem.school_name && (
+                                  <div className="col-md-6">
+                                    <strong>School:</strong>
+                                    <p className="mt-1 mb-0">{memberItem.school_name}</p>
+                                  </div>
+                                )}
+                                {(memberItem.city || memberItem.state) && (
+                                  <div className="col-md-6">
+                                    <strong>Location:</strong>
+                                    <p className="mt-1 mb-0">
+                                      {memberItem.city && memberItem.state 
+                                        ? `${memberItem.city}, ${memberItem.state}`
+                                        : memberItem.city || memberItem.state || '-'}
+                                    </p>
+                                  </div>
+                                )}
+                                <div className="col-12">
+                                  <strong>Permissions:</strong>
+                                  <div className="d-flex gap-1 flex-wrap mt-1">
+                                    {memberItem.volunteer && <span className="badge bg-primary">Volunteer</span>}
+                                    {memberItem.applications && <span className="badge bg-success">Applications</span>}
+                                    {memberItem.bills && <span className="badge bg-info">Bills</span>}
+                                    {memberItem.registration && <span className="badge bg-warning text-dark">Registration</span>}
+                                    {!memberItem.volunteer && !memberItem.applications && !memberItem.bills && !memberItem.registration && (
+                                      <span className="text-muted">No permissions</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {memberItem.start_date && (
+                                  <div className="col-md-6">
+                                    <strong>Start Date:</strong>
+                                    <p className="mt-1 mb-0">{formatDate(memberItem.start_date)}</p>
+                                  </div>
+                                )}
+                                <div className="col-12 mt-2">
+                                  <div className="d-flex gap-2 flex-wrap">
+                                    <button
+                                      className="btn btn-sm btn-outline-primary"
+                                      onClick={() => handleEditMember(memberItem)}
                                     >
-                                      <i className="bi bi-chat-dots"></i>
+                                      <i className="bi bi-pencil me-1"></i>Edit
+                                    </button>
+                                    <a
+                                      href={`mailto:${memberItem.email}`}
+                                      className="btn btn-sm btn-outline-secondary"
+                                    >
+                                      <i className="bi bi-envelope me-1"></i>Email
                                     </a>
-                                  )}
+                                    {memberItem.phone && (
+                                      <a
+                                        href={`sms:${memberItem.phone}`}
+                                        className="btn btn-sm btn-outline-secondary"
+                                      >
+                                        <i className="bi bi-chat-dots me-1"></i>Text
+                                      </a>
+                                    )}
+                                  </div>
                                 </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ) : (
+                    ) : (
                     <p className="text-muted">No active members found.</p>
                   )}
+                  </div>
                 </div>
               </div>
 
@@ -2696,75 +3210,121 @@ function DashboardPage() {
               <div className="col-lg-6">
                 <div className="mb-4">
                   <h4 className="mb-3">Inactive Members</h4>
-                  {allMembersForManagement.filter(m => m.active === false).length > 0 ? (
-                    <div className="table-responsive member-table-container">
-                      <table className="table table-hover">
-                        <thead>
-                          <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Phone</th>
-                            <th>Permissions</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {allMembersForManagement.filter(m => m.active === false).map(memberItem => (
-                            <tr key={memberItem.member_id} className="opacity-75">
-                              <td>{memberItem.first_name} {memberItem.last_name}</td>
-                              <td>
-                                <a href={`mailto:${memberItem.email}`}>{memberItem.email}</a>
-                              </td>
-                              <td>{memberItem.role || '-'}</td>
-                              <td>
-                                {memberItem.phone ? (
-                                  <a href={`tel:${memberItem.phone}`}>{formatPhone(memberItem.phone.toString())}</a>
-                                ) : '-'}
-                              </td>
-                              <td>
-                                <div className="d-flex gap-1 flex-wrap">
-                                  {memberItem.volunteer && <span className="badge bg-primary">Volunteer</span>}
-                                  {memberItem.applications && <span className="badge bg-success">Applications</span>}
-                                  {memberItem.bills && <span className="badge bg-info">Bills</span>}
-                                  {memberItem.registration && <span className="badge bg-warning text-dark">Registration</span>}
+                  <div style={{ maxHeight: '600px', overflowY: 'auto', overflowX: 'hidden' }}>
+                    {allMembersForManagement.filter(m => m.active === false).length > 0 ? (
+                      <div className="accordion" id="inactiveMembersAccordion">
+                      {allMembersForManagement.filter(m => m.active === false).map(memberItem => (
+                        <div key={memberItem.member_id} className="accordion-item mb-2 shadow-sm border rounded opacity-75">
+                          <h2 className="accordion-header">
+                            <button
+                              className="accordion-button collapsed bg-white text-dark"
+                              type="button"
+                              data-bs-toggle="collapse"
+                              data-bs-target={`#collapseInactiveMember${memberItem.member_id}`}
+                              aria-expanded="false"
+                            >
+                              <div className="d-flex w-100 flex-column">
+                                <div className="d-flex align-items-center gap-2">
+                                  <span className="fw-bold">{memberItem.first_name} {memberItem.last_name}</span>
+                                  <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
                                 </div>
-                              </td>
-                              <td>
-                                <div className="d-flex gap-2">
-                                  <button
-                                    className="btn btn-sm btn-outline-primary"
-                                    onClick={() => handleEditMember(memberItem)}
-                                    title="Edit"
-                                  >
-                                    <i className="bi bi-pencil"></i>
-                                  </button>
-                                  <a
-                                    href={`mailto:${memberItem.email}`}
-                                    className="btn btn-sm btn-outline-secondary"
-                                    title="Email"
-                                  >
-                                    <i className="bi bi-envelope"></i>
-                                  </a>
-                                  {memberItem.phone && (
-                                    <a
-                                      href={`sms:${memberItem.phone}`}
-                                      className="btn btn-sm btn-outline-secondary"
-                                      title="Text"
+                                <small className="text-muted">{memberItem.email}</small>
+                              </div>
+                            </button>
+                          </h2>
+                          <div id={`collapseInactiveMember${memberItem.member_id}`} className="accordion-collapse collapse" data-bs-parent="#inactiveMembersAccordion">
+                            <div className="accordion-body">
+                              <div className="row g-3">
+                                <div className="col-md-6">
+                                  <strong>Name:</strong>
+                                  <p className="mt-1 mb-0">{memberItem.first_name} {memberItem.last_name}</p>
+                                </div>
+                                <div className="col-md-6">
+                                  <strong>Email:</strong>
+                                  <p className="mt-1 mb-0">
+                                    <a href={`mailto:${memberItem.email}`}>{memberItem.email}</a>
+                                  </p>
+                                </div>
+                                <div className="col-md-6">
+                                  <strong>Role:</strong>
+                                  <p className="mt-1 mb-0">{memberItem.role || '-'}</p>
+                                </div>
+                                <div className="col-md-6">
+                                  <strong>Phone:</strong>
+                                  <p className="mt-1 mb-0">
+                                    {memberItem.phone ? (
+                                      <a href={`tel:${memberItem.phone}`}>{formatPhone(memberItem.phone.toString())}</a>
+                                    ) : '-'}
+                                  </p>
+                                </div>
+                                {memberItem.school_name && (
+                                  <div className="col-md-6">
+                                    <strong>School:</strong>
+                                    <p className="mt-1 mb-0">{memberItem.school_name}</p>
+                                  </div>
+                                )}
+                                {(memberItem.city || memberItem.state) && (
+                                  <div className="col-md-6">
+                                    <strong>Location:</strong>
+                                    <p className="mt-1 mb-0">
+                                      {memberItem.city && memberItem.state 
+                                        ? `${memberItem.city}, ${memberItem.state}`
+                                        : memberItem.city || memberItem.state || '-'}
+                                    </p>
+                                  </div>
+                                )}
+                                <div className="col-12">
+                                  <strong>Permissions:</strong>
+                                  <div className="d-flex gap-1 flex-wrap mt-1">
+                                    {memberItem.volunteer && <span className="badge bg-primary">Volunteer</span>}
+                                    {memberItem.applications && <span className="badge bg-success">Applications</span>}
+                                    {memberItem.bills && <span className="badge bg-info">Bills</span>}
+                                    {memberItem.registration && <span className="badge bg-warning text-dark">Registration</span>}
+                                    {!memberItem.volunteer && !memberItem.applications && !memberItem.bills && !memberItem.registration && (
+                                      <span className="text-muted">No permissions</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {memberItem.start_date && (
+                                  <div className="col-md-6">
+                                    <strong>Start Date:</strong>
+                                    <p className="mt-1 mb-0">{formatDate(memberItem.start_date)}</p>
+                                  </div>
+                                )}
+                                <div className="col-12 mt-2">
+                                  <div className="d-flex gap-2 flex-wrap">
+                                    <button
+                                      className="btn btn-sm btn-outline-primary"
+                                      onClick={() => handleEditMember(memberItem)}
                                     >
-                                      <i className="bi bi-chat-dots"></i>
+                                      <i className="bi bi-pencil me-1"></i>Edit
+                                    </button>
+                                    <a
+                                      href={`mailto:${memberItem.email}`}
+                                      className="btn btn-sm btn-outline-secondary"
+                                    >
+                                      <i className="bi bi-envelope me-1"></i>Email
                                     </a>
-                                  )}
+                                    {memberItem.phone && (
+                                      <a
+                                        href={`sms:${memberItem.phone}`}
+                                        className="btn btn-sm btn-outline-secondary"
+                                      >
+                                        <i className="bi bi-chat-dots me-1"></i>Text
+                                      </a>
+                                    )}
+                                  </div>
                                 </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ) : (
+                    ) : (
                     <p className="text-muted">No inactive members found.</p>
                   )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -2790,12 +3350,13 @@ function DashboardPage() {
                       <i className="bi bi-plus-circle me-1"></i>Add School
                     </button>
                   </div>
-                  <div className="card-body">
+                  <div className="card-body" style={{ maxHeight: '500px', overflowY: 'auto', overflowX: 'hidden' }}>
                     {schools.length > 0 ? (
                       <div className="table-responsive">
                         <table className="table table-hover table-sm mb-0">
                           <thead>
                             <tr>
+                              <th style={{ width: '30px' }}></th>
                               <th>Logo</th>
                               <th>Name</th>
                               <th>Order</th>
@@ -2804,7 +3365,21 @@ function DashboardPage() {
                           </thead>
                           <tbody>
                             {schools.map(school => (
-                              <tr key={school.id}>
+                              <tr 
+                                key={school.id}
+                                draggable
+                                onDragStart={(e) => handleSchoolDragStart(e, school.id)}
+                                onDragEnd={handleSchoolDragEnd}
+                                onDragOver={handleSchoolDragOver}
+                                onDrop={(e) => handleSchoolDrop(e, school.id)}
+                                style={{ 
+                                  cursor: 'move',
+                                  opacity: draggedSchoolId === school.id ? 0.5 : 1
+                                }}
+                              >
+                                <td>
+                                  <i className="bi bi-grip-vertical text-muted" style={{ cursor: 'grab', userSelect: 'none' }}></i>
+                                </td>
                                 <td>
                                   {school.school_image && (
                                     <img
@@ -2817,17 +3392,23 @@ function DashboardPage() {
                                 <td>{school.school_name}</td>
                                 <td>{school.display_order}</td>
                                 <td>
-                                  <div className="d-flex gap-1">
+                                  <div className="d-flex gap-1" onMouseDown={(e) => e.stopPropagation()}>
                                     <button
                                       className="btn btn-sm btn-outline-primary"
-                                      onClick={() => handleEditSchool(school)}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleEditSchool(school)
+                                      }}
                                       title="Edit"
                                     >
                                       <i className="bi bi-pencil"></i>
                                     </button>
                                     <button
                                       className="btn btn-sm btn-outline-danger"
-                                      onClick={() => handleDeleteSchool(school.id)}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleDeleteSchool(school.id)
+                                      }}
                                       title="Delete"
                                     >
                                       <i className="bi bi-trash"></i>
@@ -2858,12 +3439,13 @@ function DashboardPage() {
                       <i className="bi bi-plus-circle me-1"></i>Add Partner
                     </button>
                   </div>
-                  <div className="card-body">
+                  <div className="card-body" style={{ maxHeight: '500px', overflowY: 'auto', overflowX: 'hidden' }}>
                     {partners.length > 0 ? (
                       <div className="table-responsive">
                         <table className="table table-hover table-sm mb-0">
                           <thead>
                             <tr>
+                              <th style={{ width: '30px' }}></th>
                               <th>Logo</th>
                               <th>Name</th>
                               <th>Order</th>
@@ -2873,7 +3455,21 @@ function DashboardPage() {
                           </thead>
                           <tbody>
                             {partners.map(partner => (
-                              <tr key={partner.partner_id}>
+                              <tr 
+                                key={partner.partner_id}
+                                draggable
+                                onDragStart={(e) => handlePartnerDragStart(e, partner.partner_id)}
+                                onDragEnd={handlePartnerDragEnd}
+                                onDragOver={handlePartnerDragOver}
+                                onDrop={(e) => handlePartnerDrop(e, partner.partner_id)}
+                                style={{ 
+                                  cursor: 'move',
+                                  opacity: draggedPartnerId === partner.partner_id ? 0.5 : 1
+                                }}
+                              >
+                                <td>
+                                  <i className="bi bi-grip-vertical text-muted" style={{ cursor: 'grab', userSelect: 'none' }}></i>
+                                </td>
                                 <td>
                                   {partner.partner_logo && (
                                     <img
@@ -2891,17 +3487,23 @@ function DashboardPage() {
                                   </span>
                                 </td>
                                 <td>
-                                  <div className="d-flex gap-1">
+                                  <div className="d-flex gap-1" onMouseDown={(e) => e.stopPropagation()}>
                                     <button
                                       className="btn btn-sm btn-outline-primary"
-                                      onClick={() => handleEditPartner(partner)}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleEditPartner(partner)
+                                      }}
                                       title="Edit"
                                     >
                                       <i className="bi bi-pencil"></i>
                                     </button>
                                     <button
                                       className="btn btn-sm btn-outline-danger"
-                                      onClick={() => handleDeletePartner(partner.partner_id)}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleDeletePartner(partner.partner_id)
+                                      }}
                                       title="Delete"
                                     >
                                       <i className="bi bi-trash"></i>
@@ -2952,6 +3554,20 @@ function DashboardPage() {
                 </button>
                 <button
                   type="button"
+                  className={`btn btn-sm ${applicationFilter === 'under_review' ? 'btn-info' : 'btn-outline-info'}`}
+                  onClick={() => setApplicationFilter('under_review')}
+                >
+                  Under Review ({applications.filter(a => a.status === 'under_review').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${applicationFilter === 'contacted' ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => setApplicationFilter('contacted')}
+                >
+                  Contacted ({applications.filter(a => a.status === 'contacted').length})
+                </button>
+                <button
+                  type="button"
                   className={`btn btn-sm ${applicationFilter === 'accepted' ? 'btn-success' : 'btn-outline-success'}`}
                   onClick={() => setApplicationFilter('accepted')}
                 >
@@ -2979,6 +3595,7 @@ function DashboardPage() {
                       <th>State</th>
                       <th>Hours/Week</th>
                       <th>Submitted</th>
+                      <th>Resume</th>
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
@@ -2996,12 +3613,30 @@ function DashboardPage() {
                         <td>{app.hours_per_week}</td>
                         <td>{formatDateLong(app.submitted_at)}</td>
                         <td>
+                          {app.resume_file ? (
+                            <a
+                              href={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/applications-resumes/${app.resume_file}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-sm btn-outline-success"
+                              title="View Resume"
+                            >
+                              <i className="bi bi-file-earmark-pdf"></i>
+                            </a>
+                          ) : (
+                            <span className="text-muted">-</span>
+                          )}
+                        </td>
+                        <td>
                           <span className={`badge ${
                             app.status === 'pending' ? 'bg-warning text-dark' :
+                            app.status === 'under_review' ? 'bg-info' :
+                            app.status === 'contacted' ? 'bg-primary' :
                             app.status === 'accepted' ? 'bg-success' :
                             'bg-danger'
                           }`}>
-                            {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                            {app.status === 'under_review' ? 'Under Review' :
+                             app.status.charAt(0).toUpperCase() + app.status.slice(1)}
                           </span>
                         </td>
                         <td>
@@ -4133,7 +4768,7 @@ function DashboardPage() {
                             <label className="form-check-label" htmlFor="memberBills">
                               Bill Management
                             </label>
-                            <small className="text-muted d-block">Can add/edit/delete bills</small>
+                            <small className="text-muted d-block">Can submit bills for review</small>
                           </div>
                         </div>
                         <div className="col-md-6">
@@ -4256,6 +4891,22 @@ function DashboardPage() {
                         </p>
                       </div>
                     )}
+                    {selectedApplication.resume_file && (
+                      <div className="col-12">
+                        <strong>Resume:</strong>
+                        <p>
+                          <a 
+                            href={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/applications-resumes/${selectedApplication.resume_file}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-sm btn-outline-primary"
+                          >
+                            <i className="bi bi-file-earmark-pdf me-1"></i>
+                            View Resume
+                          </a>
+                        </p>
+                      </div>
+                    )}
                     <div className="col-12">
                       <strong>Additional Info:</strong>
                       <p>{selectedApplication.additional_info || 'None provided'}</p>
@@ -4269,10 +4920,13 @@ function DashboardPage() {
                       <p>
                         <span className={`badge ${
                           selectedApplication.status === 'pending' ? 'bg-warning text-dark' :
+                          selectedApplication.status === 'under_review' ? 'bg-info' :
+                          selectedApplication.status === 'contacted' ? 'bg-primary' :
                           selectedApplication.status === 'accepted' ? 'bg-success' :
                           'bg-danger'
                         }`}>
-                          {selectedApplication.status.charAt(0).toUpperCase() + selectedApplication.status.slice(1)}
+                          {selectedApplication.status === 'under_review' ? 'Under Review' :
+                           selectedApplication.status.charAt(0).toUpperCase() + selectedApplication.status.slice(1)}
                         </span>
                       </p>
                     </div>
@@ -4289,10 +4943,10 @@ function DashboardPage() {
                     />
                   </div>
 
-                  {selectedApplication.status === 'pending' && (
+                  {(selectedApplication.status === 'pending' || selectedApplication.status === 'under_review' || selectedApplication.status === 'contacted') && (
                     <div className="alert alert-info">
                       <i className="bi bi-info-circle me-2"></i>
-                      Review this application and either accept or reject it. You can add notes for your records.
+                      You can update the status to track your progress with this application. Add notes for your records.
                     </div>
                   )}
                 </div>
@@ -4304,56 +4958,72 @@ function DashboardPage() {
                   >
                     Close
                   </button>
-                  {selectedApplication.status === 'pending' && (
-                    <>
-                      <button
-                        type="button"
-                        className="btn btn-success"
-                        onClick={() => {
-                          if (window.confirm(`Accept ${selectedApplication.full_name}'s application? This will remove it from the pending list.`)) {
-                            handleUpdateApplicationStatus('accepted')
-                          }
-                        }}
-                      >
-                        <i className="bi bi-check-circle me-1"></i>Accept
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-danger"
-                        onClick={() => {
-                          if (window.confirm(`Reject ${selectedApplication.full_name}'s application? This will remove it from the pending list.`)) {
-                            handleUpdateApplicationStatus('rejected')
-                          }
-                        }}
-                      >
-                        <i className="bi bi-x-circle me-1"></i>Reject
-                      </button>
-                    </>
-                  )}
-                  {selectedApplication.status !== 'pending' && (
-                    <>
-                      <button
-                        type="button"
-                        className="btn btn-outline-primary"
-                        onClick={() => {
-                          if (window.confirm(`Reset ${selectedApplication.full_name}'s application to pending?`)) {
-                            handleUpdateApplicationStatus('pending')
-                          }
-                        }}
-                      >
-                        Reset to Pending
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-outline-danger"
-                        onClick={() => {
-                          setShowDeleteApplicationModal(true)
-                        }}
-                      >
-                        <i className="bi bi-trash me-1"></i>Delete
-                      </button>
-                    </>
-                  )}
+                  <div className="d-flex gap-2 flex-wrap">
+                    {(selectedApplication.status === 'pending' || selectedApplication.status === 'under_review' || selectedApplication.status === 'contacted') && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-info"
+                          onClick={() => handleUpdateApplicationStatus('under_review')}
+                        >
+                          <i className="bi bi-eye me-1"></i>Mark Under Review
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={() => handleUpdateApplicationStatus('contacted')}
+                        >
+                          <i className="bi bi-envelope-check me-1"></i>Mark Contacted
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-success"
+                          onClick={() => {
+                            if (window.confirm(`Accept ${selectedApplication.full_name}'s application?`)) {
+                              handleUpdateApplicationStatus('accepted')
+                            }
+                          }}
+                        >
+                          <i className="bi bi-check-circle me-1"></i>Accept
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          onClick={() => {
+                            if (window.confirm(`Reject ${selectedApplication.full_name}'s application?`)) {
+                              handleUpdateApplicationStatus('rejected')
+                            }
+                          }}
+                        >
+                          <i className="bi bi-x-circle me-1"></i>Reject
+                        </button>
+                      </>
+                    )}
+                    {(selectedApplication.status === 'accepted' || selectedApplication.status === 'rejected') && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary"
+                          onClick={() => {
+                            if (window.confirm(`Reset ${selectedApplication.full_name}'s application to pending?`)) {
+                              handleUpdateApplicationStatus('pending')
+                            }
+                          }}
+                        >
+                          Reset to Pending
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline-danger"
+                          onClick={() => {
+                            setShowDeleteApplicationModal(true)
+                          }}
+                        >
+                          <i className="bi bi-trash me-1"></i>Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

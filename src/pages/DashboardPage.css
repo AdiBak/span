@@ -85,3 +85,65 @@
   z-index: 10;
 }
 
+/* Drag and drop styles for schools and partners */
+tbody tr[draggable="true"] {
+  transition: background-color 0.2s ease;
+}
+
+tbody tr[draggable="true"]:hover {
+  background-color: #f8f9fa;
+}
+
+tbody tr[draggable="true"]:active {
+  cursor: grabbing !important;
+}
+
+tbody tr[draggable="true"].dragging {
+  opacity: 0.5;
+  background-color: #e9ecef;
+}
+
+.bi-grip-vertical {
+  font-size: 1.2rem;
+  color: #6c757d;
+  transition: color 0.2s ease;
+}
+
+tbody tr[draggable="true"]:hover .bi-grip-vertical {
+  color: #495057;
+}
+
+/* Scrollable sections */
+.dashboard-page section[style*="maxHeight"] {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar for scrollable sections */
+.dashboard-page .card-body[style*="maxHeight"],
+.dashboard-page div[style*="maxHeight"] {
+  scrollbar-width: thin;
+  scrollbar-color: #6c757d #f1f1f1;
+}
+
+.dashboard-page .card-body[style*="maxHeight"]::-webkit-scrollbar,
+.dashboard-page div[style*="maxHeight"]::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dashboard-page .card-body[style*="maxHeight"]::-webkit-scrollbar-track,
+.dashboard-page div[style*="maxHeight"]::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.dashboard-page .card-body[style*="maxHeight"]::-webkit-scrollbar-thumb,
+.dashboard-page div[style*="maxHeight"]::-webkit-scrollbar-thumb {
+  background: #6c757d;
+  border-radius: 4px;
+}
+
+.dashboard-page .card-body[style*="maxHeight"]::-webkit-scrollbar-thumb:hover,
+.dashboard-page div[style*="maxHeight"]::-webkit-scrollbar-thumb:hover {
+  background: #495057;
+}
+

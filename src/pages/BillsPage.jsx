@@ -112,10 +112,11 @@ function BillsPage() {
 
   async function fetchData() {
     try {
-      // Fetch bills
+      // Fetch only approved bills (or bills without status for backwards compatibility)
       const { data: billsData, error: billsError } = await supabase
         .from('bills')
         .select('*')
+        .or('status.eq.approved,status.eq.modified,status.is.null')
 
       if (billsError) throw billsError
 

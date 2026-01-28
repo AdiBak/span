@@ -8,10 +8,14 @@
 .school-carousel-track {
   display: flex;
   gap: 1.5rem;
-  animation: scrollLinear 30s linear infinite;
+  width: max-content;
+  animation: scrollLinear 20s linear infinite;
   will-change: transform;
   /* keep it GPU-friendly */
   transform: translateZ(0);
+  /* Prevent visible snap during animation reset */
+  backface-visibility: hidden;
+  perspective: 1000px;
 }
 
 .school-logo-item {
@@ -36,15 +40,19 @@
 }
 
 @keyframes scrollLinear {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-200%); }
+  0% { 
+    transform: translate3d(0, 0, 0);
+  }
+  100% { 
+    transform: translate3d(-50%, 0, 0);
+  }
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .school-carousel-track { 
     gap: 1rem; 
-    animation-duration: 30s; 
+    animation-duration: 20s; 
   }
   .school-logo { 
     height: 60px; 

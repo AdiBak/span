@@ -8,10 +8,14 @@
 .partner-carousel-track {
   display: flex;
   gap: 2rem;
-  animation: scrollPartners 25s linear infinite;
+  width: max-content;
+  animation: scrollPartners 18s linear infinite;
   will-change: transform;
   /* keep it GPU-friendly */
   transform: translateZ(0);
+  /* Prevent visible snap during animation reset */
+  backface-visibility: hidden;
+  perspective: 1000px;
 }
 
 .partner-logo-item {
@@ -22,36 +26,40 @@
   align-items: center;
 }
 
-.partner-carousel-track .partner-logo {
+.partner-logo {
   max-height: 80px;
   width: auto;
   object-fit: contain;
-  filter: grayscale(20%);
-  opacity: 0.9;
-  transition: all 0.3s ease;
+  filter: grayscale(100%);
+  opacity: 0.7;
+  transition: all 0.2s ease;
 }
 
-.partner-carousel-track .partner-logo:hover {
+.partner-logo:hover {
   filter: grayscale(0%);
   opacity: 1;
   transform: scale(1.05);
 }
 
 @keyframes scrollPartners {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
+  0% { 
+    transform: translate3d(0, 0, 0);
+  }
+  100% { 
+    transform: translate3d(-50%, 0, 0);
+  }
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .partner-carousel-track { 
     gap: 1.5rem; 
-    animation-duration: 25s; 
+    animation-duration: 18s; 
   }
   .partner-logo-item { 
     min-width: 160px; 
   }
-  .partner-carousel-track .partner-logo {
+  .partner-logo {
     max-height: 60px;
   }
 }

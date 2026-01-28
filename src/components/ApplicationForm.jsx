@@ -28,6 +28,7 @@ function ApplicationForm() {
     linkedinUrl: '',
     instagramUrl: ''
   })
+  const [resumeFile, setResumeFile] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -79,6 +80,30 @@ function ApplicationForm() {
     }
 
     try {
+      let resumeFileName = null
+
+      // Upload resume if provided
+      if (resumeFile) {
+        const fileExt = resumeFile.name.split('.').pop()
+        const sanitizedName = formData.fullName.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase()
+        const timestamp = Date.now()
+        resumeFileName = `${timestamp}-${sanitizedName}.${fileExt}`
+        
+        const { error: uploadError } = await anonymousSupabase.storage
+          .from('applications-resumes')
+          .upload(resumeFileName, resumeFile, {
+            cacheControl: '3600',
+            upsert: false
+          })
+
+        if (uploadError) {
+          console.error('Resume upload error:', uploadError)
+          setSubmitError('Failed to upload resume. Please try again or submit without a resume.')
+          setSubmitting(false)
+          return
+        }
+      }
+
       // Use anonymous client to ensure no authenticated session is used
       const { data, error } = await anonymousSupabase
         .from('applications')
@@ -94,6 +119,7 @@ function ApplicationForm() {
           referral_source: referralValue.trim(),
           linkedin_url: formData.linkedinUrl.trim() || null,
           instagram_url: formData.instagramUrl.trim() || null,
+          resume_file: resumeFileName,
           status: 'pending'
         }])
         .select()
@@ -123,6 +149,7 @@ function ApplicationForm() {
         linkedinUrl: '',
         instagramUrl: ''
       })
+      setResumeFile(null)
     } catch (err) {
       console.error('Error submitting application:', err)
       setSubmitError('An unexpected error occurred. Please try again or contact us directly.')
@@ -407,6 +434,30 @@ function ApplicationForm() {
                 onChange={handleChange}
                 placeholder="https://instagram.com/yourprofile"
               />
+            </div>
+
+            {/* Resume Upload */}
+            <div>
+              <label htmlFor="resumeFile" className="form-label">
+                Resume (Optional)
+              </label>
+              <input
+                type="file"
+                className="form-control"
+                id="resumeFile"
+                name="resumeFile"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setResumeFile(e.target.files[0] || null)}
+              />
+              <small className="text-muted">Accepted formats: PDF, DOC, DOCX (Max 10MB)</small>
+              {resumeFile && (
+                <div className="mt-2">
+                  <span className="badge bg-info">
+                    <i className="bi bi-file-earmark me-1"></i>
+                    {resumeFile.name}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Submit Button */}

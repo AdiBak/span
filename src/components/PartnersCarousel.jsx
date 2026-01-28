@@ -149,7 +149,8 @@ function PartnersCarousel() {
   }
 
   // If more than 3 partners, show carousel
-  const repeatCount = 4
+  // Create exactly 2 copies for seamless infinite loop
+  const repeatCount = 2
   const partnerItems = []
 
   for (let i = 0; i < repeatCount; i++) {

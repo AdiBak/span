@@ -132,7 +132,8 @@ function SchoolsCarousel() {
     )
   }
 
-  const repeatCount = 4
+  // Create exactly 2 copies for seamless infinite loop
+  const repeatCount = 2
   const schoolItems = []
 
   for (let i = 0; i < repeatCount; i++) {

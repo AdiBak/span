@@ -526,7 +526,7 @@ function BillsPage() {
               <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
                 {/* Filter Buttons - Desktop */}
                 <div className="btn-group btn-filter-group d-none d-md-flex" role="group">
-                  {['All', 'Support', 'Support If Amended', 'Oppose'].map(filter => (
+                  {['All', 'Support', 'Support If Amended', 'Oppose', 'Proposed'].map(filter => (
                     <button
                       key={filter}
                       type="button"
@@ -545,7 +545,7 @@ function BillsPage() {
                   onChange={(e) => setCurrentFilter(e.target.value)}
                   aria-label="Filter bills by position"
                 >
-                  {['All', 'Support', 'Support If Amended', 'Oppose'].map(filter => (
+                  {['All', 'Support', 'Support If Amended', 'Oppose', 'Proposed'].map(filter => (
                     <option key={filter} value={filter}>
                       {filter}
                     </option>
@@ -691,6 +691,7 @@ function BillsPage() {
                       <option value="Support">Support</option>
                       <option value="Oppose">Oppose</option>
                       <option value="Support If Amended">Support If Amended</option>
+                      <option value="Proposed">Proposed</option>
                     </select>
                   </div>
                   <div className="mb-3">

@@ -38,7 +38,7 @@ function SchoolsCarousel() {
       // First, get schools from database (primary source)
       const { data: dbSchools, error: dbError } = await supabase
         .from('schools')
-        .select('school_name, school_image, display_order')
+        .select('school_name, school_image, display_order, active')
 
       if (dbError) {
         console.error('Failed to fetch schools from database:', dbError)
@@ -46,6 +46,9 @@ function SchoolsCarousel() {
         setLoading(false)
         return
       }
+
+      // Only show active schools (active !== false for backwards compatibility when column is null)
+      const activeDbSchools = (dbSchools || []).filter(school => school.active !== false)
 
       // Try to list images from storage bucket to find any new images not in database
       let storageFiles = []
@@ -68,17 +71,15 @@ function SchoolsCarousel() {
       // Create a map of database schools by image filename
       const dbSchoolMap = new Map()
       const dbImageSet = new Set()
-      if (dbSchools) {
-        dbSchools.forEach(school => {
-          if (school.school_image) {
-            dbSchoolMap.set(school.school_image, school)
-            dbImageSet.add(school.school_image)
-          }
-        })
-      }
+      activeDbSchools.forEach(school => {
+        if (school.school_image) {
+          dbSchoolMap.set(school.school_image, school)
+          dbImageSet.add(school.school_image)
+        }
+      })
 
-      // Start with database schools
-      const allSchools = [...(dbSchools || [])]
+      // Start with active database schools
+      const allSchools = [...activeDbSchools]
 
       // Add any storage files that aren't in the database
       if (storageFiles.length > 0) {

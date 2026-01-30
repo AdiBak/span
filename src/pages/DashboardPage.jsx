@@ -129,13 +129,23 @@ function DashboardPage() {
   const [editingSchoolId, setEditingSchoolId] = useState(null)
   const [schoolForm, setSchoolForm] = useState({
     schoolName: '',
-    displayOrder: 999
+    displayOrder: 999,
+    active: true
   })
   const [schoolLogoFile, setSchoolLogoFile] = useState(null)
   const [schoolError, setSchoolError] = useState('')
   const [schoolSuccess, setSchoolSuccess] = useState('')
   const [draggedSchoolId, setDraggedSchoolId] = useState(null)
   const [draggedPartnerId, setDraggedPartnerId] = useState(null)
+  const [profilePicLoading, setProfilePicLoading] = useState(false)
+  const [profilePicError, setProfilePicError] = useState('')
+  const [profilePicSuccess, setProfilePicSuccess] = useState('')
+  const profilePicInputRef = useRef(null)
+  const [memberPhotoTarget, setMemberPhotoTarget] = useState(null)
+  const [memberPhotoLoading, setMemberPhotoLoading] = useState(false)
+  const [memberPhotoError, setMemberPhotoError] = useState('')
+  const [memberPhotoSuccess, setMemberPhotoSuccess] = useState('')
+  const execMemberPhotoInputRef = useRef(null)
 
   // Helper functions
   const formatDate = (dateStr) => {
@@ -687,6 +697,148 @@ function DashboardPage() {
     } catch (err) {
       console.error('Unexpected error in loadMemberData:', err)
       setLoading(false)
+    }
+  }
+
+  // Profile picture change
+  const handleProfilePicClick = () => {
+    profilePicInputRef.current?.click()
+  }
+
+  const handleProfilePicChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file || !member?.member_id) return
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      setProfilePicError('Please choose a JPEG, PNG, or WebP image.')
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setProfilePicError('Image must be under 5 MB.')
+      return
+    }
+
+    setProfilePicError('')
+    setProfilePicSuccess('')
+    setProfilePicLoading(true)
+
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    const filename = `${member.member_id}.${ext}`
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('members-images')
+        .upload(filename, file, { cacheControl: '3600', upsert: true })
+
+      if (uploadError) {
+        setProfilePicError('Failed to upload image: ' + uploadError.message)
+        setProfilePicLoading(false)
+        e.target.value = ''
+        return
+      }
+
+      const { error: updateError } = await supabase
+        .from('members')
+        .update({ image: filename })
+        .eq('member_id', member.member_id)
+
+      if (updateError) {
+        setProfilePicError('Failed to update profile: ' + updateError.message)
+        setProfilePicLoading(false)
+        e.target.value = ''
+        return
+      }
+
+      setMember(prev => prev ? { ...prev, image: filename } : null)
+      setProfilePicSuccess('Profile picture updated.')
+      setProfilePicLoading(false)
+      e.target.value = ''
+      setTimeout(() => setProfilePicSuccess(''), 3000)
+    } catch (err) {
+      setProfilePicError(err.message || 'Failed to update profile picture.')
+      setProfilePicLoading(false)
+      e.target.value = ''
+    }
+  }
+
+  // Exec: change a member's profile picture (Member Management)
+  const handleExecChangeMemberPhoto = (memberItem) => {
+    setMemberPhotoTarget(memberItem.member_id)
+    setMemberPhotoError('')
+    setMemberPhotoSuccess('')
+    execMemberPhotoInputRef.current?.click()
+  }
+
+  const handleExecMemberPhotoFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    const targetId = memberPhotoTarget
+    if (!file || !targetId) {
+      e.target.value = ''
+      setMemberPhotoTarget(null)
+      return
+    }
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+    if (!validTypes.includes(file.type)) {
+      setMemberPhotoError('Please choose a JPEG, PNG, or WebP image.')
+      e.target.value = ''
+      setMemberPhotoTarget(null)
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMemberPhotoError('Image must be under 5 MB.')
+      e.target.value = ''
+      setMemberPhotoTarget(null)
+      return
+    }
+
+    setMemberPhotoError('')
+    setMemberPhotoSuccess('')
+    setMemberPhotoLoading(true)
+
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    const filename = `${targetId}.${ext}`
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('members-images')
+        .upload(filename, file, { cacheControl: '3600', upsert: true })
+
+      if (uploadError) {
+        setMemberPhotoError('Failed to upload: ' + uploadError.message)
+        setMemberPhotoLoading(false)
+        e.target.value = ''
+        setMemberPhotoTarget(null)
+        return
+      }
+
+      const { error: updateError } = await supabase
+        .from('members')
+        .update({ image: filename })
+        .eq('member_id', targetId)
+
+      if (updateError) {
+        setMemberPhotoError('Failed to update member: ' + updateError.message)
+        setMemberPhotoLoading(false)
+        e.target.value = ''
+        setMemberPhotoTarget(null)
+        return
+      }
+
+      setAllMembersForManagement(prev =>
+        prev.map(m => m.member_id === targetId ? { ...m, image: filename } : m)
+      )
+      setMemberPhotoSuccess('Profile picture updated.')
+      setMemberPhotoLoading(false)
+      e.target.value = ''
+      setMemberPhotoTarget(null)
+      setTimeout(() => setMemberPhotoSuccess(''), 3000)
+    } catch (err) {
+      setMemberPhotoError(err.message || 'Failed to update profile picture.')
+      setMemberPhotoLoading(false)
+      e.target.value = ''
+      setMemberPhotoTarget(null)
     }
   }
 
@@ -1877,7 +2029,8 @@ function DashboardPage() {
     setEditingSchoolId(null)
     setSchoolForm({
       schoolName: '',
-      displayOrder: 999
+      displayOrder: 999,
+      active: true
     })
     setSchoolLogoFile(null)
     setSchoolError('')
@@ -1886,10 +2039,11 @@ function DashboardPage() {
   }
 
   const handleEditSchool = (school) => {
-    setEditingSchoolId(school.id)
+    setEditingSchoolId(school.school_id ?? school.id)
     setSchoolForm({
       schoolName: school.school_name,
-      displayOrder: school.display_order || 999
+      displayOrder: school.display_order || 999,
+      active: school.active !== false
     })
     setSchoolLogoFile(null)
     setSchoolError('')
@@ -1898,7 +2052,7 @@ function DashboardPage() {
   }
 
   const handleSaveSchool = async () => {
-    const { schoolName, displayOrder } = schoolForm
+    const { schoolName, displayOrder, active } = schoolForm
     setSchoolError('')
     setSchoolSuccess('')
 
@@ -1932,15 +2086,15 @@ function DashboardPage() {
       }
 
       if (editingSchoolId) {
-        // Update existing school
+        // Update existing school (logo optional — keep current if not changed)
         const updateData = {
           school_name: schoolName.trim(),
-          display_order: parseInt(displayOrder) || 999
+          display_order: parseInt(displayOrder) || 999,
+          active: active !== false
         }
 
         if (logoFilename) {
-          // Get old logo filename to delete it
-          const oldSchool = schools.find(s => s.id === editingSchoolId)
+          const oldSchool = schools.find(s => (s.school_id ?? s.id) === editingSchoolId)
           if (oldSchool?.school_image) {
             await supabase.storage
               .from('schools-images')
@@ -1952,7 +2106,7 @@ function DashboardPage() {
         const { error } = await supabase
           .from('schools')
           .update(updateData)
-          .eq('id', editingSchoolId)
+          .eq('school_id', editingSchoolId)
 
         if (error) throw error
         setSchoolSuccess('School updated successfully!')
@@ -1968,7 +2122,8 @@ function DashboardPage() {
           .insert({
             school_name: schoolName.trim(),
             school_image: logoFilename,
-            display_order: parseInt(displayOrder) || 999
+            display_order: parseInt(displayOrder) || 999,
+            active: active !== false
           })
 
         if (error) throw error
@@ -1992,7 +2147,7 @@ function DashboardPage() {
     }
 
     try {
-      const school = schools.find(s => s.id === schoolId)
+      const school = schools.find(s => (s.school_id ?? s.id) === schoolId)
       
       // Delete logo from storage
       if (school?.school_image) {
@@ -2005,7 +2160,7 @@ function DashboardPage() {
       const { error } = await supabase
         .from('schools')
         .delete()
-        .eq('id', schoolId)
+        .eq('school_id', schoolId)
 
       if (error) throw error
 
@@ -2043,8 +2198,9 @@ function DashboardPage() {
       return
     }
 
-    const draggedIndex = schools.findIndex(s => s.id === draggedSchoolId)
-    const targetIndex = schools.findIndex(s => s.id === targetSchoolId)
+    const schoolPk = s => s.school_id ?? s.id
+    const draggedIndex = schools.findIndex(s => schoolPk(s) === draggedSchoolId)
+    const targetIndex = schools.findIndex(s => schoolPk(s) === targetSchoolId)
 
     if (draggedIndex === -1 || targetIndex === -1) {
       setDraggedSchoolId(null)
@@ -2058,18 +2214,17 @@ function DashboardPage() {
 
     // Update display_order for all affected schools
     const updates = newSchools.map((school, index) => ({
-      id: school.id,
+      school_id: schoolPk(school),
       display_order: index + 1
     }))
 
     try {
-      // Update all schools in parallel
       await Promise.all(
         updates.map(update =>
           supabase
             .from('schools')
             .update({ display_order: update.display_order })
-            .eq('id', update.id)
+            .eq('school_id', update.school_id)
         )
       )
 
@@ -2280,14 +2435,55 @@ function DashboardPage() {
       <div className="container my-5">
         {/* Profile Header */}
         <div className="text-center mb-5">
-          {member.image && (
-            <img
-              src={`${IMAGE_BASE_URL}/${member.image}`}
-              className="rounded-circle border border-dark border-3 mb-3"
-              alt="Profile Image"
-              style={{ width: '150px', height: '150px', objectFit: 'cover' }}
-            />
+          <input
+            ref={profilePicInputRef}
+            type="file"
+            accept="image/jpeg,image/jpg,image/png,image/webp"
+            className="d-none"
+            onChange={handleProfilePicChange}
+          />
+          <div className="position-relative d-inline-block mb-3">
+            {member.image ? (
+              <img
+                src={`${IMAGE_BASE_URL}/${member.image}`}
+                className="rounded-circle border border-dark border-3"
+                alt="Profile"
+                style={{ width: '150px', height: '150px', objectFit: 'cover' }}
+              />
+            ) : (
+              <div
+                className="rounded-circle border border-dark border-3 d-flex align-items-center justify-content-center bg-light text-dark"
+                style={{ width: '150px', height: '150px', fontSize: '3rem' }}
+              >
+                {member.first_name?.[0]}{member.last_name?.[0]}
+              </div>
+            )}
+            <button
+              type="button"
+              className="btn btn-sm btn-dark position-absolute bottom-0 end-0 rounded-circle p-2"
+              style={{ width: '36px', height: '36px' }}
+              onClick={handleProfilePicClick}
+              disabled={profilePicLoading}
+              title="Change profile picture"
+            >
+              {profilePicLoading ? (
+                <span className="spinner-border spinner-border-sm" style={{ width: '14px', height: '14px' }} />
+              ) : (
+                <i className="bi bi-camera-fill" style={{ fontSize: '0.9rem' }} />
+              )}
+            </button>
+          </div>
+          {profilePicError && (
+            <div className="small text-danger mb-1">{profilePicError}</div>
           )}
+          {profilePicSuccess && (
+            <div className="small text-success mb-1">{profilePicSuccess}</div>
+          )}
+          <div className="small text-muted mb-1">
+            <button type="button" className="btn btn-link btn-sm p-0 text-muted" onClick={handleProfilePicClick}>
+              Change profile picture
+            </button>
+          </div>
           <h2>{fullName}</h2>
           <p className="text-muted">{member.role || '-'}</p>
           <div className="mt-2">
@@ -2694,50 +2890,48 @@ function DashboardPage() {
           return isExec
         })() && (
           <section className="mt-5">
-            <div className="d-flex justify-content-between align-items-center mb-4">
-              <h3>Bill Management</h3>
-              <button className="btn btn-dark" onClick={handleAddBill}>
-                <i className="bi bi-plus-circle me-2"></i>Upload New Bill
-              </button>
-            </div>
-
-            {/* Status Filter Buttons */}
-            <div className="mb-4">
-              <div className="d-flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className={`btn btn-sm ${billFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setBillFilter('all')}
-                >
-                  All ({allBills.length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${billFilter === 'under_review' ? 'btn-warning' : 'btn-outline-warning'}`}
-                  onClick={() => setBillFilter('under_review')}
-                >
-                  Under Review ({allBills.filter(b => b.status === 'under_review' || (!b.status && billFilter === 'under_review')).length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${billFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
-                  onClick={() => setBillFilter('approved')}
-                >
-                  Approved ({allBills.filter(b => b.status === 'approved' || (!b.status && billFilter === 'approved')).length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${billFilter === 'modified' ? 'btn-info' : 'btn-outline-info'}`}
-                  onClick={() => setBillFilter('modified')}
-                >
-                  Modified ({allBills.filter(b => b.status === 'modified').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${billFilter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'}`}
-                  onClick={() => setBillFilter('rejected')}
-                >
-                  Rejected ({allBills.filter(b => b.status === 'rejected').length})
+            <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+              <h3 className="mb-0">Bill Management</h3>
+              <div className="d-flex align-items-center gap-2">
+                <div className="btn-group" role="group">
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${billFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                    onClick={() => setBillFilter('all')}
+                  >
+                    All ({allBills.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${billFilter === 'under_review' ? 'btn-warning' : 'btn-outline-warning'}`}
+                    onClick={() => setBillFilter('under_review')}
+                  >
+                    Under Review ({allBills.filter(b => b.status === 'under_review' || (!b.status && billFilter === 'under_review')).length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${billFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
+                    onClick={() => setBillFilter('approved')}
+                  >
+                    Approved ({allBills.filter(b => b.status === 'approved' || (!b.status && billFilter === 'approved')).length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${billFilter === 'modified' ? 'btn-info' : 'btn-outline-info'}`}
+                    onClick={() => setBillFilter('modified')}
+                  >
+                    Modified ({allBills.filter(b => b.status === 'modified').length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${billFilter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'}`}
+                    onClick={() => setBillFilter('rejected')}
+                  >
+                    Rejected ({allBills.filter(b => b.status === 'rejected').length})
+                  </button>
+                </div>
+                <button className="btn btn-dark btn-sm" onClick={handleAddBill}>
+                  <i className="bi bi-plus-circle me-2"></i>Upload New Bill
                 </button>
               </div>
             </div>
@@ -2818,6 +3012,7 @@ function DashboardPage() {
                                         <span className={`badge ${
                                           bill.position === 'Support' ? 'bg-success' :
                                           bill.position === 'Oppose' ? 'bg-danger' :
+                                          bill.position === 'Proposed' ? 'bg-info' :
                                           'bg-warning text-dark'
                                         }`}>
                                           {bill.position}
@@ -3082,6 +3277,20 @@ function DashboardPage() {
               When you add a new member, they will automatically receive an email invitation to set up their account.
             </div>
 
+            <input
+              ref={execMemberPhotoInputRef}
+              type="file"
+              accept="image/jpeg,image/jpg,image/png,image/webp"
+              className="d-none"
+              onChange={handleExecMemberPhotoFileChange}
+            />
+            {(memberPhotoError || memberPhotoSuccess) && (
+              <div className="mb-3">
+                {memberPhotoError && <div className="small text-danger">{memberPhotoError}</div>}
+                {memberPhotoSuccess && <div className="small text-success">{memberPhotoSuccess}</div>}
+              </div>
+            )}
+
             {/* Active and Inactive Members in 2 columns with collapsible accordions */}
             <div className="row g-4">
               {/* Active Members */}
@@ -3101,18 +3310,67 @@ function DashboardPage() {
                               data-bs-target={`#collapseActiveMember${memberItem.member_id}`}
                               aria-expanded="false"
                             >
-                              <div className="d-flex w-100 flex-column">
-                                <div className="d-flex align-items-center gap-2">
-                                  <span className="fw-bold">{memberItem.first_name} {memberItem.last_name}</span>
-                                  <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
+                              <div className="d-flex w-100 align-items-center gap-3">
+                                {memberItem.image ? (
+                                  <img
+                                    src={`${IMAGE_BASE_URL}/${memberItem.image}`}
+                                    alt=""
+                                    className="rounded-circle flex-shrink-0"
+                                    style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="rounded-circle flex-shrink-0 bg-light text-dark d-flex align-items-center justify-content-center"
+                                    style={{ width: '40px', height: '40px', fontSize: '0.9rem' }}
+                                  >
+                                    {memberItem.first_name?.[0]}{memberItem.last_name?.[0]}
+                                  </div>
+                                )}
+                                <div className="d-flex flex-column text-start">
+                                  <div className="d-flex align-items-center gap-2">
+                                    <span className="fw-bold">{memberItem.first_name} {memberItem.last_name}</span>
+                                    <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
+                                  </div>
+                                  <small className="text-muted">{memberItem.email}</small>
                                 </div>
-                                <small className="text-muted">{memberItem.email}</small>
                               </div>
                             </button>
                           </h2>
                           <div id={`collapseActiveMember${memberItem.member_id}`} className="accordion-collapse collapse" data-bs-parent="#activeMembersAccordion">
                             <div className="accordion-body">
                               <div className="row g-3">
+                                <div className="col-12 d-flex align-items-center gap-3 mb-2">
+                                  {memberItem.image ? (
+                                    <img
+                                      src={`${IMAGE_BASE_URL}/${memberItem.image}`}
+                                      alt=""
+                                      className="rounded-circle"
+                                      style={{ width: '64px', height: '64px', objectFit: 'cover' }}
+                                    />
+                                  ) : (
+                                    <div
+                                      className="rounded-circle bg-light text-dark d-flex align-items-center justify-content-center"
+                                      style={{ width: '64px', height: '64px', fontSize: '1.25rem' }}
+                                    >
+                                      {memberItem.first_name?.[0]}{memberItem.last_name?.[0]}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-secondary"
+                                      onClick={(ev) => { ev.stopPropagation(); handleExecChangeMemberPhoto(memberItem); }}
+                                      disabled={memberPhotoLoading}
+                                    >
+                                      {memberPhotoLoading && memberPhotoTarget === memberItem.member_id ? (
+                                        <span className="spinner-border spinner-border-sm me-1" />
+                                      ) : (
+                                        <i className="bi bi-camera me-1" />
+                                      )}
+                                      Change profile picture
+                                    </button>
+                                  </div>
+                                </div>
                                 <div className="col-md-6">
                                   <strong>Name:</strong>
                                   <p className="mt-1 mb-0">{memberItem.first_name} {memberItem.last_name}</p>
@@ -3223,18 +3481,67 @@ function DashboardPage() {
                               data-bs-target={`#collapseInactiveMember${memberItem.member_id}`}
                               aria-expanded="false"
                             >
-                              <div className="d-flex w-100 flex-column">
-                                <div className="d-flex align-items-center gap-2">
-                                  <span className="fw-bold">{memberItem.first_name} {memberItem.last_name}</span>
-                                  <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
+                              <div className="d-flex w-100 align-items-center gap-3">
+                                {memberItem.image ? (
+                                  <img
+                                    src={`${IMAGE_BASE_URL}/${memberItem.image}`}
+                                    alt=""
+                                    className="rounded-circle flex-shrink-0"
+                                    style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="rounded-circle flex-shrink-0 bg-light text-dark d-flex align-items-center justify-content-center"
+                                    style={{ width: '40px', height: '40px', fontSize: '0.9rem' }}
+                                  >
+                                    {memberItem.first_name?.[0]}{memberItem.last_name?.[0]}
+                                  </div>
+                                )}
+                                <div className="d-flex flex-column text-start">
+                                  <div className="d-flex align-items-center gap-2">
+                                    <span className="fw-bold">{memberItem.first_name} {memberItem.last_name}</span>
+                                    <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
+                                  </div>
+                                  <small className="text-muted">{memberItem.email}</small>
                                 </div>
-                                <small className="text-muted">{memberItem.email}</small>
                               </div>
                             </button>
                           </h2>
                           <div id={`collapseInactiveMember${memberItem.member_id}`} className="accordion-collapse collapse" data-bs-parent="#inactiveMembersAccordion">
                             <div className="accordion-body">
                               <div className="row g-3">
+                                <div className="col-12 d-flex align-items-center gap-3 mb-2">
+                                  {memberItem.image ? (
+                                    <img
+                                      src={`${IMAGE_BASE_URL}/${memberItem.image}`}
+                                      alt=""
+                                      className="rounded-circle"
+                                      style={{ width: '64px', height: '64px', objectFit: 'cover' }}
+                                    />
+                                  ) : (
+                                    <div
+                                      className="rounded-circle bg-light text-dark d-flex align-items-center justify-content-center"
+                                      style={{ width: '64px', height: '64px', fontSize: '1.25rem' }}
+                                    >
+                                      {memberItem.first_name?.[0]}{memberItem.last_name?.[0]}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-secondary"
+                                      onClick={(ev) => { ev.stopPropagation(); handleExecChangeMemberPhoto(memberItem); }}
+                                      disabled={memberPhotoLoading}
+                                    >
+                                      {memberPhotoLoading && memberPhotoTarget === memberItem.member_id ? (
+                                        <span className="spinner-border spinner-border-sm me-1" />
+                                      ) : (
+                                        <i className="bi bi-camera me-1" />
+                                      )}
+                                      Change profile picture
+                                    </button>
+                                  </div>
+                                </div>
                                 <div className="col-md-6">
                                   <strong>Name:</strong>
                                   <p className="mt-1 mb-0">{memberItem.first_name} {memberItem.last_name}</p>
@@ -3359,22 +3666,24 @@ function DashboardPage() {
                               <th style={{ width: '30px' }}></th>
                               <th>Logo</th>
                               <th>Name</th>
-                              <th>Order</th>
+                              <th>Active</th>
                               <th>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {schools.map(school => (
+                            {schools.map(school => {
+                              const schoolPk = school.school_id ?? school.id
+                              return (
                               <tr 
-                                key={school.id}
+                                key={schoolPk}
                                 draggable
-                                onDragStart={(e) => handleSchoolDragStart(e, school.id)}
+                                onDragStart={(e) => handleSchoolDragStart(e, schoolPk)}
                                 onDragEnd={handleSchoolDragEnd}
                                 onDragOver={handleSchoolDragOver}
-                                onDrop={(e) => handleSchoolDrop(e, school.id)}
+                                onDrop={(e) => handleSchoolDrop(e, schoolPk)}
                                 style={{ 
                                   cursor: 'move',
-                                  opacity: draggedSchoolId === school.id ? 0.5 : 1
+                                  opacity: draggedSchoolId === schoolPk ? 0.5 : 1
                                 }}
                               >
                                 <td>
@@ -3390,7 +3699,11 @@ function DashboardPage() {
                                   )}
                                 </td>
                                 <td>{school.school_name}</td>
-                                <td>{school.display_order}</td>
+                                <td>
+                                  <span className={`badge ${school.active !== false ? 'bg-success' : 'bg-secondary'}`}>
+                                    {school.active !== false ? 'Active' : 'Inactive'}
+                                  </span>
+                                </td>
                                 <td>
                                   <div className="d-flex gap-1" onMouseDown={(e) => e.stopPropagation()}>
                                     <button
@@ -3407,7 +3720,7 @@ function DashboardPage() {
                                       className="btn btn-sm btn-outline-danger"
                                       onClick={(e) => {
                                         e.stopPropagation()
-                                        handleDeleteSchool(school.id)
+                                        handleDeleteSchool(schoolPk)
                                       }}
                                       title="Delete"
                                     >
@@ -3416,7 +3729,8 @@ function DashboardPage() {
                                   </div>
                                 </td>
                               </tr>
-                            ))}
+                            )
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -3448,7 +3762,6 @@ function DashboardPage() {
                               <th style={{ width: '30px' }}></th>
                               <th>Logo</th>
                               <th>Name</th>
-                              <th>Order</th>
                               <th>Status</th>
                               <th>Actions</th>
                             </tr>
@@ -3480,7 +3793,6 @@ function DashboardPage() {
                                   )}
                                 </td>
                                 <td>{partner.partner_name}</td>
-                                <td>{partner.display_order}</td>
                                 <td>
                                   <span className={`badge ${partner.active ? 'bg-success' : 'bg-secondary'}`}>
                                     {partner.active ? 'Active' : 'Inactive'}
@@ -3585,19 +3897,16 @@ function DashboardPage() {
 
             {filteredApplications.length > 0 ? (
               <div className="table-responsive">
-                <table className="table table-hover">
+                <table className="table table-hover table-sm">
                   <thead>
                     <tr>
                       <th>Name</th>
                       <th>Email</th>
                       <th>Grade</th>
-                      <th>School</th>
                       <th>State</th>
-                      <th>Hours/Week</th>
                       <th>Submitted</th>
-                      <th>Resume</th>
                       <th>Status</th>
-                      <th>Actions</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3608,25 +3917,8 @@ function DashboardPage() {
                           <a href={`mailto:${app.email}`}>{app.email}</a>
                         </td>
                         <td>{app.grade}</td>
-                        <td>{app.school}</td>
                         <td>{app.state}</td>
-                        <td>{app.hours_per_week}</td>
                         <td>{formatDateLong(app.submitted_at)}</td>
-                        <td>
-                          {app.resume_file ? (
-                            <a
-                              href={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/applications-resumes/${app.resume_file}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-sm btn-outline-success"
-                              title="View Resume"
-                            >
-                              <i className="bi bi-file-earmark-pdf"></i>
-                            </a>
-                          ) : (
-                            <span className="text-muted">-</span>
-                          )}
-                        </td>
                         <td>
                           <span className={`badge ${
                             app.status === 'pending' ? 'bg-warning text-dark' :
@@ -3639,7 +3931,7 @@ function DashboardPage() {
                              app.status.charAt(0).toUpperCase() + app.status.slice(1)}
                           </span>
                         </td>
-                        <td>
+                        <td className="text-end">
                           <button
                             className="btn btn-sm btn-outline-primary"
                             onClick={() => handleViewApplication(app)}
@@ -4202,6 +4494,7 @@ function DashboardPage() {
                       <option value="Support">Support</option>
                       <option value="Oppose">Oppose</option>
                       <option value="Support If Amended">Support If Amended</option>
+                      <option value="Proposed">Proposed</option>
                     </select>
                   </div>
                   <div className="mb-3">
@@ -4361,6 +4654,7 @@ function DashboardPage() {
                       <option value="Support">Support</option>
                       <option value="Oppose">Oppose</option>
                       <option value="Support If Amended">Support If Amended</option>
+                      <option value="Proposed">Proposed</option>
                     </select>
                   </div>
                   <div className="mb-3">
@@ -5620,15 +5914,18 @@ function DashboardPage() {
                     </div>
 
                     <div className="col-md-12">
-                      <label className="form-label">Display Order</label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        value={schoolForm.displayOrder}
-                        onChange={(e) => setSchoolForm({ ...schoolForm, displayOrder: parseInt(e.target.value) || 999 })}
-                        placeholder="999"
-                      />
-                      <small className="text-muted">Lower numbers appear first</small>
+                      <div className="form-check">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id="schoolActive"
+                          checked={schoolForm.active !== false}
+                          onChange={(e) => setSchoolForm({ ...schoolForm, active: e.target.checked })}
+                        />
+                        <label className="form-check-label" htmlFor="schoolActive">
+                          Active (show on homepage carousel)
+                        </label>
+                      </div>
                     </div>
 
                     <div className="col-md-12">
@@ -5644,11 +5941,11 @@ function DashboardPage() {
                       <small className="text-muted">
                         {editingSchoolId ? 'Leave empty to keep current logo' : 'Upload school logo'}
                       </small>
-                      {editingSchoolId && schools.find(s => s.id === editingSchoolId)?.school_image && (
+                      {editingSchoolId && schools.find(s => (s.school_id ?? s.id) === editingSchoolId)?.school_image && (
                         <div className="mt-2">
                           <p className="small mb-1">Current logo:</p>
                           <img
-                            src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/schools-images/${schools.find(s => s.id === editingSchoolId)?.school_image}`}
+                            src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/schools-images/${schools.find(s => (s.school_id ?? s.id) === editingSchoolId)?.school_image}`}
                             alt="Current logo"
                             style={{ maxHeight: '100px', maxWidth: '200px', objectFit: 'contain' }}
                           />

@@ -738,10 +738,7 @@ function DashboardPage() {
         return
       }
 
-      const { error: updateError } = await supabase
-        .from('members')
-        .update({ image: filename })
-        .eq('member_id', member.member_id)
+      const { error: updateError } = await supabase.rpc('update_own_member_image', { filename })
 
       if (updateError) {
         setProfilePicError('Failed to update profile: ' + updateError.message)
@@ -3012,7 +3009,7 @@ function DashboardPage() {
                                         <span className={`badge ${
                                           bill.position === 'Support' ? 'bg-success' :
                                           bill.position === 'Oppose' ? 'bg-danger' :
-                                          bill.position === 'Proposed' ? 'bg-info' :
+                                          bill.position === 'Propose' ? 'bg-info' :
                                           'bg-warning text-dark'
                                         }`}>
                                           {bill.position}
@@ -4494,7 +4491,7 @@ function DashboardPage() {
                       <option value="Support">Support</option>
                       <option value="Oppose">Oppose</option>
                       <option value="Support If Amended">Support If Amended</option>
-                      <option value="Proposed">Proposed</option>
+                      <option value="Propose">Propose</option>
                     </select>
                   </div>
                   <div className="mb-3">
@@ -4654,7 +4651,7 @@ function DashboardPage() {
                       <option value="Support">Support</option>
                       <option value="Oppose">Oppose</option>
                       <option value="Support If Amended">Support If Amended</option>
-                      <option value="Proposed">Proposed</option>
+                      <option value="Propose">Propose</option>
                     </select>
                   </div>
                   <div className="mb-3">

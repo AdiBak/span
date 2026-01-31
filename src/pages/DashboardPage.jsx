@@ -140,6 +140,7 @@ function DashboardPage() {
   const [profilePicLoading, setProfilePicLoading] = useState(false)
   const [profilePicError, setProfilePicError] = useState('')
   const [profilePicSuccess, setProfilePicSuccess] = useState('')
+  const [profilePicVersion, setProfilePicVersion] = useState(0) // cache-buster so browser shows new image after update
   const profilePicInputRef = useRef(null)
   const [memberPhotoTarget, setMemberPhotoTarget] = useState(null)
   const [memberPhotoLoading, setMemberPhotoLoading] = useState(false)
@@ -738,7 +739,7 @@ function DashboardPage() {
         return
       }
 
-      const { error: updateError } = await supabase.rpc('update_own_member_image', { filename })
+      const { data: updateData, error: updateError } = await supabase.rpc('update_own_member_image', { filename })
 
       if (updateError) {
         setProfilePicError('Failed to update profile: ' + updateError.message)
@@ -747,7 +748,16 @@ function DashboardPage() {
         return
       }
 
+      // If RPC returns rows_updated and it's 0, the DB row wasn't matched (e.g. user_id/email not linked)
+      if (updateData === 0) {
+        setProfilePicError('Profile could not be updated: your account may not be linked to a member record. Please contact an admin.')
+        setProfilePicLoading(false)
+        e.target.value = ''
+        return
+      }
+
       setMember(prev => prev ? { ...prev, image: filename } : null)
+      setProfilePicVersion(Date.now()) // force img to reload (same URL would show cached old image)
       setProfilePicSuccess('Profile picture updated.')
       setProfilePicLoading(false)
       e.target.value = ''
@@ -2442,7 +2452,7 @@ function DashboardPage() {
           <div className="position-relative d-inline-block mb-3">
             {member.image ? (
               <img
-                src={`${IMAGE_BASE_URL}/${member.image}`}
+                src={`${IMAGE_BASE_URL}/${member.image}${profilePicVersion ? `?v=${profilePicVersion}` : ''}`}
                 className="rounded-circle border border-dark border-3"
                 alt="Profile"
                 style={{ width: '150px', height: '150px', objectFit: 'cover' }}

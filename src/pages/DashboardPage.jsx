@@ -4916,6 +4916,23 @@ function DashboardPage() {
                       />
                       <small className="text-muted">This is the official role shown in the directory</small>
                     </div>
+                    {editingMemberId && (
+                      <div className="col-md-6">
+                        <div className="form-check">
+                          <input
+                            type="checkbox"
+                            className="form-check-input"
+                            id="memberFormActive"
+                            checked={memberForm.active !== false}
+                            onChange={(e) => setMemberForm({ ...memberForm, active: e.target.checked })}
+                          />
+                          <label className="form-check-label" htmlFor="memberFormActive">
+                            Active member
+                          </label>
+                        </div>
+                        <small className="text-muted d-block">Uncheck to move member to Inactive; they won’t appear in the directory.</small>
+                      </div>
+                    )}
                     
                     {/* Dates */}
                     <div className="col-md-6">

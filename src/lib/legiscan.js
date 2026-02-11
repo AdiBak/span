@@ -24,7 +24,7 @@ async function callLegiscanApi(op, params) {
 
   const searchParams = new URLSearchParams({ key: apiKey, op, ...params })
   const url = `${LEGISCAN_API_BASE}?${searchParams}`
-
+ 
   const response = await fetch(url)
 
   if (!response.ok) {

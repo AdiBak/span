@@ -77,16 +77,12 @@ function Footer() {
               <li className="mb-2">
                 <a href="/blog.html" className="text-white text-decoration-none">Blog</a>
               </li>
-              {/* <li className="mb-2">
-                <a
-                  href="https://www.paypal.com/donate/?hosted_button_id=EXAMPLE"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-white text-decoration-none"
-                >
-                  Donate
-                </a>
-              </li> */}
+              <li className="mb-2">
+                <a href="/login.html" className="text-white text-decoration-none">Login</a>
+              </li>
+              <li className="mb-2">
+                <a href="/dashboard.html" className="text-white text-decoration-none">Dashboard</a>
+              </li>
             </ul>
           </div>
         </div>

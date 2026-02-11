@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import CollaboratorAvatars from './CollaboratorAvatars'
+import { fetchBillStatus } from '../lib/legiscan'
 import './BillCard.css'
 
 // Lazy load PDFViewer since it's heavy (includes PDF.js)
@@ -11,8 +12,12 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
   const [extractedKeywords, setExtractedKeywords] = useState([])
   const modalRef = useRef(null)
   const [portalReady, setPortalReady] = useState(false)
-
   const [pdfPath, setPdfPath] = useState(null)
+
+  // Status info popover (small 'i' on public bill cards)
+  const [showStatusPopover, setShowStatusPopover] = useState(false)
+  const statusPopoverRef = useRef(null)
+  const [legiscanInfo, setLegiscanInfo] = useState(null) // null | { status, lastAction, statusDate } | 'loading' | 'error'
 
   // Map state abbreviations/variations to full state names for SVG files
   const getStateFileName = (state) => {
@@ -152,6 +157,33 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
     }
   }, [showPDF])
 
+  // When status popover opens, optionally fetch LegiScan status
+  useEffect(() => {
+    if (!showStatusPopover) return
+    if (!bill?.state || !bill?.name) {
+      setLegiscanInfo(null)
+      return
+    }
+    setLegiscanInfo('loading')
+    fetchBillStatus(bill)
+      .then((result) => {
+        setLegiscanInfo(result === 'error' ? 'error' : result)
+      })
+      .catch(() => setLegiscanInfo('error'))
+  }, [showStatusPopover, bill?.state, bill?.name, bill?.legiscan_link])
+
+  // Click outside to close status popover
+  useEffect(() => {
+    if (!showStatusPopover) return
+    const handleClick = (e) => {
+      if (statusPopoverRef.current && !statusPopoverRef.current.contains(e.target)) {
+        setShowStatusPopover(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showStatusPopover])
+
   const formatDate = (date) => {
     const d = new Date(date)
     const months = [
@@ -217,9 +249,53 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
     >
       <div className="impact-card card h-100 shadow-sm position-relative overflow-hidden">
         <div className="card-body position-relative d-flex flex-column">
-          <h5 className="card-title bill-card-title">
-            <span>{bill.state} {bill.name}</span>
-          </h5>
+          <div ref={statusPopoverRef} className="bill-status-info-area">
+            <h5 className="card-title bill-card-title d-flex align-items-center gap-1">
+              <span className="text-truncate">{bill.state} {bill.name}</span>
+              <button
+                type="button"
+                className="bill-status-info-btn flex-shrink-0"
+                onClick={() => setShowStatusPopover(!showStatusPopover)}
+                aria-label="More info on bill status"
+                title="Bill status info"
+              >
+                <i className="bi bi-info-circle" aria-hidden="true"></i>
+              </button>
+            </h5>
+            {showStatusPopover && (
+              <div className="bill-status-popover-wrapper">
+                <div className="bill-status-popover">
+                <div className="small mb-2 fw-semibold">Bill status</div>
+                <p className="small mb-1"><strong>SPAN position:</strong> {bill.position}</p>
+                <p className="small mb-1"><strong>Bill date:</strong> {formatDate(bill.bill_date)}</p>
+                {bill.legiscan_link && (
+                  <p className="small mb-2">
+                    <a href={bill.legiscan_link} target="_blank" rel="noopener noreferrer">View on LegiScan</a>
+                  </p>
+                )}
+                {legiscanInfo === 'loading' && (
+                  <p className="small text-muted mb-0">Loading LegiScan status…</p>
+                )}
+                {legiscanInfo === 'error' && (
+                  <p className="small text-muted mb-0">Status unavailable from LegiScan.</p>
+                )}
+                {legiscanInfo && typeof legiscanInfo === 'object' && (
+                  <>
+                    {legiscanInfo.status && (
+                      <p className="small mb-1"><strong>LegiScan status:</strong> {legiscanInfo.status}</p>
+                    )}
+                    {legiscanInfo.lastAction && (
+                      <p className="small mb-1"><strong>Last action:</strong> {legiscanInfo.lastAction}</p>
+                    )}
+                    {legiscanInfo.statusDate && (
+                      <p className="small mb-0 text-muted"><strong>Date:</strong> {legiscanInfo.statusDate}</p>
+                    )}
+                  </>
+                )}
+                </div>
+              </div>
+            )}
+          </div>
           <span className={`badge ${getPositionBadge(bill.position)} mb-2`}>
             {bill.position}
           </span>
@@ -338,24 +414,36 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
             modalRef.current
           )}
 
-          {/* State Flag Link */}
-          <a
-            href={bill.legiscan_link}
-            target="_blank"
-            rel="noopener"
-            aria-label="View full bill on LegiScan"
-            className="state-flag-link"
-          >
-            <img
-              className="state-image"
-              src={`/images/states/${stateFileName}.svg`}
-              alt={`${bill.state} flag`}
-              onError={(e) => {
-                // Fallback to United States if state SVG not found
-                e.target.src = '/images/states/United States.svg'
-              }}
-            />
-          </a>
+          {/* State Flag (link to LegiScan when URL is set) */}
+          {bill.legiscan_link ? (
+            <a
+              href={bill.legiscan_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="View full bill on LegiScan"
+              className="state-flag-link"
+            >
+              <img
+                className="state-image"
+                src={`/images/states/${stateFileName}.svg`}
+                alt={`${bill.state} flag`}
+                onError={(e) => {
+                  e.target.src = '/images/states/United States.svg'
+                }}
+              />
+            </a>
+          ) : (
+            <span className="state-flag-link">
+              <img
+                className="state-image"
+                src={`/images/states/${stateFileName}.svg`}
+                alt={`${bill.state} flag`}
+                onError={(e) => {
+                  e.target.src = '/images/states/United States.svg'
+                }}
+              />
+            </span>
+          )}
         </div>
       </div>
     </div>

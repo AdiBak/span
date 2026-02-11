@@ -21,6 +21,19 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key-here
 ```
 
+Optional (for bill status on the public Bills page):
+
+```env
+VITE_LEGISCAN_API_KEY=your-legiscan-api-key
+```
+
+Get a free API key at [LegiScan](https://legiscan.com/legiscan) (free tier: 30,000 queries/month). When set, the small info icon on bill cards will show live LegiScan status and last action.
+
+**LegiScan API Notes:**
+- Free tier: 30,000 queries/month (resets on the 1st of each month)
+- Caching with `change_hash` and 24-hour `sessionStorage` to minimize queries
+- Queries only when users click the info icon (on-demand)
+
 **Important:** Never commit `.env.local` to git! It's already in `.gitignore`.
 
 ### 3. Restart the development server

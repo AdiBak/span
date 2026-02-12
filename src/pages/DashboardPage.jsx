@@ -112,6 +112,24 @@ function DashboardPage() {
   const [hrReportSuccess, setHrReportSuccess] = useState('')
   const [selectedHrReport, setSelectedHrReport] = useState(null)
   const [showHrReportViewModal, setShowHrReportViewModal] = useState(false)
+  const [myRequests, setMyRequests] = useState([])
+  const [allMemberRequests, setAllMemberRequests] = useState([])
+  const [memberRequestFilter, setMemberRequestFilter] = useState('pending') // 'all' | 'pending' | 'approved' | 'declined'
+  const [showRequestModal, setShowRequestModal] = useState(false)
+  const [requestForm, setRequestForm] = useState({
+    type: 'leave',
+    reason: '',
+    leaveStart: '',
+    leaveEnd: '',
+    projectName: '',
+    requestedByDate: ''
+  })
+  const [requestError, setRequestError] = useState('')
+  const [requestSuccess, setRequestSuccess] = useState('')
+  const [selectedRequestForReview, setSelectedRequestForReview] = useState(null)
+  const [showRequestReviewModal, setShowRequestReviewModal] = useState(false)
+  const [requestReviewNotes, setRequestReviewNotes] = useState('')
+  const [requestReviewAction, setRequestReviewAction] = useState(null) // 'approve' | 'decline'
   const [partners, setPartners] = useState([])
   const [showPartnerModal, setShowPartnerModal] = useState(false)
   const [editingPartnerId, setEditingPartnerId] = useState(null)
@@ -251,9 +269,11 @@ function DashboardPage() {
       if (hasPermission('registration')) {
         loadAllMembersForManagement()
         loadHrReports()
+        loadAllMemberRequests()
         loadPartners()
         loadSchools()
       }
+      loadMyRequests()
     }
   }, [member])
 
@@ -421,6 +441,47 @@ function DashboardPage() {
     setHrReports(filtered)
   }
 
+  // Load current member's leave/extension requests
+  const loadMyRequests = async () => {
+    if (!member?.member_id) return
+    const { data, error } = await supabase
+      .from('member_requests')
+      .select('*')
+      .eq('member_id', member.member_id)
+      .order('created_at', { ascending: false })
+    if (error) {
+      console.error('Error loading my requests:', error)
+      setMyRequests([])
+      return
+    }
+    setMyRequests(data || [])
+  }
+
+  // Load all member requests (execs only)
+  const loadAllMemberRequests = async () => {
+    if (!member) return
+    const { data, error } = await supabase
+      .from('member_requests')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (error) {
+      console.error('Error loading member requests:', error)
+      setAllMemberRequests([])
+      return
+    }
+    if (data && data.length > 0) {
+      const memberIds = [...new Set(data.map(r => r.member_id))]
+      const { data: membersData } = await supabase
+        .from('members')
+        .select('member_id, first_name, last_name, email')
+        .in('member_id', memberIds)
+      const membersMap = {}
+      if (membersData) membersData.forEach(m => { membersMap[m.member_id] = m })
+      data.forEach(r => { r.member = membersMap[r.member_id] })
+    }
+    setAllMemberRequests(data || [])
+  }
+
   // HR Report handlers
   const handleSubmitHrReport = async () => {
     const { nature, regardingMemberId, regardingName, dateOccurred, details } = hrReportForm
@@ -579,6 +640,77 @@ function DashboardPage() {
   const filteredHrReports = hrReports.filter(report => {
     if (hrReportFilter === 'all') return true
     return report.status === hrReportFilter
+  })
+
+  // Submit leave or extension request
+  const handleSubmitRequest = async (e) => {
+    e?.preventDefault()
+    setRequestError('')
+    setRequestSuccess('')
+    if (!member?.member_id) {
+      setRequestError('Member data not loaded.')
+      return
+    }
+    const reason = (requestForm.reason || '').trim()
+    if (!reason) {
+      setRequestError('Please provide a reason.')
+      return
+    }
+    try {
+      const payload = {
+        member_id: member.member_id,
+        type: requestForm.type,
+        reason,
+        leave_start: requestForm.leaveStart || null,
+        leave_end: requestForm.leaveEnd || null,
+        project_name: requestForm.projectName?.trim() || null,
+        requested_by_date: requestForm.requestedByDate || null
+      }
+      const { error } = await supabase.from('member_requests').insert(payload)
+      if (error) throw error
+      setRequestSuccess('Request submitted. Executive directors will review it.')
+      setRequestForm({ type: 'leave', reason: '', leaveStart: '', leaveEnd: '', projectName: '', requestedByDate: '' })
+      setShowRequestModal(false)
+      await loadMyRequests()
+      if (hasPermission('registration')) await loadAllMemberRequests()
+    } catch (err) {
+      setRequestError(err.message || 'Failed to submit request.')
+    }
+  }
+
+  const openRequestReviewModal = (request, action) => {
+    setSelectedRequestForReview(request)
+    setRequestReviewAction(action)
+    setRequestReviewNotes(request?.review_notes || '')
+    setShowRequestReviewModal(true)
+  }
+
+  const handleRequestReviewSubmit = async () => {
+    if (!selectedRequestForReview || !requestReviewAction || !member?.member_id) return
+    try {
+      const { error } = await supabase
+        .from('member_requests')
+        .update({
+          status: requestReviewAction === 'approve' ? 'approved' : 'declined',
+          reviewed_by: member.member_id,
+          reviewed_at: new Date().toISOString(),
+          review_notes: requestReviewNotes.trim() || null
+        })
+        .eq('request_id', selectedRequestForReview.request_id)
+      if (error) throw error
+      setShowRequestReviewModal(false)
+      setSelectedRequestForReview(null)
+      setRequestReviewNotes('')
+      await loadAllMemberRequests()
+      await loadMyRequests()
+    } catch (err) {
+      alert(err.message || 'Failed to update request.')
+    }
+  }
+
+  const filteredMemberRequests = allMemberRequests.filter(r => {
+    if (memberRequestFilter === 'all') return true
+    return r.status === memberRequestFilter
   })
 
   const loadMemberData = async (skipRedirect = false) => {
@@ -2891,6 +3023,59 @@ function DashboardPage() {
           </div>
         </section>
 
+        {/* Leave & extension requests - all members */}
+        <section className="mt-5">
+          <div className="d-flex justify-content-between align-items-center mb-4">
+            <h3>Leave & extension requests</h3>
+            <button className="btn btn-dark" onClick={() => { setRequestError(''); setRequestSuccess(''); setRequestForm({ type: 'leave', reason: '', leaveStart: '', leaveEnd: '', projectName: '', requestedByDate: '' }); setShowRequestModal(true) }}>
+              <i className="bi bi-plus-circle me-2"></i>Request leave or extension
+            </button>
+          </div>
+          {myRequests.length > 0 ? (
+            <div className="table-responsive">
+              <table className="table table-hover">
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Reason</th>
+                    <th>Details</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th>Review notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myRequests.map(req => (
+                    <tr key={req.request_id}>
+                      <td><span className="badge bg-secondary text-capitalize">{req.type}</span></td>
+                      <td>{req.reason}</td>
+                      <td>
+                        {req.type === 'leave' && (req.leave_start || req.leave_end)
+                          ? `${req.leave_start ? formatDate(req.leave_start) : '—'} to ${req.leave_end ? formatDate(req.leave_end) : '—'}`
+                          : req.type === 'extension' && (req.project_name || req.requested_by_date)
+                            ? [req.project_name, req.requested_by_date ? formatDate(req.requested_by_date) : null].filter(Boolean).join(' · ')
+                            : '—'}
+                      </td>
+                      <td>
+                        <span className={`badge ${req.status === 'approved' ? 'bg-success' : req.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}`}>
+                          {req.status}
+                        </span>
+                      </td>
+                      <td>{formatDateLong(req.created_at)}</td>
+                      <td>{req.review_notes || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-muted">
+              <i className="bi bi-calendar-x display-6 d-block mb-2"></i>
+              <p className="mb-0">No leave or extension requests yet. Use the button above to submit one.</p>
+            </div>
+          )}
+        </section>
+
         {/* Bill Management Section - Execs Only (all 4 permissions) */}
         {(() => {
           const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
@@ -4100,6 +4285,104 @@ function DashboardPage() {
           </section>
         )}
 
+        {/* Leave & extension requests - Executive directors only */}
+        {hasPermission('registration') && (
+          <section className="mt-5">
+            <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+              <h3 className="mb-0">Leave & extension requests</h3>
+              <div className="btn-group" role="group">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${memberRequestFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setMemberRequestFilter('all')}
+                >
+                  All ({allMemberRequests.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${memberRequestFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
+                  onClick={() => setMemberRequestFilter('pending')}
+                >
+                  Pending ({allMemberRequests.filter(r => r.status === 'pending').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${memberRequestFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
+                  onClick={() => setMemberRequestFilter('approved')}
+                >
+                  Approved ({allMemberRequests.filter(r => r.status === 'approved').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${memberRequestFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
+                  onClick={() => setMemberRequestFilter('declined')}
+                >
+                  Declined ({allMemberRequests.filter(r => r.status === 'declined').length})
+                </button>
+              </div>
+            </div>
+            {filteredMemberRequests.length > 0 ? (
+              <div className="table-responsive">
+                <table className="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>Member</th>
+                      <th>Type</th>
+                      <th>Reason</th>
+                      <th>Details</th>
+                      <th>Status</th>
+                      <th>Submitted</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredMemberRequests.map(req => (
+                      <tr key={req.request_id}>
+                        <td>
+                          {req.member ? `${req.member.first_name} ${req.member.last_name}` : 'Unknown'}
+                          {req.member?.email && <div className="small text-muted">{req.member.email}</div>}
+                        </td>
+                        <td><span className="badge bg-secondary text-capitalize">{req.type}</span></td>
+                        <td>{req.reason}</td>
+                        <td>
+                          {req.type === 'leave' && (req.leave_start || req.leave_end)
+                            ? `${req.leave_start ? formatDate(req.leave_start) : '—'} to ${req.leave_end ? formatDate(req.leave_end) : '—'}`
+                            : req.type === 'extension' && (req.project_name || req.requested_by_date)
+                              ? [req.project_name, req.requested_by_date ? formatDate(req.requested_by_date) : null].filter(Boolean).join(' · ')
+                              : '—'}
+                        </td>
+                        <td>
+                          <span className={`badge ${req.status === 'approved' ? 'bg-success' : req.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}`}>
+                            {req.status}
+                          </span>
+                        </td>
+                        <td>{formatDateLong(req.created_at)}</td>
+                        <td>
+                          {req.status === 'pending' && (
+                            <>
+                              <button className="btn btn-sm btn-success me-1" onClick={() => openRequestReviewModal(req, 'approve')}>
+                                Approve
+                              </button>
+                              <button className="btn btn-sm btn-danger" onClick={() => openRequestReviewModal(req, 'decline')}>
+                                Decline
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-5 text-muted">
+                <i className="bi bi-calendar-x display-4 d-block mb-3"></i>
+                <p>No {memberRequestFilter === 'all' ? '' : memberRequestFilter} leave or extension requests.</p>
+              </div>
+            )}
+          </section>
+        )}
+
         {/* Password Change */}
         <section className="mt-5">
           <h3>Change Password</h3>
@@ -4335,6 +4618,160 @@ function DashboardPage() {
                     onClick={handleSaveVolunteer}
                   >
                     Save
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Request leave or extension modal */}
+      {showRequestModal && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) setShowRequestModal(false)
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Request leave or extension</h5>
+                  <button type="button" className="btn-close" onClick={() => setShowRequestModal(false)}></button>
+                </div>
+                <form onSubmit={handleSubmitRequest}>
+                  <div className="modal-body">
+                    <div className="mb-3">
+                      <label className="form-label">Type</label>
+                      <select
+                        className="form-select"
+                        value={requestForm.type}
+                        onChange={(e) => setRequestForm({ ...requestForm, type: e.target.value })}
+                      >
+                        <option value="leave">Leave / break</option>
+                        <option value="extension">Project extension</option>
+                      </select>
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Reason <span className="text-danger">*</span></label>
+                      <textarea
+                        className="form-control"
+                        rows="3"
+                        value={requestForm.reason}
+                        onChange={(e) => setRequestForm({ ...requestForm, reason: e.target.value })}
+                        placeholder="Explain your request..."
+                        required
+                      />
+                    </div>
+                    {requestForm.type === 'leave' && (
+                      <div className="mb-3 row">
+                        <div className="col-md-6">
+                          <label className="form-label">Start date (optional)</label>
+                          <input
+                            type="date"
+                            className="form-control"
+                            value={requestForm.leaveStart}
+                            onChange={(e) => setRequestForm({ ...requestForm, leaveStart: e.target.value })}
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label">End date (optional)</label>
+                          <input
+                            type="date"
+                            className="form-control"
+                            value={requestForm.leaveEnd}
+                            onChange={(e) => setRequestForm({ ...requestForm, leaveEnd: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {requestForm.type === 'extension' && (
+                      <div className="mb-3">
+                        <div className="row">
+                          <div className="col-md-6 mb-2">
+                            <label className="form-label">Project name (optional)</label>
+                            <input
+                              type="text"
+                              className="form-control"
+                              value={requestForm.projectName}
+                              onChange={(e) => setRequestForm({ ...requestForm, projectName: e.target.value })}
+                              placeholder="e.g. Policy brief"
+                            />
+                          </div>
+                          <div className="col-md-6">
+                            <label className="form-label">Requested by date (optional)</label>
+                            <input
+                              type="date"
+                              className="form-control"
+                              value={requestForm.requestedByDate}
+                              onChange={(e) => setRequestForm({ ...requestForm, requestedByDate: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {requestError && <div className="text-danger small mt-2">{requestError}</div>}
+                    {requestSuccess && <div className="text-success small mt-2">{requestSuccess}</div>}
+                  </div>
+                  <div className="modal-footer">
+                    <button type="button" className="btn btn-outline-dark" onClick={() => setShowRequestModal(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-dark">Submit request</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Request review (approve/decline) modal - exec only */}
+      {showRequestReviewModal && selectedRequestForReview && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowRequestReviewModal(false)
+                setSelectedRequestForReview(null)
+                setRequestReviewNotes('')
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">{requestReviewAction === 'approve' ? 'Approve' : 'Decline'} request</h5>
+                  <button type="button" className="btn-close" onClick={() => { setShowRequestReviewModal(false); setSelectedRequestForReview(null) }}></button>
+                </div>
+                <div className="modal-body">
+                  <p className="mb-2"><strong>Member:</strong> {selectedRequestForReview.member ? `${selectedRequestForReview.member.first_name} ${selectedRequestForReview.member.last_name}` : 'Unknown'}</p>
+                  <p className="mb-2"><strong>Type:</strong> <span className="text-capitalize">{selectedRequestForReview.type}</span></p>
+                  <p className="mb-2"><strong>Reason:</strong> {selectedRequestForReview.reason}</p>
+                  <div className="mb-3">
+                    <label className="form-label">Review notes (optional)</label>
+                    <textarea
+                      className="form-control"
+                      rows="2"
+                      value={requestReviewNotes}
+                      onChange={(e) => setRequestReviewNotes(e.target.value)}
+                      placeholder="e.g. reason for decline or any follow-up"
+                    />
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-outline-dark" onClick={() => { setShowRequestReviewModal(false); setSelectedRequestForReview(null) }}>Cancel</button>
+                  <button
+                    type="button"
+                    className={requestReviewAction === 'approve' ? 'btn btn-success' : 'btn btn-danger'}
+                    onClick={handleRequestReviewSubmit}
+                  >
+                    {requestReviewAction === 'approve' ? 'Approve' : 'Decline'}
                   </button>
                 </div>
               </div>

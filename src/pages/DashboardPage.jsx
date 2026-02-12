@@ -130,6 +130,9 @@ function DashboardPage() {
   const [showRequestReviewModal, setShowRequestReviewModal] = useState(false)
   const [requestReviewNotes, setRequestReviewNotes] = useState('')
   const [requestReviewAction, setRequestReviewAction] = useState(null) // 'approve' | 'decline'
+  const [viewAsData, setViewAsData] = useState(null)
+  const [viewAsLoading, setViewAsLoading] = useState(false)
+  const [viewAsError, setViewAsError] = useState(null)
   const [partners, setPartners] = useState([])
   const [showPartnerModal, setShowPartnerModal] = useState(false)
   const [editingPartnerId, setEditingPartnerId] = useState(null)
@@ -209,14 +212,11 @@ function DashboardPage() {
     return size
   }
 
-  // Helper function to check if member has a specific permission
+  // Helper function to check if member has a specific permission (uses viewed member when in view-as mode)
   const hasPermission = (permission) => {
-    if (!member) {
-      console.log(`hasPermission(${permission}): No member data`)
-      return false
-    }
-    const hasPerm = member[permission] === true || member[permission] === 'true'
-    return hasPerm
+    const m = viewAsData?.member ?? member
+    if (!m) return false
+    return m[permission] === true || m[permission] === 'true'
   }
 
   // Load member data
@@ -275,6 +275,60 @@ function DashboardPage() {
       }
       loadMyRequests()
     }
+  }, [member])
+
+  // View-as mode: when URL has ?viewAs=member_id and current user is exec, fetch that member's dashboard
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const viewAsId = params.get('viewAs')
+    if (!viewAsId || !member) {
+      if (!viewAsId) {
+        setViewAsData(null)
+        setViewAsError(null)
+      }
+      return
+    }
+    const isExec = (member.volunteer === true || member.volunteer === 'true') &&
+      (member.applications === true || member.applications === 'true') &&
+      (member.bills === true || member.bills === 'true') &&
+      (member.registration === true || member.registration === 'true')
+    if (!isExec) {
+      setViewAsError('Only executive directors can view another member\'s dashboard.')
+      setViewAsData(null)
+      return
+    }
+    setViewAsError(null)
+    setViewAsLoading(true)
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const url = `${supabaseUrl}/functions/v1/view-member-dashboard?member_id=${encodeURIComponent(viewAsId)}`
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.access_token) {
+        setViewAsError('Please sign in again.')
+        setViewAsLoading(false)
+        return
+      }
+      fetch(url, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then((res) => {
+          if (res.status === 403) {
+            setViewAsError('You don\'t have permission to view this dashboard.')
+            return null
+          }
+          if (res.status === 404) {
+            setViewAsError('Member not found.')
+            return null
+          }
+          if (!res.ok) throw new Error('Failed to load dashboard')
+          return res.json()
+        })
+        .then((data) => {
+          setViewAsData(data || null)
+        })
+        .catch(() => setViewAsError('Could not load dashboard.'))
+        .finally(() => setViewAsLoading(false))
+    })
   }, [member])
 
   // Load all members for collaborator selection
@@ -2498,7 +2552,8 @@ function DashboardPage() {
     )
   }
 
-  const fullName = `${member.first_name || ''} ${member.last_name || ''}`.trim()
+  const effectiveMember = viewAsData?.member ?? member
+  const fullName = `${effectiveMember.first_name || ''} ${effectiveMember.last_name || ''}`.trim()
 
   // Helper function to get state file name for icons
   const getStateFileName = (state) => {
@@ -2534,9 +2589,15 @@ function DashboardPage() {
     return state
   }
 
+  const effectiveVolunteerEntries = viewAsData ? (viewAsData.volunteer_entries ?? []) : volunteerEntries
+  const effectiveBills = viewAsData ? (viewAsData.bills ?? []) : (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? allBills : mySubmittedBills)
+  const effectiveRequests = viewAsData ? (viewAsData.leave_requests ?? []) : (hasPermission('registration') ? filteredMemberRequests : myRequests)
+  const effectiveApplications = viewAsData ? (viewAsData.applications ?? []) : applications
+  const filteredEffectiveApplications = applicationFilter === 'all' ? effectiveApplications : effectiveApplications.filter(app => app.status === applicationFilter)
+
   // Group volunteer entries by member_id
   const groupedEntries = {}
-  volunteerEntries.forEach(entry => {
+  effectiveVolunteerEntries.forEach(entry => {
     if (!groupedEntries[entry.member_id]) {
       groupedEntries[entry.member_id] = []
     }
@@ -2545,7 +2606,7 @@ function DashboardPage() {
 
   // Group bills by state
   const billsByState = {}
-  allBills.forEach(bill => {
+  effectiveBills.forEach(bill => {
     const state = bill.state || 'Unknown'
     if (!billsByState[state]) {
       billsByState[state] = []
@@ -2572,6 +2633,29 @@ function DashboardPage() {
       </section>
 
       <div className="container my-5">
+        {/* View-as mode: banner and loading/error */}
+        {viewAsLoading && new URLSearchParams(window.location.search).get('viewAs') && (
+          <div className="alert alert-info d-flex align-items-center gap-2">
+            <span className="spinner-border spinner-border-sm" />
+            Loading this member&apos;s dashboard...
+          </div>
+        )}
+        {viewAsError && (
+          <div className="alert alert-warning d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <span>{viewAsError}</span>
+            <a href="/dashboard" className="btn btn-sm btn-outline-dark">Exit view</a>
+          </div>
+        )}
+        {viewAsData && !viewAsError && (
+          <div className="alert alert-dark d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+            <span>
+              <i className="bi bi-person-badge me-2" />
+              Viewing dashboard as <strong>{effectiveMember.first_name} {effectiveMember.last_name}</strong>
+            </span>
+            <a href="/dashboard" className="btn btn-sm btn-light text-dark">Exit view</a>
+          </div>
+        )}
+
         {/* Profile Header */}
         <div className="text-center mb-5">
           <input
@@ -2582,9 +2666,9 @@ function DashboardPage() {
             onChange={handleProfilePicChange}
           />
           <div className="position-relative d-inline-block mb-3">
-            {member.image ? (
+            {effectiveMember.image ? (
               <img
-                src={`${IMAGE_BASE_URL}/${member.image}${profilePicVersion ? `?v=${profilePicVersion}` : ''}`}
+                src={`${IMAGE_BASE_URL}/${effectiveMember.image}${!viewAsData && profilePicVersion ? `?v=${profilePicVersion}` : ''}`}
                 className="rounded-circle border border-dark border-3"
                 alt="Profile"
                 style={{ width: '150px', height: '150px', objectFit: 'cover' }}
@@ -2594,53 +2678,60 @@ function DashboardPage() {
                 className="rounded-circle border border-dark border-3 d-flex align-items-center justify-content-center bg-light text-dark"
                 style={{ width: '150px', height: '150px', fontSize: '3rem' }}
               >
-                {member.first_name?.[0]}{member.last_name?.[0]}
+                {effectiveMember.first_name?.[0]}{effectiveMember.last_name?.[0]}
               </div>
             )}
-            <button
-              type="button"
-              className="btn btn-sm btn-dark position-absolute bottom-0 end-0 rounded-circle p-2"
-              style={{ width: '36px', height: '36px' }}
-              onClick={handleProfilePicClick}
-              disabled={profilePicLoading}
-              title="Change profile picture"
-            >
-              {profilePicLoading ? (
-                <span className="spinner-border spinner-border-sm" style={{ width: '14px', height: '14px' }} />
-              ) : (
-                <i className="bi bi-camera-fill" style={{ fontSize: '0.9rem' }} />
-              )}
-            </button>
+            {!viewAsData && (
+              <button
+                type="button"
+                className="btn btn-sm btn-dark position-absolute bottom-0 end-0 rounded-circle p-2"
+                style={{ width: '36px', height: '36px' }}
+                onClick={handleProfilePicClick}
+                disabled={profilePicLoading}
+                title="Change profile picture"
+              >
+                {profilePicLoading ? (
+                  <span className="spinner-border spinner-border-sm" style={{ width: '14px', height: '14px' }} />
+                ) : (
+                  <i className="bi bi-camera-fill" style={{ fontSize: '0.9rem' }} />
+                )}
+              </button>
+            )}
           </div>
-          {profilePicError && (
+          {!viewAsData && profilePicError && (
             <div className="small text-danger mb-1">{profilePicError}</div>
           )}
-          {profilePicSuccess && (
+          {!viewAsData && profilePicSuccess && (
             <div className="small text-success mb-1">{profilePicSuccess}</div>
           )}
-          <div className="small text-muted mb-1">
-            <button type="button" className="btn btn-link btn-sm p-0 text-muted" onClick={handleProfilePicClick}>
-              Change profile picture
-            </button>
-          </div>
+          {!viewAsData && (
+            <div className="small text-muted mb-1">
+              <button type="button" className="btn btn-link btn-sm p-0 text-muted" onClick={handleProfilePicClick}>
+                Change profile picture
+              </button>
+            </div>
+          )}
           <h2>{fullName}</h2>
-          <p className="text-muted">{member.role || '-'}</p>
+          <p className="text-muted">{effectiveMember.role || '-'}</p>
           <div className="mt-2">
-            {member.linkedin && (
-              <a href={member.linkedin} target="_blank" rel="noopener noreferrer" className="text-dark fs-4 me-2">
+            {effectiveMember.linkedin && (
+              <a href={effectiveMember.linkedin} target="_blank" rel="noopener noreferrer" className="text-dark fs-4 me-2">
                 <i className="bi bi-linkedin"></i>
               </a>
             )}
-            {member.instagram && (
-              <a href={member.instagram} target="_blank" rel="noopener noreferrer" className="text-dark fs-4">
+            {effectiveMember.instagram && (
+              <a href={effectiveMember.instagram} target="_blank" rel="noopener noreferrer" className="text-dark fs-4">
                 <i className="bi bi-instagram"></i>
               </a>
             )}
           </div>
-          <button className="btn btn-dark mt-3" onClick={handleDownloadSpanCard}>
-            <i className="bi bi-person-vcard"></i> Download My SPANCard
-          </button>
+          {!viewAsData && (
+            <button className="btn btn-dark mt-3" onClick={handleDownloadSpanCard}>
+              <i className="bi bi-person-vcard"></i> Download My SPANCard
+            </button>
+          )}
         </div>
+
 
         {/* Your Info Section - Split Design */}
         <section className="mt-5" style={{ backgroundColor: 'transparent' }}>
@@ -2683,7 +2774,7 @@ function DashboardPage() {
                   color: '#fff', 
                   fontWeight: 'bold'
                 }}>
-                  {formatDate(member.start_date)}
+                  {formatDate(effectiveMember.start_date)}
                 </div>
               </div>
 
@@ -2717,7 +2808,7 @@ function DashboardPage() {
                   fontWeight: 'bold',
                   wordBreak: 'break-word'
                 }}>
-                  {member.email || '-'}
+                  {effectiveMember.email || '-'}
                 </div>
               </div>
             </div>
@@ -2764,7 +2855,7 @@ function DashboardPage() {
                       color: '#212529', 
                       fontWeight: 'bold'
                     }}>
-                      {formatDate(member.dob)}
+                      {formatDate(effectiveMember.dob)}
                     </div>
                   </div>
                 </div>
@@ -2805,7 +2896,7 @@ function DashboardPage() {
                       color: '#212529', 
                       fontWeight: 'bold'
                     }}>
-                      {member.city && member.state ? `${member.city}, ${member.state}` : '-'}
+                      {effectiveMember.city && effectiveMember.state ? `${effectiveMember.city}, ${effectiveMember.state}` : '-'}
                     </div>
                   </div>
                 </div>
@@ -2846,7 +2937,7 @@ function DashboardPage() {
                       color: '#212529', 
                       fontWeight: 'bold'
                     }}>
-                      {member.school_name || '-'}
+                      {effectiveMember.school_name || '-'}
                     </div>
                   </div>
                 </div>
@@ -2887,7 +2978,7 @@ function DashboardPage() {
                       color: '#212529', 
                       fontWeight: 'bold'
                     }}>
-                      {formatPhone(member.phone)}
+                      {formatPhone(effectiveMember.phone)}
                     </div>
                   </div>
                 </div>
@@ -2900,15 +2991,17 @@ function DashboardPage() {
         <section className="mt-5">
           <div className="d-flex justify-content-between align-items-center mb-4">
             <h3>Volunteer Hours</h3>
-            <button className="btn btn-dark" onClick={handleAddVolunteer}>
-              <i className="bi bi-plus-circle me-2"></i>Add Entry
-            </button>
+            {!viewAsData && (
+              <button className="btn btn-dark" onClick={handleAddVolunteer}>
+                <i className="bi bi-plus-circle me-2"></i>Add Entry
+              </button>
+            )}
           </div>
           <div>
             {Object.entries(groupedEntries).map(([memberId, entries]) => {
               const firstEntry = entries[0]
-              const isOwn = firstEntry.member_id === member.member_id
-              const memberData = firstEntry.members || {}
+              const memberData = viewAsData ? effectiveMember : (firstEntry.members || {})
+              const isOwn = firstEntry.member_id === effectiveMember.member_id
               const memberName = isOwn ? 'You' : `${memberData.first_name || ''} ${memberData.last_name || ''}`.trim()
               const memberImage = memberData.image
                 ? `${IMAGE_BASE_URL}/${memberData.image}`
@@ -2969,7 +3062,8 @@ function DashboardPage() {
                                   <p><i className="bi bi-clock me-1"></i>Start: {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                   <p><i className="bi bi-clock-history me-1"></i>End: {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                   <p><i className="bi bi-person-workspace me-1"></i>Supervisor Comment: {entry.supervisor_comment || '-'}</p>
-                                  <p><i className="bi bi-upload me-1"></i>Submitted: {new Date(entry.request_submit_timestamp).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                  <p><i className="bi bi-upload me-1"></i>Submitted: {new Date(entry.request_submit_timestamp || entry.created_at || 0).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                  {!viewAsData && (
                                   <div className="mt-2 d-flex gap-2 flex-wrap">
                                     {hasPermission('volunteer') && !isOwn && (
                                       <>
@@ -3003,6 +3097,7 @@ function DashboardPage() {
                                       <i className="bi bi-trash me-1"></i>Delete
                                     </button>
                                   </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -3014,66 +3109,13 @@ function DashboardPage() {
                 </div>
               )
             })}
-            {volunteerEntries.length === 0 && (
+            {effectiveVolunteerEntries.length === 0 && (
               <div className="text-center py-5 text-muted">
                 <i className="bi bi-clock-history display-4 d-block mb-3"></i>
-                <p>No volunteer entries found. Add your first entry to get started.</p>
+                <p>No volunteer entries found.{!viewAsData && ' Add your first entry to get started.'}</p>
               </div>
             )}
           </div>
-        </section>
-
-        {/* Leave & extension requests - all members */}
-        <section className="mt-5">
-          <div className="d-flex justify-content-between align-items-center mb-4">
-            <h3>Leave & extension requests</h3>
-            <button className="btn btn-dark" onClick={() => { setRequestError(''); setRequestSuccess(''); setRequestForm({ type: 'leave', reason: '', leaveStart: '', leaveEnd: '', projectName: '', requestedByDate: '' }); setShowRequestModal(true) }}>
-              <i className="bi bi-plus-circle me-2"></i>Request leave or extension
-            </button>
-          </div>
-          {myRequests.length > 0 ? (
-            <div className="table-responsive">
-              <table className="table table-hover">
-                <thead>
-                  <tr>
-                    <th>Type</th>
-                    <th>Reason</th>
-                    <th>Details</th>
-                    <th>Status</th>
-                    <th>Submitted</th>
-                    <th>Review notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {myRequests.map(req => (
-                    <tr key={req.request_id}>
-                      <td><span className="badge bg-secondary text-capitalize">{req.type}</span></td>
-                      <td>{req.reason}</td>
-                      <td>
-                        {req.type === 'leave' && (req.leave_start || req.leave_end)
-                          ? `${req.leave_start ? formatDate(req.leave_start) : '—'} to ${req.leave_end ? formatDate(req.leave_end) : '—'}`
-                          : req.type === 'extension' && (req.project_name || req.requested_by_date)
-                            ? [req.project_name, req.requested_by_date ? formatDate(req.requested_by_date) : null].filter(Boolean).join(' · ')
-                            : '—'}
-                      </td>
-                      <td>
-                        <span className={`badge ${req.status === 'approved' ? 'bg-success' : req.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}`}>
-                          {req.status}
-                        </span>
-                      </td>
-                      <td>{formatDateLong(req.created_at)}</td>
-                      <td>{req.review_notes || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-muted">
-              <i className="bi bi-calendar-x display-6 d-block mb-2"></i>
-              <p className="mb-0">No leave or extension requests yet. Use the button above to submit one.</p>
-            </div>
-          )}
         </section>
 
         {/* Bill Management Section - Execs Only (all 4 permissions) */}
@@ -3091,48 +3133,50 @@ function DashboardPage() {
                     className={`btn btn-sm ${billFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
                     onClick={() => setBillFilter('all')}
                   >
-                    All ({allBills.length})
+                    All ({effectiveBills.length})
                   </button>
                   <button
                     type="button"
                     className={`btn btn-sm ${billFilter === 'under_review' ? 'btn-warning' : 'btn-outline-warning'}`}
                     onClick={() => setBillFilter('under_review')}
                   >
-                    Under Review ({allBills.filter(b => b.status === 'under_review' || (!b.status && billFilter === 'under_review')).length})
+                    Under Review ({effectiveBills.filter(b => b.status === 'under_review' || (!b.status && billFilter === 'under_review')).length})
                   </button>
                   <button
                     type="button"
                     className={`btn btn-sm ${billFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
                     onClick={() => setBillFilter('approved')}
                   >
-                    Approved ({allBills.filter(b => b.status === 'approved' || (!b.status && billFilter === 'approved')).length})
+                    Approved ({effectiveBills.filter(b => b.status === 'approved' || (!b.status && billFilter === 'approved')).length})
                   </button>
                   <button
                     type="button"
                     className={`btn btn-sm ${billFilter === 'modified' ? 'btn-info' : 'btn-outline-info'}`}
                     onClick={() => setBillFilter('modified')}
                   >
-                    Modified ({allBills.filter(b => b.status === 'modified').length})
+                    Modified ({effectiveBills.filter(b => b.status === 'modified').length})
                   </button>
                   <button
                     type="button"
                     className={`btn btn-sm ${billFilter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'}`}
                     onClick={() => setBillFilter('rejected')}
                   >
-                    Rejected ({allBills.filter(b => b.status === 'rejected').length})
+                    Rejected ({effectiveBills.filter(b => b.status === 'rejected').length})
                   </button>
                 </div>
-                <button className="btn btn-dark btn-sm" onClick={handleAddBill}>
-                  <i className="bi bi-plus-circle me-2"></i>Upload New Bill
-                </button>
+                {!viewAsData && (
+                  <button className="btn btn-dark btn-sm" onClick={handleAddBill}>
+                    <i className="bi bi-plus-circle me-2"></i>Upload New Bill
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Filtered Bills List */}
             {(() => {
               const filteredBills = billFilter === 'all' 
-                ? allBills 
-                : allBills.filter(bill => {
+                ? effectiveBills 
+                : effectiveBills.filter(bill => {
                     if (billFilter === 'approved' && (!bill.status || bill.status === 'approved')) return true
                     return bill.status === billFilter
                   })
@@ -3358,17 +3402,19 @@ function DashboardPage() {
           <section className="mt-5">
             <div className="d-flex justify-content-between align-items-center mb-4">
               <h3>Bill Submission</h3>
-              <button className="btn btn-dark" onClick={handleAddBill}>
-                <i className="bi bi-plus-circle me-2"></i>Submit Bill for Review
-              </button>
+              {!viewAsData && (
+                <button className="btn btn-dark" onClick={handleAddBill}>
+                  <i className="bi bi-plus-circle me-2"></i>Submit Bill for Review
+                </button>
+              )}
             </div>
 
             {/* My Submitted Bills */}
-            {mySubmittedBills.length > 0 ? (
+            {effectiveBills.length > 0 ? (
               <div>
                 <h4 className="mb-3">My Submitted Bills</h4>
                 <div className="accordion mb-4">
-                  {mySubmittedBills.map(bill => (
+                  {effectiveBills.map(bill => (
                     <div key={bill.bill_id} className="accordion-item mb-2 shadow-sm border rounded">
                       <h2 className="accordion-header">
                         <button
@@ -3621,6 +3667,14 @@ function DashboardPage() {
                                 )}
                                 <div className="col-12 mt-2">
                                   <div className="d-flex gap-2 flex-wrap">
+                                    {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
+                                      <a
+                                        href={`/dashboard?viewAs=${memberItem.member_id}`}
+                                        className="btn btn-sm btn-outline-dark"
+                                      >
+                                        <i className="bi bi-person-square me-1"></i>View dashboard
+                                      </a>
+                                    )}
                                     <button
                                       className="btn btn-sm btn-outline-primary"
                                       onClick={() => handleEditMember(memberItem)}
@@ -3792,6 +3846,14 @@ function DashboardPage() {
                                 )}
                                 <div className="col-12 mt-2">
                                   <div className="d-flex gap-2 flex-wrap">
+                                    {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
+                                      <a
+                                        href={`/dashboard?viewAs=${memberItem.member_id}`}
+                                        className="btn btn-sm btn-outline-dark"
+                                      >
+                                        <i className="bi bi-person-square me-1"></i>View dashboard
+                                      </a>
+                                    )}
                                     <button
                                       className="btn btn-sm btn-outline-primary"
                                       onClick={() => handleEditMember(memberItem)}
@@ -4047,47 +4109,47 @@ function DashboardPage() {
                   className={`btn btn-sm ${applicationFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
                   onClick={() => setApplicationFilter('all')}
                 >
-                  All ({applications.length})
+                  All ({effectiveApplications.length})
                 </button>
                 <button
                   type="button"
                   className={`btn btn-sm ${applicationFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
                   onClick={() => setApplicationFilter('pending')}
                 >
-                  Pending ({applications.filter(a => a.status === 'pending').length})
+                  Pending ({effectiveApplications.filter(a => a.status === 'pending').length})
                 </button>
                 <button
                   type="button"
                   className={`btn btn-sm ${applicationFilter === 'under_review' ? 'btn-info' : 'btn-outline-info'}`}
                   onClick={() => setApplicationFilter('under_review')}
                 >
-                  Under Review ({applications.filter(a => a.status === 'under_review').length})
+                  Under Review ({effectiveApplications.filter(a => a.status === 'under_review').length})
                 </button>
                 <button
                   type="button"
                   className={`btn btn-sm ${applicationFilter === 'contacted' ? 'btn-primary' : 'btn-outline-primary'}`}
                   onClick={() => setApplicationFilter('contacted')}
                 >
-                  Contacted ({applications.filter(a => a.status === 'contacted').length})
+                  Contacted ({effectiveApplications.filter(a => a.status === 'contacted').length})
                 </button>
                 <button
                   type="button"
                   className={`btn btn-sm ${applicationFilter === 'accepted' ? 'btn-success' : 'btn-outline-success'}`}
                   onClick={() => setApplicationFilter('accepted')}
                 >
-                  Accepted ({applications.filter(a => a.status === 'accepted').length})
+                  Accepted ({effectiveApplications.filter(a => a.status === 'accepted').length})
                 </button>
                 <button
                   type="button"
                   className={`btn btn-sm ${applicationFilter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'}`}
                   onClick={() => setApplicationFilter('rejected')}
                 >
-                  Rejected ({applications.filter(a => a.status === 'rejected').length})
+                  Rejected ({effectiveApplications.filter(a => a.status === 'rejected').length})
                 </button>
               </div>
             </div>
 
-            {filteredApplications.length > 0 ? (
+            {filteredEffectiveApplications.length > 0 ? (
               <div className="table-responsive">
                 <table className="table table-hover table-sm">
                   <thead>
@@ -4102,7 +4164,7 @@ function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredApplications.map(app => (
+                    {filteredEffectiveApplications.map(app => (
                       <tr key={app.application_id}>
                         <td>{app.full_name}</td>
                         <td>
@@ -4145,243 +4207,261 @@ function DashboardPage() {
           </section>
         )}
 
-        {/* HR Report Submission - All Members */}
+        {/* HR Reports - single section: all members can submit; execs see filters + list */}
         <section className="mt-5">
-          <h3>Submit HR Report</h3>
-          <div className="card mt-3">
-            <div className="card-body">
-              <p className="text-muted mb-3">
-                Use this form to submit an HR complaint or report. All reports are confidential and will be reviewed by executive directors.
-              </p>
-              <button className="btn btn-dark" onClick={() => {
-                setHrReportForm({
-                  nature: '',
-                  regardingMemberId: '',
-                  regardingName: '',
-                  dateOccurred: '',
-                  details: ''
-                })
-                setHrReportError('')
-                setHrReportSuccess('')
-                setShowHrReportModal(true)
-              }}>
-                <i className="bi bi-file-earmark-text me-2"></i>Submit HR Report
-              </button>
+          <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <h3 className="mb-0">HR Reports</h3>
+            <div className="d-flex align-items-center gap-2">
+              {hasPermission('registration') && (
+                <div className="btn-group" role="group">
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${hrReportFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                    onClick={() => setHrReportFilter('all')}
+                  >
+                    All ({hrReports.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${hrReportFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
+                    onClick={() => setHrReportFilter('pending')}
+                  >
+                    Pending ({hrReports.filter(r => r.status === 'pending').length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${hrReportFilter === 'reviewed' ? 'btn-info' : 'btn-outline-info'}`}
+                    onClick={() => setHrReportFilter('reviewed')}
+                  >
+                    Reviewed ({hrReports.filter(r => r.status === 'reviewed').length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${hrReportFilter === 'resolved' ? 'btn-success' : 'btn-outline-success'}`}
+                    onClick={() => setHrReportFilter('resolved')}
+                  >
+                    Resolved ({hrReports.filter(r => r.status === 'resolved').length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${hrReportFilter === 'dismissed' ? 'btn-secondary' : 'btn-outline-secondary'}`}
+                    onClick={() => setHrReportFilter('dismissed')}
+                  >
+                    Dismissed ({hrReports.filter(r => r.status === 'dismissed').length})
+                  </button>
+                </div>
+              )}
+              {!viewAsData && (
+                <button className="btn btn-dark btn-sm" onClick={() => {
+                  setHrReportForm({
+                    nature: '',
+                    regardingMemberId: '',
+                    regardingName: '',
+                    dateOccurred: '',
+                    details: ''
+                  })
+                  setHrReportError('')
+                  setHrReportSuccess('')
+                  setShowHrReportModal(true)
+                }}>
+                  <i className="bi bi-file-earmark-text me-2"></i>Submit HR Report
+                </button>
+              )}
             </div>
           </div>
+          {hasPermission('registration') ? (
+            <>
+              <div className="alert alert-info mb-3">
+                <i className="bi bi-info-circle me-2"></i>
+                You can view all HR reports except those that involve you directly.
+              </div>
+              {filteredHrReports.length > 0 ? (
+                <div className="table-responsive">
+                  <table className="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>Submitted</th>
+                        <th>Submitted By</th>
+                        <th>Nature of Complaint</th>
+                        <th>Regarding</th>
+                        <th>Date Occurred</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredHrReports.map(report => (
+                        <tr key={report.report_id}>
+                          <td>{formatDateLong(report.created_at)}</td>
+                          <td>
+                            {report.submitted_by_member ? (
+                              `${report.submitted_by_member.first_name} ${report.submitted_by_member.last_name}`
+                            ) : 'Unknown'}
+                          </td>
+                          <td>{report.nature_of_complaint}</td>
+                          <td>
+                            {report.regarding_member ? (
+                              `${report.regarding_member.first_name} ${report.regarding_member.last_name}`
+                            ) : report.regarding_name || 'N/A'}
+                          </td>
+                          <td>{formatDate(report.date_occurred)}</td>
+                          <td>
+                            <span className={`badge ${
+                              report.status === 'pending' ? 'bg-warning text-dark' :
+                              report.status === 'resolved' ? 'bg-success' :
+                              report.status === 'dismissed' ? 'bg-secondary' :
+                              'bg-info'
+                            }`}>
+                              {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => {
+                                setSelectedHrReport(report)
+                                setShowHrReportViewModal(true)
+                              }}
+                            >
+                              <i className="bi bi-eye me-1"></i>View
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-5 text-muted">
+                  <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
+                  <p>No {hrReportFilter === 'all' ? '' : hrReportFilter} HR reports found.</p>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-muted mb-0">Submit a confidential HR complaint or report using the button above. Reports are reviewed by executive directors.</p>
+          )}
         </section>
 
-        {/* HR Reports Viewing - Executive Directors Only */}
-        {hasPermission('registration') && (
-          <section className="mt-5">
-            <div className="d-flex justify-content-between align-items-center mb-4">
-              <h3>HR Reports</h3>
-              <div className="btn-group" role="group">
-                <button
-                  type="button"
-                  className={`btn btn-sm ${hrReportFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setHrReportFilter('all')}
-                >
-                  All ({hrReports.length})
+        {/* Leave & extension requests - single section: members see own requests + make new; execs see all + filters + make new */}
+        <section className="mt-5">
+          <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <h3 className="mb-0">Leave & extension requests</h3>
+            <div className="d-flex align-items-center gap-2">
+              {!viewAsData && hasPermission('registration') && (
+                <div className="btn-group" role="group">
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                    onClick={() => setMemberRequestFilter('all')}
+                  >
+                    All ({allMemberRequests.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
+                    onClick={() => setMemberRequestFilter('pending')}
+                  >
+                    Pending ({allMemberRequests.filter(r => r.status === 'pending').length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
+                    onClick={() => setMemberRequestFilter('approved')}
+                  >
+                    Approved ({allMemberRequests.filter(r => r.status === 'approved').length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
+                    onClick={() => setMemberRequestFilter('declined')}
+                  >
+                    Declined ({allMemberRequests.filter(r => r.status === 'declined').length})
+                  </button>
+                </div>
+              )}
+              {!viewAsData && (
+                <button className="btn btn-dark btn-sm" onClick={() => { setRequestError(''); setRequestSuccess(''); setRequestForm({ type: 'leave', reason: '', leaveStart: '', leaveEnd: '', projectName: '', requestedByDate: '' }); setShowRequestModal(true) }}>
+                  <i className="bi bi-plus-circle me-2"></i>Make new request
                 </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${hrReportFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
-                  onClick={() => setHrReportFilter('pending')}
-                >
-                  Pending ({hrReports.filter(r => r.status === 'pending').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${hrReportFilter === 'reviewed' ? 'btn-info' : 'btn-outline-info'}`}
-                  onClick={() => setHrReportFilter('reviewed')}
-                >
-                  Reviewed ({hrReports.filter(r => r.status === 'reviewed').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${hrReportFilter === 'resolved' ? 'btn-success' : 'btn-outline-success'}`}
-                  onClick={() => setHrReportFilter('resolved')}
-                >
-                  Resolved ({hrReports.filter(r => r.status === 'resolved').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${hrReportFilter === 'dismissed' ? 'btn-secondary' : 'btn-outline-secondary'}`}
-                  onClick={() => setHrReportFilter('dismissed')}
-                >
-                  Dismissed ({hrReports.filter(r => r.status === 'dismissed').length})
-                </button>
-              </div>
+              )}
             </div>
-            
-            <div className="alert alert-info">
-              <i className="bi bi-info-circle me-2"></i>
-              You can view all HR reports except those that involve you directly.
-            </div>
-
-            {filteredHrReports.length > 0 ? (
-              <div className="table-responsive">
-                <table className="table table-hover">
-                  <thead>
-                    <tr>
-                      <th>Submitted</th>
-                      <th>Submitted By</th>
-                      <th>Nature of Complaint</th>
-                      <th>Regarding</th>
-                      <th>Date Occurred</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredHrReports.map(report => (
-                      <tr key={report.report_id}>
-                        <td>{formatDateLong(report.created_at)}</td>
-                        <td>
-                          {report.submitted_by_member ? (
-                            `${report.submitted_by_member.first_name} ${report.submitted_by_member.last_name}`
-                          ) : 'Unknown'}
-                        </td>
-                        <td>{report.nature_of_complaint}</td>
-                        <td>
-                          {report.regarding_member ? (
-                            `${report.regarding_member.first_name} ${report.regarding_member.last_name}`
-                          ) : report.regarding_name || 'N/A'}
-                        </td>
-                        <td>{formatDate(report.date_occurred)}</td>
-                        <td>
-                          <span className={`badge ${
-                            report.status === 'pending' ? 'bg-warning text-dark' :
-                            report.status === 'resolved' ? 'bg-success' :
-                            report.status === 'dismissed' ? 'bg-secondary' :
-                            'bg-info'
-                          }`}>
-                            {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className="btn btn-sm btn-outline-primary"
-                            onClick={() => {
-                              setSelectedHrReport(report)
-                              setShowHrReportViewModal(true)
-                            }}
-                          >
-                            <i className="bi bi-eye me-1"></i>View
-                          </button>
-                        </td>
+          </div>
+          {(() => {
+            const isExecDisplay = !viewAsData && hasPermission('registration')
+            const requests = effectiveRequests
+            if (requests.length > 0) {
+              return (
+                <div className="table-responsive">
+                  <table className="table table-hover">
+                    <thead>
+                      <tr>
+                        {isExecDisplay && <th>Member</th>}
+                        <th>Type</th>
+                        <th>Reason</th>
+                        <th>Details</th>
+                        <th>Status</th>
+                        <th>Submitted</th>
+                        {isExecDisplay ? <th>Actions</th> : <th>Review notes</th>}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-5 text-muted">
-                <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
-                <p>No {hrReportFilter === 'all' ? '' : hrReportFilter} HR reports found.</p>
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Leave & extension requests - Executive directors only */}
-        {hasPermission('registration') && (
-          <section className="mt-5">
-            <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-              <h3 className="mb-0">Leave & extension requests</h3>
-              <div className="btn-group" role="group">
-                <button
-                  type="button"
-                  className={`btn btn-sm ${memberRequestFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setMemberRequestFilter('all')}
-                >
-                  All ({allMemberRequests.length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${memberRequestFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
-                  onClick={() => setMemberRequestFilter('pending')}
-                >
-                  Pending ({allMemberRequests.filter(r => r.status === 'pending').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${memberRequestFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
-                  onClick={() => setMemberRequestFilter('approved')}
-                >
-                  Approved ({allMemberRequests.filter(r => r.status === 'approved').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${memberRequestFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
-                  onClick={() => setMemberRequestFilter('declined')}
-                >
-                  Declined ({allMemberRequests.filter(r => r.status === 'declined').length})
-                </button>
-              </div>
-            </div>
-            {filteredMemberRequests.length > 0 ? (
-              <div className="table-responsive">
-                <table className="table table-hover">
-                  <thead>
-                    <tr>
-                      <th>Member</th>
-                      <th>Type</th>
-                      <th>Reason</th>
-                      <th>Details</th>
-                      <th>Status</th>
-                      <th>Submitted</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredMemberRequests.map(req => (
-                      <tr key={req.request_id}>
-                        <td>
-                          {req.member ? `${req.member.first_name} ${req.member.last_name}` : 'Unknown'}
-                          {req.member?.email && <div className="small text-muted">{req.member.email}</div>}
-                        </td>
-                        <td><span className="badge bg-secondary text-capitalize">{req.type}</span></td>
-                        <td>{req.reason}</td>
-                        <td>
-                          {req.type === 'leave' && (req.leave_start || req.leave_end)
-                            ? `${req.leave_start ? formatDate(req.leave_start) : '—'} to ${req.leave_end ? formatDate(req.leave_end) : '—'}`
-                            : req.type === 'extension' && (req.project_name || req.requested_by_date)
-                              ? [req.project_name, req.requested_by_date ? formatDate(req.requested_by_date) : null].filter(Boolean).join(' · ')
-                              : '—'}
-                        </td>
-                        <td>
-                          <span className={`badge ${req.status === 'approved' ? 'bg-success' : req.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}`}>
-                            {req.status}
-                          </span>
-                        </td>
-                        <td>{formatDateLong(req.created_at)}</td>
-                        <td>
-                          {req.status === 'pending' && (
-                            <>
-                              <button className="btn btn-sm btn-success me-1" onClick={() => openRequestReviewModal(req, 'approve')}>
-                                Approve
-                              </button>
-                              <button className="btn btn-sm btn-danger" onClick={() => openRequestReviewModal(req, 'decline')}>
-                                Decline
-                              </button>
-                            </>
+                    </thead>
+                    <tbody>
+                      {requests.map(req => (
+                        <tr key={req.request_id}>
+                          {isExecDisplay && (
+                            <td>
+                              {req.member ? `${req.member.first_name} ${req.member.last_name}` : 'Unknown'}
+                              {req.member?.email && <div className="small text-muted">{req.member.email}</div>}
+                            </td>
                           )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
+                          <td><span className="badge bg-secondary text-capitalize">{req.type}</span></td>
+                          <td>{req.reason}</td>
+                          <td>
+                            {req.type === 'leave' && (req.leave_start || req.leave_end)
+                              ? `${req.leave_start ? formatDate(req.leave_start) : '—'} to ${req.leave_end ? formatDate(req.leave_end) : '—'}`
+                              : req.type === 'extension' && (req.project_name || req.requested_by_date)
+                                ? [req.project_name, req.requested_by_date ? formatDate(req.requested_by_date) : null].filter(Boolean).join(' · ')
+                                : '—'}
+                          </td>
+                          <td>
+                            <span className={`badge ${req.status === 'approved' ? 'bg-success' : req.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}`}>
+                              {req.status}
+                            </span>
+                          </td>
+                          <td>{formatDateLong(req.created_at)}</td>
+                          {isExecDisplay ? (
+                            <td>
+                              {req.status === 'pending' && (
+                                <>
+                                  <button className="btn btn-sm btn-success me-1" onClick={() => openRequestReviewModal(req, 'approve')}>
+                                    Approve
+                                  </button>
+                                  <button className="btn btn-sm btn-danger" onClick={() => openRequestReviewModal(req, 'decline')}>
+                                    Decline
+                                  </button>
+                                </>
+                              )}
+                            </td>
+                          ) : (
+                            <td>{req.review_notes || '—'}</td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            }
+            return (
               <div className="text-center py-5 text-muted">
                 <i className="bi bi-calendar-x display-4 d-block mb-3"></i>
-                <p>No {memberRequestFilter === 'all' ? '' : memberRequestFilter} leave or extension requests.</p>
+                <p className="mb-0">
+                  {isExecDisplay ? `No ${memberRequestFilter === 'all' ? '' : memberRequestFilter} leave or extension requests.` : 'No leave or extension requests yet. Use the button above to submit one.'}
+                </p>
               </div>
-            )}
-          </section>
-        )}
+            )
+          })()}
+        </section>
 
         {/* Password Change */}
         <section className="mt-5">

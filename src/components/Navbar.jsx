@@ -36,8 +36,8 @@ function Navbar() {
     []
   )
 
-  async function handleSignOut(event) {
-    event.preventDefault()
+  async function handleSignOut(e) {
+    if (e) e.preventDefault()
     await supabase.auth.signOut()
     window.location.href = '/index.html'
   }
@@ -71,7 +71,7 @@ function Navbar() {
             </a>
           </li>
           <li className="nav-item">
-            <a className="nav-link" href="#" role="button" onClick={(e) => { e.preventDefault(); handleSignOut(); closeMobileMenu(); }}>
+            <a className="nav-link" href="#" role="button" onClick={(e) => { handleSignOut(e); closeMobileMenu(); }}>
               Sign Out
             </a>
           </li>

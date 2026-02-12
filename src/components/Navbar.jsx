@@ -38,7 +38,7 @@ function Navbar() {
 
   async function handleSignOut(e) {
     if (e) e.preventDefault()
-    await supabase.auth.signOut()
+    await supabase.auth.signOut({ scope: 'local' })
     window.location.href = '/index.html'
   }
 

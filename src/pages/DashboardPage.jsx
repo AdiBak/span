@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import QRCode from 'qrcode'
 import RegistrationForm from '../components/RegistrationForm'
+import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import './DashboardPage.css'
 
 const IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
@@ -171,6 +172,13 @@ function DashboardPage() {
   const [memberPhotoError, setMemberPhotoError] = useState('')
   const [memberPhotoSuccess, setMemberPhotoSuccess] = useState('')
   const execMemberPhotoInputRef = useRef(null)
+  const [showVerificationModal, setShowVerificationModal] = useState(false)
+  const [verificationPdfUrl, setVerificationPdfUrl] = useState(null)
+  const [verificationPdfBase64, setVerificationPdfBase64] = useState(null)
+  const [verificationMember, setVerificationMember] = useState(null)
+  const [verificationEntryCount, setVerificationEntryCount] = useState(0)
+  const [verificationSending, setVerificationSending] = useState(false)
+  const [verificationGenerating, setVerificationGenerating] = useState(false)
 
   // Helper functions
   const formatDate = (dateStr) => {
@@ -1409,6 +1417,79 @@ function DashboardPage() {
     setShowDeleteModal(false)
     setSelectedEntryId(null)
     await loadVolunteerEntries(member)
+  }
+
+  // Volunteer verification PDF
+  const handleSendVerification = async (targetMemberId, approvedEntries) => {
+    setVerificationGenerating(true)
+    try {
+      // Fetch full member data for the PDF (need dob, city, state, role, etc.)
+      const { data: fullMember, error: memberError } = await supabase
+        .from('members')
+        .select('*')
+        .eq('member_id', targetMemberId)
+        .maybeSingle()
+
+      if (memberError || !fullMember) {
+        alert('Failed to load member data for verification letter.')
+        setVerificationGenerating(false)
+        return
+      }
+
+      const { pdfBlob, pdfBase64 } = await generateVolunteerPDF(fullMember, approvedEntries, supabase)
+      const blobUrl = URL.createObjectURL(pdfBlob)
+
+      setVerificationPdfUrl(blobUrl)
+      setVerificationPdfBase64(pdfBase64)
+      setVerificationMember(fullMember)
+      setVerificationEntryCount(approvedEntries.length)
+      setShowVerificationModal(true)
+    } catch (err) {
+      console.error('Error generating verification PDF:', err)
+      alert('Failed to generate verification PDF: ' + err.message)
+    } finally {
+      setVerificationGenerating(false)
+    }
+  }
+
+  const handleConfirmSendVerification = async () => {
+    if (!verificationMember || !verificationPdfBase64) return
+    setVerificationSending(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const resp = await fetch(
+        'https://qujzohvrbfsouakzocps.supabase.co/functions/v1/send-volunteer-verification',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({
+            member_name: `${verificationMember.first_name || ''} ${verificationMember.last_name || ''}`.trim(),
+            member_email: verificationMember.original_email || verificationMember.email,
+            pdf_base64: verificationPdfBase64,
+          }),
+        }
+      )
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}))
+        console.error('Verification email failed:', errData)
+        alert('Failed to send verification email: ' + (errData.error || 'Unknown error'))
+        return
+      }
+      alert('Verification letter sent successfully!')
+      setShowVerificationModal(false)
+      if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
+      setVerificationPdfUrl(null)
+      setVerificationPdfBase64(null)
+      setVerificationMember(null)
+    } catch (err) {
+      console.error('Error sending verification email:', err)
+      alert('Failed to send verification email.')
+    } finally {
+      setVerificationSending(false)
+    }
   }
 
   // Bill upload management
@@ -3211,6 +3292,24 @@ function DashboardPage() {
                           )
                         })}
                       </div>
+                      {!viewAsData && hasPermission('volunteer') && entries.some(e => e.approved === 'approved') && (
+                        <div className="mt-3 pt-3 border-top d-flex justify-content-end">
+                          <button
+                            className="btn btn-sm btn-outline-dark"
+                            disabled={verificationGenerating}
+                            onClick={() => {
+                              const approved = entries.filter(e => e.approved === 'approved')
+                              handleSendVerification(memberId, approved)
+                            }}
+                          >
+                            {verificationGenerating ? (
+                              <><span className="spinner-border spinner-border-sm me-1" role="status"></span>Generating...</>
+                            ) : (
+                              <><i className="bi bi-file-earmark-pdf me-1"></i>Send Verification Letter ({entries.filter(e => e.approved === 'approved').length} approved)</>
+                            )}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -6459,6 +6558,113 @@ function DashboardPage() {
                       </>
                     ) : (
                       <>Reject{sendRejectionEmail ? ' & Send Email' : ''}</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1060 }}></div>
+        </>
+      )}
+
+      {/* Volunteer Verification PDF Preview Modal */}
+      {showVerificationModal && verificationMember && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1065 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show') && !verificationSending) {
+                setShowVerificationModal(false)
+                if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
+                setVerificationPdfUrl(null)
+                setVerificationPdfBase64(null)
+                setVerificationMember(null)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-xl">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    <i className="bi bi-file-earmark-pdf me-2"></i>
+                    Volunteer Verification Letter
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => {
+                      setShowVerificationModal(false)
+                      if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
+                      setVerificationPdfUrl(null)
+                      setVerificationPdfBase64(null)
+                      setVerificationMember(null)
+                    }}
+                    disabled={verificationSending}
+                  ></button>
+                </div>
+                <div className="modal-body p-0" style={{ height: '70vh' }}>
+                  <div className="d-flex flex-column h-100">
+                    <div className="px-3 py-2 bg-light border-bottom d-flex justify-content-between align-items-center">
+                      <span>
+                        <strong>{verificationMember.first_name} {verificationMember.last_name}</strong>
+                        <span className="text-muted ms-2">
+                          {verificationEntryCount} approved entr{verificationEntryCount === 1 ? 'y' : 'ies'}
+                        </span>
+                      </span>
+                      <span className="text-muted small">
+                        Will send to: <strong>{verificationMember.original_email || verificationMember.email}</strong>
+                      </span>
+                    </div>
+                    <div className="flex-grow-1">
+                      {verificationPdfUrl ? (
+                        <iframe
+                          src={verificationPdfUrl}
+                          title="Verification Letter Preview"
+                          width="100%"
+                          height="100%"
+                          style={{ border: 'none' }}
+                        />
+                      ) : (
+                        <div className="d-flex justify-content-center align-items-center h-100">
+                          <span className="spinner-border" role="status"></span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => {
+                      setShowVerificationModal(false)
+                      if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
+                      setVerificationPdfUrl(null)
+                      setVerificationPdfBase64(null)
+                      setVerificationMember(null)
+                    }}
+                    disabled={verificationSending}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    onClick={handleConfirmSendVerification}
+                    disabled={verificationSending}
+                  >
+                    {verificationSending ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-envelope-paper me-1"></i>
+                        Send Verification Email
+                      </>
                     )}
                   </button>
                 </div>

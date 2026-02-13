@@ -10,8 +10,9 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? ""
 
-const EMAILJS_ENDPOINT = "https://api.emailjs.com/api/v1.0/email/send"
+const FROM_ADDRESS = "SPAN <contact@spanationwide.org>"
 
 function generateRandomPassword(length = 24) {
   const charset =
@@ -34,51 +35,102 @@ async function sendPasswordResetEmail({
   toName: string
   tempPassword: string
 }) {
-  const serviceId = Deno.env.get("EMAILJS_PASSWORD_RESET_SERVICE_ID")
-  const templateId = Deno.env.get("EMAILJS_PASSWORD_RESET_TEMPLATE_ID")
-  const publicKey = Deno.env.get("EMAILJS_PUBLIC_KEY")
-  const privateKey = Deno.env.get("EMAILJS_PRIVATE_KEY")
-
-  if (!serviceId || !templateId || !publicKey || !privateKey) {
-    console.warn("EmailJS credentials missing; skipping password reset email")
+  if (!RESEND_API_KEY) {
+    console.warn("RESEND_API_KEY missing; skipping password reset email")
     return { ok: false, reason: "missing_credentials" }
   }
 
-  const templateParams = {
-    to_email: toEmail,
-    to_name: toName,
-    temp_password: tempPassword,
-  }
-  
-  console.log("EmailJS template params (password masked):", {
-    ...templateParams,
-    temp_password: "***" + tempPassword.slice(-4)
-  })
+  console.log("Sending password reset email via Resend to:", toEmail, "(password masked: ***" + tempPassword.slice(-4) + ")")
 
-  console.log("Sending password reset email via EmailJS to:", toEmail)
+  const emailHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SPAN Password Reset</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f7fb; font-family:'Helvetica Neue', Arial, sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f7fb; padding:32px 0;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 12px 30px rgba(25,42,86,0.08);">
+        <tr>
+          <td style="padding:40px 48px 24px;">
+            <img src="https://spanationwide.org/images/index/logo-wide-dark.png" alt="SPAN Logo" width="150" height="auto" style="display:block; margin-bottom:24px; max-width:100%; height:auto; border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic;">
 
-  const payload = {
-    service_id: serviceId,
-    template_id: templateId,
-    user_id: publicKey,
-    accessToken: privateKey,
-    template_params: templateParams,
-  }
+            <p style="color:#1e2746; font-size:16px; margin:0 0 16px; line-height:1.5;">Hi ${toName},</p>
 
-  const response = await fetch(EMAILJS_ENDPOINT, {
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 24px;">
+              We received a request to reset your password for your SPAN account. Use the temporary password below to log in, then change your password from your dashboard.
+            </p>
+
+            <div style="background:#f0f7ff; border:2px solid #0b6ef9; border-radius:8px; padding:24px; margin:32px 0; text-align:center;">
+              <p style="color:#1e2746; font-size:14px; font-weight:600; margin:0 0 12px; text-transform:uppercase; letter-spacing:1px;">
+                Your Temporary Password:
+              </p>
+              <div style="background:#ffffff; border:1px solid #0b6ef9; border-radius:6px; padding:16px; margin:0 auto; display:inline-block; font-family:'Courier New', monospace; font-size:18px; font-weight:600; color:#1e2746; letter-spacing:2px;">
+                ${tempPassword}
+              </div>
+            </div>
+
+            <div style="background:#f0f7ff; border-left:4px solid #0b6ef9; padding:16px; margin:24px 0; border-radius:4px;">
+              <p style="color:#1e2746; font-size:15px; line-height:1.6; margin:0 0 8px;">
+                <strong>How to use this password:</strong>
+              </p>
+              <ol style="color:#1e2746; font-size:14px; line-height:1.6; margin:0; padding-left:20px;">
+                <li style="margin-bottom:8px;">Go to <a href="https://spanationwide.org/login.html" style="color:#0b6ef9; text-decoration:none;">spanationwide.org/login.html</a></li>
+                <li style="margin-bottom:8px;">Log in with your SPAN email and the temporary password above</li>
+                <li style="margin-bottom:8px;">Once logged in, go to your dashboard and change your password to something you'll remember</li>
+                <li>If you didn't request a password reset, please contact us immediately</li>
+              </ol>
+            </div>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:24px 0 0;">
+              If you have any questions or need assistance, please contact us at <a href="mailto:contact@spanationwide.org" style="color:#0b6ef9; text-decoration:none;">contact@spanationwide.org</a>.
+            </p>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:24px 0 0;">
+              Best regards,<br>
+              <strong>The SPAN Team</strong>
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#0b6ef9; color:#ffffff; text-align:center; padding:16px; font-size:13px;">
+            &copy; SPAN - Students for Patient Advocacy Nationwide
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
+  `
+
+  const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      from: FROM_ADDRESS,
+      to: [toEmail],
+      subject: "SPAN Password Reset",
+      html: emailHtml,
+    }),
   })
 
   if (!response.ok) {
     const text = await response.text()
-    console.error("EmailJS send failed", response.status, text)
+    console.error("Resend send failed", response.status, text)
     return { ok: false, status: response.status, body: text }
   }
 
+  const data = await response.json()
+  console.log("Resend password reset email sent:", data.id)
   return { ok: true }
 }
 
@@ -199,7 +251,7 @@ serve(async (req) => {
 
     console.log(`Sending password reset email to delivery email: ${deliveryEmail} (SPAN email: ${normalizedEmail})`)
 
-    // Send email via EmailJS to the personal email with temporary password
+    // Send email via Resend to the personal email with temporary password
     const emailResult = await sendPasswordResetEmail({
       toEmail: deliveryEmail,
       toName,

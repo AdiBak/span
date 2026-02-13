@@ -31,7 +31,9 @@ const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   },
 })
 
-const EMAILJS_ENDPOINT = "https://api.emailjs.com/api/v1.0/email/send"
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? ""
+const FROM_ADDRESS = "SPAN <contact@spanationwide.org>"
+
 const CLOUDFLARE_API_BASE = "https://api.cloudflare.com/client/v4"
 const CLOUDFLARE_ZONE_ID = "d8283cfe50b0e9188183602f6361be34"
 const CLOUDFLARE_ACCOUNT_ID = "c01cbe5d0d56079ec448c3f92297d09c"
@@ -245,7 +247,7 @@ async function setupCloudflareEmailRouting({
   }
 }
 
-async function sendEmailViaEmailJS({
+async function sendEmailViaResend({
   toEmail,
   toName,
   spanEmail,
@@ -262,53 +264,152 @@ async function sendEmailViaEmailJS({
   tempPassword?: string
   inviteType: "invite" | "recovery"
 }) {
-  const serviceId = Deno.env.get("EMAILJS_SERVICE_ID")
-  const templateId = Deno.env.get("EMAILJS_TEMPLATE_ID")
-  const publicKey = Deno.env.get("EMAILJS_PUBLIC_KEY")
-  const privateKey = Deno.env.get("EMAILJS_PRIVATE_KEY")
-
-  if (!serviceId || !templateId || !publicKey || !privateKey) {
-    console.warn("EmailJS credentials missing; skipping outbound email")
+  if (!RESEND_API_KEY) {
+    console.warn("RESEND_API_KEY missing; skipping outbound email")
     return { ok: false, reason: "missing_credentials" }
   }
 
-    const templateParams = {
-      to_email: toEmail,
-      to_name: toName,
-      span_email: spanEmail,
-      action_link: actionLink,
-      invite_type: inviteType,
-      otp: otp ?? "",
-      temp_password: tempPassword ?? "",
-    }
-    
-    console.log("EmailJS template params (password masked):", {
-      ...templateParams,
-      temp_password: templateParams.temp_password ? "***" + templateParams.temp_password.slice(-4) : "empty"
-    })
-    
-    const payload = {
-      service_id: serviceId,
-      template_id: templateId,
-      user_id: publicKey,
-      accessToken: privateKey,
-      template_params: templateParams,
-    }
+  console.log("Sending onboarding email via Resend to:", toEmail, "type:", inviteType,
+    "password masked:", tempPassword ? "***" + tempPassword.slice(-4) : "none")
 
-  const response = await fetch(EMAILJS_ENDPOINT, {
+  const tempPasswordBlock = tempPassword ? `
+            <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:16px; margin:24px 0; border-radius:4px;">
+              <p style="color:#1e2746; font-size:15px; line-height:1.6; margin:0 0 12px;">
+                <strong>Your Temporary Password:</strong>
+              </p>
+              <p style="color:#1e2746; font-size:18px; font-family:'Courier New', monospace; background:#ffffff; padding:12px; border-radius:4px; margin:0; word-break:break-all; text-align:center; font-weight:600; letter-spacing:1px;">
+                ${tempPassword}
+              </p>
+              <p style="color:#856404; font-size:13px; margin:12px 0 0; line-height:1.5;">
+                <strong>Important:</strong> Please save this password. You'll use it to log in for the first time. After completing registration, you can change your password in the dashboard.
+              </p>
+            </div>
+  ` : ""
+
+  const emailHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to SPAN!</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f5f7fb; font-family:'Helvetica Neue', Arial, sans-serif;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f7fb; padding:32px 0;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 12px 30px rgba(25,42,86,0.08);">
+        <tr>
+          <td style="padding:40px 48px 24px;">
+            <img src="https://spanationwide.org/images/index/logo-wide-dark.png" alt="SPAN Logo" width="150" height="auto" style="display:block; margin-bottom:24px; max-width:100%; height:auto; border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic;">
+
+            <p style="color:#1e2746; font-size:16px; margin:0 0 16px; line-height:1.5;">Hi ${toName},</p>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 24px;">
+              Welcome to <strong>SPAN (Students for Patient Advocacy Nationwide)</strong>! We're thrilled to have you join our community and can't wait to see the impact you'll make.
+            </p>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 24px;">
+              Here's how to get started with your new SPAN login (<strong>${spanEmail}</strong>):
+            </p>
+
+            ${tempPasswordBlock}
+
+            <ol style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 24px; padding-left:20px;">
+              <li style="margin-bottom:16px;">
+                <strong>Log in to your account:</strong><br>
+                Click the button below to go to the login page. Enter your SPAN email (<strong>${spanEmail}</strong>) and the temporary password shown above. Alternatively, you can click the link in this email which will automatically log you in.
+              </li>
+              <li style="margin-bottom:16px;">
+                <strong>Complete your registration:</strong><br>
+                After logging in, you'll see a registration form that's been pre-filled with your information. Please review and complete all required fields, including uploading a profile photo. This form collects your contact information, school details, and other important background information.
+              </li>
+              <li style="margin-bottom:16px;">
+                <strong>Set your password:</strong><br>
+                After completing the registration form, you'll have full access to your dashboard where you can change your password to something more memorable.
+              </li>
+              <li style="margin-bottom:16px;">
+                <strong>Verify email routing:</strong><br>
+                Look out for a Cloudflare email asking you to verify this forwarding address so SPAN mail reaches your inbox.
+              </li>
+              <li style="margin-bottom:16px;">
+                <strong>Explore the dashboard:</strong><br>
+                Once your registration is complete, you'll have full access to track volunteer hours, browse resources, and get to know the team.
+              </li>
+              <li>
+                <strong>Join Slack:</strong><br>
+                Hop into our <a href="https://join.slack.com/t/span-nhi9797/shared_invite/zt-3f7aqyhh2-qm4D6ZSgQkQIYL_rKa0pXA" style="color:#0b6ef9; text-decoration:none;">team workspace</a> for ongoing updates.
+              </li>
+            </ol>
+
+            <div style="text-align:center; margin-bottom:32px;">
+              <a href="${actionLink}" style="background:#0b6ef9; color:#ffffff; padding:14px 28px; border-radius:999px; text-decoration:none; font-weight:600; display:inline-block;">
+                Go to Login Page
+              </a>
+            </div>
+
+            <div style="background:#f0f7ff; border-left:4px solid #0b6ef9; padding:16px; margin:24px 0; border-radius:4px;">
+              <p style="color:#1e2746; font-size:15px; line-height:1.6; margin:0;">
+                <strong>Important:</strong> You'll need to complete the registration form before you can access all dashboard features. The form is pre-filled with information we have on file, so you just need to review, update if needed, and add any missing details (like your profile photo).
+              </p>
+            </div>
+
+            <h3 style="color:#1e2746; font-size:18px; margin:0 0 12px;">Member Expectations</h3>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 16px;">
+              As part of SPAN, you'll help advance youth-led healthcare advocacy and education. We ask members to stay engaged, represent SPAN professionally, collaborate across projects, and keep learning.
+            </p>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 16px;">
+              Questions? Contact Ben Kurian at <a href="tel:6145885400" style="color:#0b6ef9; text-decoration:none;">(614) 588-5400</a> or email <a href="mailto:contact@spanationwide.org" style="color:#0b6ef9; text-decoration:none;">contact@spanationwide.org</a>.
+            </p>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0;">
+              We're excited to have you on board and can't wait to see what you accomplish with SPAN!
+            </p>
+
+            <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:24px 0 0;">
+              Best regards,<br>
+              <strong>Ben Kurian</strong><br>
+              Executive Director, SPAN
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#0b6ef9; color:#ffffff; text-align:center; padding:16px; font-size:13px;">
+            &copy; ${spanEmail} &middot; ${inviteType.toUpperCase()}
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>
+  `
+
+  const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      from: FROM_ADDRESS,
+      to: [toEmail],
+      subject: inviteType === "invite" ? "Welcome to SPAN!" : "Your SPAN Account",
+      html: emailHtml,
+    }),
   })
 
   if (!response.ok) {
     const text = await response.text()
-    console.error("EmailJS send failed", response.status, text)
+    console.error("Resend send failed", response.status, text)
     return { ok: false, status: response.status, body: text }
   }
 
+  const data = await response.json()
+  console.log("Resend onboarding email sent:", data.id)
   return { ok: true }
 }
 
@@ -572,7 +673,7 @@ serve(
       
       console.log("Sending email with temp password:", passwordToSend ? "***" + passwordToSend.slice(-4) : "none (recovery)")
       
-      const sendResult = await sendEmailViaEmailJS({
+      const sendResult = await sendEmailViaResend({
         toEmail: deliveryEmail,
         toName: displayName || email,
         spanEmail: email,
@@ -581,11 +682,11 @@ serve(
         tempPassword: passwordToSend, // Send the actual password used to create the user (only for new invites)
         inviteType,
       })
-      console.log("EmailJS send result", sendResult)
+      console.log("Resend send result", sendResult)
     } else if (!shouldSendEmail) {
       console.log("Skipping email send - user already linked to member")
     } else {
-      console.warn("No action link returned for", email, "skipping EmailJS send")
+      console.warn("No action link returned for", email, "skipping email send")
     }
 
     console.log(
@@ -605,4 +706,3 @@ serve(
   },
   { verifyJwt: false },
 )
-

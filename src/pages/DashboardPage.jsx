@@ -98,6 +98,9 @@ function DashboardPage() {
   const [showApplicationModal, setShowApplicationModal] = useState(false)
   const [applicationNotes, setApplicationNotes] = useState('')
   const [showDeleteApplicationModal, setShowDeleteApplicationModal] = useState(false)
+  const [showRejectConfirmModal, setShowRejectConfirmModal] = useState(false)
+  const [sendRejectionEmail, setSendRejectionEmail] = useState(true)
+  const [rejectionEmailSending, setRejectionEmailSending] = useState(false)
   const [hrReports, setHrReports] = useState([])
   const [hrReportFilter, setHrReportFilter] = useState('all') // 'all', 'pending', 'reviewed', 'resolved', 'dismissed'
   const [showHrReportModal, setShowHrReportModal] = useState(false)
@@ -1805,8 +1808,8 @@ function DashboardPage() {
       city: '',
       state: application.state || '',
       phone: application.phone_number || '',
-      linkedin: '',
-      instagram: '',
+      linkedin: application.linkedin_url || '',
+      instagram: application.instagram_url || '',
       notes: application.additional_info || '',
       bio: '',
       volunteer: false,
@@ -2032,6 +2035,110 @@ function DashboardPage() {
     } catch (err) {
       console.error('Error updating application:', err)
       alert('Failed to update application status.')
+    }
+  }
+
+  const handleAcceptApplication = async () => {
+    if (!selectedApplication) return
+
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({
+          status: 'accepted',
+          reviewed_by: member.member_id,
+          reviewed_at: new Date().toISOString(),
+          notes: applicationNotes.trim() || null
+        })
+        .eq('application_id', selectedApplication.application_id)
+
+      if (error) {
+        console.error('Error accepting application:', error)
+        alert('Failed to accept application: ' + error.message)
+        return
+      }
+
+      // Save application data before closing the modal
+      const appData = { ...selectedApplication }
+
+      await loadApplications()
+      setShowApplicationModal(false)
+      setSelectedApplication(null)
+      setApplicationNotes('')
+
+      // Pre-fill the Add Member form with application data and open it
+      setEditingMemberId(null)
+      emailManuallyEdited.current = false
+      handleImportFromApplication(appData)
+      setShowMemberModal(true)
+    } catch (err) {
+      console.error('Error accepting application:', err)
+      alert('Failed to accept application.')
+    }
+  }
+
+  const handleRejectApplication = async () => {
+    if (!selectedApplication) return
+
+    try {
+      // Update status to rejected
+      const { error } = await supabase
+        .from('applications')
+        .update({
+          status: 'rejected',
+          reviewed_by: member.member_id,
+          reviewed_at: new Date().toISOString(),
+          notes: applicationNotes.trim() || null
+        })
+        .eq('application_id', selectedApplication.application_id)
+
+      if (error) {
+        console.error('Error rejecting application:', error)
+        alert('Failed to reject application: ' + error.message)
+        return
+      }
+
+      // Send rejection email if opted in
+      if (sendRejectionEmail && selectedApplication.email) {
+        setRejectionEmailSending(true)
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          const resp = await fetch(
+            'https://qujzohvrbfsouakzocps.supabase.co/functions/v1/send-rejection-email',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${session?.access_token}`,
+              },
+              body: JSON.stringify({
+                applicant_name: selectedApplication.full_name,
+                applicant_email: selectedApplication.email,
+              }),
+            }
+          )
+          if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}))
+            console.error('Rejection email failed:', errData)
+            alert('Application was rejected, but the rejection email failed to send. You may need to notify the applicant manually.')
+          }
+        } catch (emailErr) {
+          console.error('Error sending rejection email:', emailErr)
+          alert('Application was rejected, but the rejection email failed to send. You may need to notify the applicant manually.')
+        } finally {
+          setRejectionEmailSending(false)
+        }
+      }
+
+      setShowRejectConfirmModal(false)
+      setSendRejectionEmail(true)
+      await loadApplications()
+      setShowApplicationModal(false)
+      setSelectedApplication(null)
+      setApplicationNotes('')
+    } catch (err) {
+      console.error('Error rejecting application:', err)
+      alert('Failed to reject application.')
     }
   }
 
@@ -2997,7 +3104,7 @@ function DashboardPage() {
               </button>
             )}
           </div>
-          <div>
+          <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
             {Object.entries(groupedEntries).map(([memberId, entries]) => {
               const firstEntry = entries[0]
               const memberData = viewAsData ? effectiveMember : (firstEntry.members || {})
@@ -3198,7 +3305,7 @@ function DashboardPage() {
               })
 
               return filteredBills.length > 0 ? (
-              <div>
+              <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
                 {sortedStatesFiltered.map(state => {
                   const stateBills = billsByStateFiltered[state]
                   const stateFileName = getStateFileName(state)
@@ -3413,7 +3520,7 @@ function DashboardPage() {
             {effectiveBills.length > 0 ? (
               <div>
                 <h4 className="mb-3">My Submitted Bills</h4>
-                <div className="accordion mb-4">
+                <div className="accordion mb-4" style={{ maxHeight: '600px', overflowY: 'auto' }}>
                   {effectiveBills.map(bill => (
                     <div key={bill.bill_id} className="accordion-item mb-2 shadow-sm border rounded">
                       <h2 className="accordion-header">
@@ -4150,7 +4257,7 @@ function DashboardPage() {
             </div>
 
             {filteredEffectiveApplications.length > 0 ? (
-              <div className="table-responsive">
+              <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
                 <table className="table table-hover table-sm">
                   <thead>
                     <tr>
@@ -4276,7 +4383,7 @@ function DashboardPage() {
                 You can view all HR reports except those that involve you directly.
               </div>
               {filteredHrReports.length > 0 ? (
-                <div className="table-responsive">
+                <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
                   <table className="table table-hover">
                     <thead>
                       <tr>
@@ -4392,7 +4499,7 @@ function DashboardPage() {
             const requests = effectiveRequests
             if (requests.length > 0) {
               return (
-                <div className="table-responsive">
+                <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
                   <table className="table table-hover">
                     <thead>
                       <tr>
@@ -5814,20 +5921,19 @@ function DashboardPage() {
                           type="button"
                           className="btn btn-success"
                           onClick={() => {
-                            if (window.confirm(`Accept ${selectedApplication.full_name}'s application?`)) {
-                              handleUpdateApplicationStatus('accepted')
+                            if (window.confirm(`Accept ${selectedApplication.full_name}'s application?\n\nYou'll be able to add them as a member next.`)) {
+                              handleAcceptApplication()
                             }
                           }}
                         >
-                          <i className="bi bi-check-circle me-1"></i>Accept
+                          <i className="bi bi-check-circle me-1"></i>Accept & Add Member
                         </button>
                         <button
                           type="button"
                           className="btn btn-danger"
                           onClick={() => {
-                            if (window.confirm(`Reject ${selectedApplication.full_name}'s application?`)) {
-                              handleUpdateApplicationStatus('rejected')
-                            }
+                            setSendRejectionEmail(true)
+                            setShowRejectConfirmModal(true)
                           }}
                         >
                           <i className="bi bi-x-circle me-1"></i>Reject
@@ -6289,6 +6395,77 @@ function DashboardPage() {
             </div>
           </div>
           <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
+        </>
+      )}
+
+      {/* Rejection Confirmation Modal */}
+      {showRejectConfirmModal && selectedApplication && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1065 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show') && !rejectionEmailSending) {
+                setShowRejectConfirmModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title text-danger">Reject Application</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowRejectConfirmModal(false)}
+                    disabled={rejectionEmailSending}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <p>Are you sure you want to reject the application from <strong>{selectedApplication.full_name}</strong>?</p>
+                  <div className="form-check mt-3">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="sendRejectionEmailCheck"
+                      checked={sendRejectionEmail}
+                      onChange={(e) => setSendRejectionEmail(e.target.checked)}
+                      disabled={rejectionEmailSending}
+                    />
+                    <label className="form-check-label" htmlFor="sendRejectionEmailCheck">
+                      Send rejection email to <strong>{selectedApplication.email}</strong>
+                    </label>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => setShowRejectConfirmModal(false)}
+                    disabled={rejectionEmailSending}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    onClick={() => handleRejectApplication()}
+                    disabled={rejectionEmailSending}
+                  >
+                    {rejectionEmailSending ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Sending email...
+                      </>
+                    ) : (
+                      <>Reject{sendRejectionEmail ? ' & Send Email' : ''}</>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1060 }}></div>
         </>
       )}
 

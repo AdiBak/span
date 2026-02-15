@@ -281,8 +281,10 @@ function DashboardPage() {
         loadAllMembersForManagement()
         loadHrReports()
         loadAllMemberRequests()
-        loadPartners()
         loadSchools()
+      }
+      if (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')) {
+        loadPartners()
       }
       loadMyRequests()
     }
@@ -1413,9 +1415,14 @@ function DashboardPage() {
 
   const handleDeleteEntry = async () => {
     if (!selectedEntryId) return
-    await supabase.from('volunteers').delete().eq('id', selectedEntryId)
+    const { error } = await supabase.from('volunteers').delete().eq('id', selectedEntryId)
     setShowDeleteModal(false)
     setSelectedEntryId(null)
+    if (error) {
+      console.error('Error deleting volunteer entry:', error)
+      alert('Failed to delete entry: ' + error.message)
+      return
+    }
     await loadVolunteerEntries(member)
   }
 
@@ -3275,15 +3282,17 @@ function DashboardPage() {
                                         </button>
                                       </>
                                     )}
-                                    <button
-                                      className="btn btn-sm btn-outline-danger"
-                                      onClick={() => {
-                                        setSelectedEntryId(entry.id)
-                                        setShowDeleteModal(true)
-                                      }}
-                                    >
-                                      <i className="bi bi-trash me-1"></i>Delete
-                                    </button>
+                                    {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
+                                      <button
+                                        className="btn btn-sm btn-outline-danger"
+                                        onClick={() => {
+                                          setSelectedEntryId(entry.id)
+                                          setShowDeleteModal(true)
+                                        }}
+                                      >
+                                        <i className="bi bi-trash me-1"></i>Delete
+                                      </button>
+                                    )}
                                   </div>
                                   )}
                                 </div>
@@ -4098,10 +4107,10 @@ function DashboardPage() {
           </section>
         )}
 
-        {/* Partners Management - Executive Directors Only */}
+        {/* Schools & Partners - Registration sees Schools; Execs also see Partners */}
         {hasPermission('registration') && (
           <section className="mt-5">
-            <h3 className="mb-4">Partners</h3>
+            <h3 className="mb-4">Schools &amp; Partners</h3>
             <div className="alert alert-info mb-4">
               <i className="bi bi-info-circle me-2"></i>
               Manage schools and partner organizations displayed on the homepage. Upload logos and they will appear automatically.
@@ -4109,7 +4118,7 @@ function DashboardPage() {
 
             <div className="row g-4">
               {/* Schools Column */}
-              <div className="col-md-6">
+              <div className={hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? 'col-md-6' : 'col-12'}>
                 <div className="card h-100 shadow-sm">
                   <div className="card-header bg-white d-flex justify-content-between align-items-center">
                     <h5 className="mb-0">Schools</h5>
@@ -4204,7 +4213,8 @@ function DashboardPage() {
                 </div>
               </div>
 
-              {/* Partner Organizations Column */}
+              {/* Partner Organizations Column - Execs only */}
+              {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
               <div className="col-md-6">
                 <div className="card h-100 shadow-sm">
                   <div className="card-header bg-white d-flex justify-content-between align-items-center">
@@ -4296,6 +4306,7 @@ function DashboardPage() {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           </section>
         )}
@@ -5762,73 +5773,75 @@ function DashboardPage() {
                       />
                     </div>
                     
-                    {/* Permissions */}
-                    <div className="col-md-12">
-                      <label className="form-label fw-bold">Permissions</label>
-                      <small className="text-muted d-block mb-2">Select which dashboard functions this member can access</small>
-                      <div className="row g-2">
-                        <div className="col-md-6">
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              checked={memberForm.volunteer}
-                              onChange={(e) => setMemberForm({ ...memberForm, volunteer: e.target.checked })}
-                              id="memberVolunteer"
-                            />
-                            <label className="form-check-label" htmlFor="memberVolunteer">
-                              Volunteer Hours Management
-                            </label>
-                            <small className="text-muted d-block">Can approve/manage volunteer hours</small>
+                    {/* Permissions - only execs can see and edit */}
+                    {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
+                      <div className="col-md-12">
+                        <label className="form-label fw-bold">Permissions</label>
+                        <small className="text-muted d-block mb-2">Select which dashboard functions this member can access</small>
+                        <div className="row g-2">
+                          <div className="col-md-6">
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                checked={memberForm.volunteer}
+                                onChange={(e) => setMemberForm({ ...memberForm, volunteer: e.target.checked })}
+                                id="memberVolunteer"
+                              />
+                              <label className="form-check-label" htmlFor="memberVolunteer">
+                                Volunteer Hours Management
+                              </label>
+                              <small className="text-muted d-block">Can approve/manage volunteer hours</small>
+                            </div>
                           </div>
-                        </div>
-                        <div className="col-md-6">
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              checked={memberForm.applications}
-                              onChange={(e) => setMemberForm({ ...memberForm, applications: e.target.checked })}
-                              id="memberApplications"
-                            />
-                            <label className="form-check-label" htmlFor="memberApplications">
-                              Application Review
-                            </label>
-                            <small className="text-muted d-block">Can review new member applications</small>
+                          <div className="col-md-6">
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                checked={memberForm.applications}
+                                onChange={(e) => setMemberForm({ ...memberForm, applications: e.target.checked })}
+                                id="memberApplications"
+                              />
+                              <label className="form-check-label" htmlFor="memberApplications">
+                                Application Review
+                              </label>
+                              <small className="text-muted d-block">Can review new member applications</small>
+                            </div>
                           </div>
-                        </div>
-                        <div className="col-md-6">
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              checked={memberForm.bills}
-                              onChange={(e) => setMemberForm({ ...memberForm, bills: e.target.checked })}
-                              id="memberBills"
-                            />
-                            <label className="form-check-label" htmlFor="memberBills">
-                              Bill Management
-                            </label>
-                            <small className="text-muted d-block">Can submit bills for review</small>
+                          <div className="col-md-6">
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                checked={memberForm.bills}
+                                onChange={(e) => setMemberForm({ ...memberForm, bills: e.target.checked })}
+                                id="memberBills"
+                              />
+                              <label className="form-check-label" htmlFor="memberBills">
+                                Bill Management
+                              </label>
+                              <small className="text-muted d-block">Can submit bills for review</small>
+                            </div>
                           </div>
-                        </div>
-                        <div className="col-md-6">
-                          <div className="form-check">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              checked={memberForm.registration}
-                              onChange={(e) => setMemberForm({ ...memberForm, registration: e.target.checked })}
-                              id="memberRegistration"
-                            />
-                            <label className="form-check-label" htmlFor="memberRegistration">
-                              Member Management
-                            </label>
-                            <small className="text-muted d-block">Can add/edit members and manage roles</small>
+                          <div className="col-md-6">
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                checked={memberForm.registration}
+                                onChange={(e) => setMemberForm({ ...memberForm, registration: e.target.checked })}
+                                id="memberRegistration"
+                              />
+                              <label className="form-check-label" htmlFor="memberRegistration">
+                                Member Management
+                              </label>
+                              <small className="text-muted d-block">Can add/edit members and manage roles</small>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
                 <div className="modal-footer">

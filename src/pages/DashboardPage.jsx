@@ -279,12 +279,14 @@ function DashboardPage() {
       }
       if (hasPermission('registration')) {
         loadAllMembersForManagement()
+      }
+      if (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')) {
         loadHrReports()
         loadAllMemberRequests()
         loadSchools()
-      }
-      if (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')) {
         loadPartners()
+      } else if (member) {
+        loadMyHrReports()
       }
       loadMyRequests()
     }
@@ -506,6 +508,43 @@ function DashboardPage() {
     })
 
     setHrReports(filtered)
+  }
+
+  // Load current member's own HR reports only (for non-execs)
+  const loadMyHrReports = async () => {
+    if (!member?.member_id) return
+    const { data: reportsData, error } = await supabase
+      .from('hr_reports')
+      .select('*')
+      .eq('submitted_by', member.member_id)
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error loading my HR reports:', error)
+      setHrReports([])
+      return
+    }
+
+    if (reportsData && reportsData.length > 0) {
+      const memberIds = new Set()
+      reportsData.forEach(report => {
+        if (report.submitted_by) memberIds.add(report.submitted_by)
+        if (report.regarding_member_id) memberIds.add(report.regarding_member_id)
+      })
+      if (memberIds.size > 0) {
+        const { data: membersData } = await supabase
+          .from('members')
+          .select('member_id, first_name, last_name, email')
+          .in('member_id', Array.from(memberIds))
+        const membersMap = {}
+        if (membersData) membersData.forEach(m => { membersMap[m.member_id] = m })
+        reportsData.forEach(report => {
+          report.submitted_by_member = membersMap[report.submitted_by]
+          report.regarding_member = membersMap[report.regarding_member_id]
+        })
+      }
+    }
+    setHrReports(reportsData || [])
   }
 
   // Load current member's leave/extension requests
@@ -2786,7 +2825,7 @@ function DashboardPage() {
 
   const effectiveVolunteerEntries = viewAsData ? (viewAsData.volunteer_entries ?? []) : volunteerEntries
   const effectiveBills = viewAsData ? (viewAsData.bills ?? []) : (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? allBills : mySubmittedBills)
-  const effectiveRequests = viewAsData ? (viewAsData.leave_requests ?? []) : (hasPermission('registration') ? filteredMemberRequests : myRequests)
+  const effectiveRequests = viewAsData ? (viewAsData.leave_requests ?? []) : (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? filteredMemberRequests : myRequests)
   const effectiveApplications = viewAsData ? (viewAsData.applications ?? []) : applications
   const filteredEffectiveApplications = applicationFilter === 'all' ? effectiveApplications : effectiveApplications.filter(app => app.status === applicationFilter)
 
@@ -4107,8 +4146,8 @@ function DashboardPage() {
           </section>
         )}
 
-        {/* Schools & Partners - Registration sees Schools; Execs also see Partners */}
-        {hasPermission('registration') && (
+        {/* Schools & Partners - Execs only */}
+        {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
           <section className="mt-5">
             <h3 className="mb-4">Schools &amp; Partners</h3>
             <div className="alert alert-info mb-4">
@@ -4429,7 +4468,7 @@ function DashboardPage() {
           <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h3 className="mb-0">HR Reports</h3>
             <div className="d-flex align-items-center gap-2">
-              {hasPermission('registration') && (
+              {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
                 <div className="btn-group" role="group">
                   <button
                     type="button"
@@ -4486,7 +4525,7 @@ function DashboardPage() {
               )}
             </div>
           </div>
-          {hasPermission('registration') ? (
+          {(hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')) ? (
             <>
               <div className="alert alert-info mb-3">
                 <i className="bi bi-info-circle me-2"></i>
@@ -4555,6 +4594,66 @@ function DashboardPage() {
                 </div>
               )}
             </>
+          ) : member ? (
+            <>
+              <p className="text-muted mb-2">Your submitted HR reports.</p>
+              {filteredHrReports.length > 0 ? (
+                <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                  <table className="table table-hover">
+                    <thead>
+                      <tr>
+                        <th>Submitted</th>
+                        <th>Nature of Complaint</th>
+                        <th>Regarding</th>
+                        <th>Date Occurred</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredHrReports.map(report => (
+                        <tr key={report.report_id}>
+                          <td>{formatDateLong(report.created_at)}</td>
+                          <td>{report.nature_of_complaint}</td>
+                          <td>
+                            {report.regarding_member ? (
+                              `${report.regarding_member.first_name} ${report.regarding_member.last_name}`
+                            ) : report.regarding_name || 'N/A'}
+                          </td>
+                          <td>{formatDate(report.date_occurred)}</td>
+                          <td>
+                            <span className={`badge ${
+                              report.status === 'pending' ? 'bg-warning text-dark' :
+                              report.status === 'resolved' ? 'bg-success' :
+                              report.status === 'dismissed' ? 'bg-secondary' :
+                              'bg-info'
+                            }`}>
+                              {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => {
+                                setSelectedHrReport(report)
+                                setShowHrReportViewModal(true)
+                              }}
+                            >
+                              <i className="bi bi-eye me-1"></i>View
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-5 text-muted">
+                  <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
+                  <p>You have not submitted any HR reports.</p>
+                </div>
+              )}
+            </>
           ) : (
             <p className="text-muted mb-0">Submit a confidential HR complaint or report using the button above. Reports are reviewed by executive directors.</p>
           )}
@@ -4565,7 +4664,7 @@ function DashboardPage() {
           <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h3 className="mb-0">Leave & extension requests</h3>
             <div className="d-flex align-items-center gap-2">
-              {!viewAsData && hasPermission('registration') && (
+              {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
                 <div className="btn-group" role="group">
                   <button
                     type="button"

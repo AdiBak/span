@@ -3292,7 +3292,7 @@ function DashboardPage() {
                           )
                         })}
                       </div>
-                      {!viewAsData && hasPermission('volunteer') && entries.some(e => e.approved === 'approved') && (
+                      {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && entries.some(e => e.approved === 'approved') && (
                         <div className="mt-3 pt-3 border-top d-flex justify-content-end">
                           <button
                             className="btn btn-sm btn-outline-dark"

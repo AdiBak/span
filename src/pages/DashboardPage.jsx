@@ -4666,7 +4666,7 @@ function DashboardPage() {
         {/* Leave & extension requests - single section: members see own requests + make new; execs see all + filters + make new */}
         <section className="mt-5">
           <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-            <h3 className="mb-0">Leave & extension requests</h3>
+            <h3 className="mb-0">Leave & Extension Requests</h3>
             <div className="d-flex align-items-center gap-2">
               {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
                 <div className="btn-group" role="group">

@@ -101,53 +101,43 @@ Project Overview
 
 **Checking permissions:**
 
+```javascript
 // Check if user has specific permission
-
-const hasPermission \= (permission) \=\> {
-
-  return member?.\[permission\] \=== true || member?.\[permission\] \=== 'true'
-
+const hasPermission = (permission) => {
+  return member?.[permission] === true || member?.[permission] === 'true'
 }
 
 // Check if user is executive director (all 4 permissions)
-
-const isExec \= hasPermission('volunteer') && hasPermission('applications') && 
-
+const isExec = hasPermission('volunteer') && hasPermission('applications') &&
                hasPermission('bills') && hasPermission('registration')
+```
 
 **Member data loading:**
 
+```javascript
 // Load current user's member data
+const { data: { session } } = await supabase.auth.getSession()
+const email = session?.user?.email
 
-const { data: { session } } \= await supabase.auth.getSession()
-
-const email \= session?.user?.email
-
-const { data: memberData } \= await supabase
-
+const { data: memberData } = await supabase
   .from('members')
-
-  .select('\*')
-
+  .select('*')
   .eq('email', email)
-
   .maybeSingle()
+```
 
 **File uploads (Storage):**
 
+```javascript
 // Upload profile image
-
-const filename \= \`${memberId}.${ext}\`
-
-const { error } \= await supabase.storage
-
+const filename = `${memberId}.${ext}`
+const { error } = await supabase.storage
   .from('members-images')
-
   .upload(filename, file, { cacheControl: '3600', upsert: true })
 
 // Get public URL
-
-const { data } \= supabase.storage.from('members-images').getPublicUrl(filename)
+const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
+```
 
 **RLS-aware queries:**
 

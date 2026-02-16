@@ -19,16 +19,31 @@ CREATE POLICY "Users can view their own member data" ON public.members
     email = (SELECT email FROM auth.users WHERE id = auth.uid())
   );
 
+-- Create a SECURITY DEFINER function to check registration permission
+-- This bypasses RLS to avoid infinite recursion
+CREATE OR REPLACE FUNCTION public.has_registration_permission()
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_has_permission BOOLEAN;
+BEGIN
+  SELECT (registration = true OR registration = 'true')
+  INTO v_has_permission
+  FROM public.members
+  WHERE user_id = auth.uid()
+  LIMIT 1;
+  
+  RETURN COALESCE(v_has_permission, false);
+END;
+$$;
+
 -- Policy: Members with registration permission can view all members (for member management)
 DROP POLICY IF EXISTS "Members with registration permission can view all members" ON public.members;
 
 CREATE POLICY "Members with registration permission can view all members" ON public.members
   FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.members 
-      WHERE user_id = auth.uid() 
-      AND (registration = true OR registration = 'true')
-    )
-  );
+  USING (public.has_registration_permission());
 

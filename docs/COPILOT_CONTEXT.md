@@ -187,8 +187,9 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 ### Leave & Extension Requests
 
 1. **Submission** \- Any member can submit a leave/break or project extension request → stored in `member_requests` with `type` ('leave' | 'extension'), `reason` (required), optional `leave_start`/`leave_end` or `project_name`/`requested_by_date`, `status = 'pending'`  
-2. **Viewing** \- Members see their own requests in dashboard; **execs** see all requests with filters (All / Pending / Approved / Declined)  
-3. **Review** \- Only **execs** can approve or decline; can add optional `review_notes`
+2. **Viewing** \- Members see their own requests; **execs** see all requests. Section sits **right under “Your Info”** on the dashboard. Table columns: Member (exec only), Type, Reason, Details, Status, Submitted, Actions (View). **Reviewed by** and **Review notes** are **not** in the table — only in the **Request View** modal.  
+3. **Request View modal** \- Every request has a **View** button (members and execs). Modal shows: Member (name, email), Type, Reason, Details, Status, Submitted, **Reviewed by** (name + date) if set, **Review notes** if set. For **execs on pending requests**, the same modal has optional “Review notes” textarea and **Approve** / **Decline** buttons; submit updates `status`, `reviewed_by`, `reviewed_at`, `review_notes`. Execs approve/decline only from the modal, not inline in the table.  
+4. **Reviewer data** \- `loadMyRequests` and `loadAllMemberRequests` load reviewer and attach `reviewed_by_member` (first_name, last_name). The **view-member-dashboard** Edge Function enriches `leave_requests` with `reviewed_by_member` so “view as” also has reviewer info.
 
 ### Profile Picture Management
 

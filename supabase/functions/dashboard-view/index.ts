@@ -125,7 +125,19 @@ serve(
       ])
 
       const volunteer_entries = volunteerRes.data ?? []
-      const leave_requests = requestsRes.data ?? []
+      const leave_requests = (requestsRes.data ?? []) as Array<{ reviewed_by?: string; reviewed_by_member?: { member_id: string; first_name: string; last_name: string } | null }>
+      const reviewerIds = [...new Set(leave_requests.map((r) => r.reviewed_by).filter(Boolean))] as string[]
+      if (reviewerIds.length > 0) {
+        const { data: reviewersData } = await admin
+          .from("members")
+          .select("member_id, first_name, last_name")
+          .in("member_id", reviewerIds)
+        const reviewersMap: Record<string, { member_id: string; first_name: string; last_name: string }> = {}
+        reviewersData?.forEach((m) => { reviewersMap[m.member_id] = m })
+        leave_requests.forEach((r) => {
+          r.reviewed_by_member = r.reviewed_by ? (reviewersMap[r.reviewed_by] ?? null) : null
+        })
+      }
       const submitted_bills = billsByMeRes.data ?? []
       const applications = applicationsRes.data ?? []
       const all_bills = allBillsRes.data ?? null

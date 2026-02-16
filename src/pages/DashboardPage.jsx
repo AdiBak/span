@@ -134,6 +134,8 @@ function DashboardPage() {
   const [showRequestReviewModal, setShowRequestReviewModal] = useState(false)
   const [requestReviewNotes, setRequestReviewNotes] = useState('')
   const [requestReviewAction, setRequestReviewAction] = useState(null) // 'approve' | 'decline'
+  const [selectedRequestForView, setSelectedRequestForView] = useState(null)
+  const [showRequestViewModal, setShowRequestViewModal] = useState(false)
   const [viewAsData, setViewAsData] = useState(null)
   const [viewAsLoading, setViewAsLoading] = useState(false)
   const [viewAsError, setViewAsError] = useState(null)
@@ -560,6 +562,18 @@ function DashboardPage() {
       setMyRequests([])
       return
     }
+    if (data && data.length > 0) {
+      const reviewerIds = [...new Set(data.map(r => r.reviewed_by).filter(Boolean))]
+      if (reviewerIds.length > 0) {
+        const { data: reviewersData } = await supabase
+          .from('members')
+          .select('member_id, first_name, last_name')
+          .in('member_id', reviewerIds)
+        const reviewersMap = {}
+        if (reviewersData) reviewersData.forEach(m => { reviewersMap[m.member_id] = m })
+        data.forEach(r => { r.reviewed_by_member = r.reviewed_by ? reviewersMap[r.reviewed_by] : null })
+      }
+    }
     setMyRequests(data || [])
   }
 
@@ -577,13 +591,18 @@ function DashboardPage() {
     }
     if (data && data.length > 0) {
       const memberIds = [...new Set(data.map(r => r.member_id))]
+      const reviewerIds = [...new Set(data.map(r => r.reviewed_by).filter(Boolean))]
+      const allIds = [...new Set([...memberIds, ...reviewerIds])]
       const { data: membersData } = await supabase
         .from('members')
         .select('member_id, first_name, last_name, email')
-        .in('member_id', memberIds)
+        .in('member_id', allIds)
       const membersMap = {}
       if (membersData) membersData.forEach(m => { membersMap[m.member_id] = m })
-      data.forEach(r => { r.member = membersMap[r.member_id] })
+      data.forEach(r => {
+        r.member = membersMap[r.member_id]
+        r.reviewed_by_member = r.reviewed_by ? membersMap[r.reviewed_by] : null
+      })
     }
     setAllMemberRequests(data || [])
   }
@@ -810,6 +829,35 @@ function DashboardPage() {
       if (error) throw error
       setShowRequestReviewModal(false)
       setSelectedRequestForReview(null)
+      setRequestReviewNotes('')
+      await loadAllMemberRequests()
+      await loadMyRequests()
+    } catch (err) {
+      alert(err.message || 'Failed to update request.')
+    }
+  }
+
+  const openRequestViewModal = (request) => {
+    setSelectedRequestForView(request)
+    setRequestReviewNotes(request?.review_notes || '')
+    setShowRequestViewModal(true)
+  }
+
+  const handleRequestReviewSubmitFromView = async (action) => {
+    if (!selectedRequestForView || !member?.member_id) return
+    try {
+      const { error } = await supabase
+        .from('member_requests')
+        .update({
+          status: action === 'approve' ? 'approved' : 'declined',
+          reviewed_by: member.member_id,
+          reviewed_at: new Date().toISOString(),
+          review_notes: requestReviewNotes.trim() || null
+        })
+        .eq('request_id', selectedRequestForView.request_id)
+      if (error) throw error
+      setShowRequestViewModal(false)
+      setSelectedRequestForView(null)
       setRequestReviewNotes('')
       await loadAllMemberRequests()
       await loadMyRequests()
@@ -3225,6 +3273,115 @@ function DashboardPage() {
           </div>
         </section>
 
+        {/* Leave & extension requests - single section: members see own requests + make new; execs see all + filters + make new */}
+        <section className="mt-5">
+          <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <h3 className="mb-0">Leave & Extension Requests</h3>
+            <div className="d-flex align-items-center gap-2">
+              {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
+                <div className="btn-group" role="group">
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                    onClick={() => setMemberRequestFilter('all')}
+                  >
+                    All ({allMemberRequests.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
+                    onClick={() => setMemberRequestFilter('pending')}
+                  >
+                    Pending ({allMemberRequests.filter(r => r.status === 'pending').length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
+                    onClick={() => setMemberRequestFilter('approved')}
+                  >
+                    Approved ({allMemberRequests.filter(r => r.status === 'approved').length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
+                    onClick={() => setMemberRequestFilter('declined')}
+                  >
+                    Declined ({allMemberRequests.filter(r => r.status === 'declined').length})
+                  </button>
+                </div>
+              )}
+              {!viewAsData && (
+                <button className="btn btn-dark btn-sm" onClick={() => { setRequestError(''); setRequestSuccess(''); setRequestForm({ type: 'leave', reason: '', leaveStart: '', leaveEnd: '', projectName: '', requestedByDate: '' }); setShowRequestModal(true) }}>
+                  <i className="bi bi-plus-circle me-2"></i>Make new request
+                </button>
+              )}
+            </div>
+          </div>
+          {(() => {
+            const isExecDisplay = !viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
+            const requests = effectiveRequests
+            if (requests.length > 0) {
+              return (
+                <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+                  <table className="table table-hover">
+                    <thead>
+                      <tr>
+                        {isExecDisplay && <th>Member</th>}
+                        <th>Type</th>
+                        <th>Reason</th>
+                        <th>Details</th>
+                        <th>Status</th>
+                        <th>Submitted</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {requests.map(req => (
+                        <tr key={req.request_id}>
+                          {isExecDisplay && (
+                            <td>
+                              {req.member ? `${req.member.first_name} ${req.member.last_name}` : 'Unknown'}
+                              {req.member?.email && <div className="small text-muted">{req.member.email}</div>}
+                            </td>
+                          )}
+                          <td><span className="badge bg-secondary text-capitalize">{req.type}</span></td>
+                          <td>{req.reason}</td>
+                          <td>
+                            {req.type === 'leave' && (req.leave_start || req.leave_end)
+                              ? `${req.leave_start ? formatDate(req.leave_start) : '—'} to ${req.leave_end ? formatDate(req.leave_end) : '—'}`
+                              : req.type === 'extension' && (req.project_name || req.requested_by_date)
+                                ? [req.project_name, req.requested_by_date ? formatDate(req.requested_by_date) : null].filter(Boolean).join(' · ')
+                                : '—'}
+                          </td>
+                          <td>
+                            <span className={`badge ${req.status === 'approved' ? 'bg-success' : req.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}`}>
+                              {req.status}
+                            </span>
+                          </td>
+                          <td>{formatDateLong(req.created_at)}</td>
+                          <td>
+                            <button className="btn btn-sm btn-outline-primary" onClick={() => openRequestViewModal(req)}>
+                              <i className="bi bi-eye me-1"></i>View
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            }
+            return (
+              <div className="text-center py-5 text-muted">
+                <i className="bi bi-calendar-x display-4 d-block mb-3"></i>
+                <p className="mb-0">
+                  {isExecDisplay ? `No ${memberRequestFilter === 'all' ? '' : memberRequestFilter} leave or extension requests.` : 'No leave or extension requests yet. Use the button above to submit one.'}
+                </p>
+              </div>
+            )
+          })()}
+        </section>
+
         {/* Volunteer Hours Section */}
         <section className="mt-5">
           <div className="d-flex justify-content-between align-items-center mb-4">
@@ -4663,126 +4820,6 @@ function DashboardPage() {
           )}
         </section>
 
-        {/* Leave & extension requests - single section: members see own requests + make new; execs see all + filters + make new */}
-        <section className="mt-5">
-          <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-            <h3 className="mb-0">Leave & Extension Requests</h3>
-            <div className="d-flex align-items-center gap-2">
-              {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
-                <div className="btn-group" role="group">
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${memberRequestFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
-                    onClick={() => setMemberRequestFilter('all')}
-                  >
-                    All ({allMemberRequests.length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${memberRequestFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
-                    onClick={() => setMemberRequestFilter('pending')}
-                  >
-                    Pending ({allMemberRequests.filter(r => r.status === 'pending').length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${memberRequestFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
-                    onClick={() => setMemberRequestFilter('approved')}
-                  >
-                    Approved ({allMemberRequests.filter(r => r.status === 'approved').length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${memberRequestFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
-                    onClick={() => setMemberRequestFilter('declined')}
-                  >
-                    Declined ({allMemberRequests.filter(r => r.status === 'declined').length})
-                  </button>
-                </div>
-              )}
-              {!viewAsData && (
-                <button className="btn btn-dark btn-sm" onClick={() => { setRequestError(''); setRequestSuccess(''); setRequestForm({ type: 'leave', reason: '', leaveStart: '', leaveEnd: '', projectName: '', requestedByDate: '' }); setShowRequestModal(true) }}>
-                  <i className="bi bi-plus-circle me-2"></i>Make new request
-                </button>
-              )}
-            </div>
-          </div>
-          {(() => {
-            const isExecDisplay = !viewAsData && hasPermission('registration')
-            const requests = effectiveRequests
-            if (requests.length > 0) {
-              return (
-                <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
-                  <table className="table table-hover">
-                    <thead>
-                      <tr>
-                        {isExecDisplay && <th>Member</th>}
-                        <th>Type</th>
-                        <th>Reason</th>
-                        <th>Details</th>
-                        <th>Status</th>
-                        <th>Submitted</th>
-                        {isExecDisplay ? <th>Actions</th> : <th>Review notes</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {requests.map(req => (
-                        <tr key={req.request_id}>
-                          {isExecDisplay && (
-                            <td>
-                              {req.member ? `${req.member.first_name} ${req.member.last_name}` : 'Unknown'}
-                              {req.member?.email && <div className="small text-muted">{req.member.email}</div>}
-                            </td>
-                          )}
-                          <td><span className="badge bg-secondary text-capitalize">{req.type}</span></td>
-                          <td>{req.reason}</td>
-                          <td>
-                            {req.type === 'leave' && (req.leave_start || req.leave_end)
-                              ? `${req.leave_start ? formatDate(req.leave_start) : '—'} to ${req.leave_end ? formatDate(req.leave_end) : '—'}`
-                              : req.type === 'extension' && (req.project_name || req.requested_by_date)
-                                ? [req.project_name, req.requested_by_date ? formatDate(req.requested_by_date) : null].filter(Boolean).join(' · ')
-                                : '—'}
-                          </td>
-                          <td>
-                            <span className={`badge ${req.status === 'approved' ? 'bg-success' : req.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}`}>
-                              {req.status}
-                            </span>
-                          </td>
-                          <td>{formatDateLong(req.created_at)}</td>
-                          {isExecDisplay ? (
-                            <td>
-                              {req.status === 'pending' && (
-                                <>
-                                  <button className="btn btn-sm btn-success me-1" onClick={() => openRequestReviewModal(req, 'approve')}>
-                                    Approve
-                                  </button>
-                                  <button className="btn btn-sm btn-danger" onClick={() => openRequestReviewModal(req, 'decline')}>
-                                    Decline
-                                  </button>
-                                </>
-                              )}
-                            </td>
-                          ) : (
-                            <td>{req.review_notes || '—'}</td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
-            }
-            return (
-              <div className="text-center py-5 text-muted">
-                <i className="bi bi-calendar-x display-4 d-block mb-3"></i>
-                <p className="mb-0">
-                  {isExecDisplay ? `No ${memberRequestFilter === 'all' ? '' : memberRequestFilter} leave or extension requests.` : 'No leave or extension requests yet. Use the button above to submit one.'}
-                </p>
-              </div>
-            )
-          })()}
-        </section>
-
         {/* Password Change */}
         <section className="mt-5">
           <h3>Change Password</h3>
@@ -5178,6 +5215,110 @@ function DashboardPage() {
             </div>
           </div>
           <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Request View Modal - details + approve/decline and comments for execs on pending */}
+      {showRequestViewModal && selectedRequestForView && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1056 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowRequestViewModal(false)
+                setSelectedRequestForView(null)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Leave/Extension Request</h5>
+                  <button type="button" className="btn-close" onClick={() => { setShowRequestViewModal(false); setSelectedRequestForView(null) }}></button>
+                </div>
+                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                  <div className="mb-3">
+                    <strong>Member:</strong>
+                    <p className="mb-0 mt-1">
+                      {selectedRequestForView.member ? `${selectedRequestForView.member.first_name} ${selectedRequestForView.member.last_name}` : 'Unknown'}
+                      {selectedRequestForView.member?.email && <span className="text-muted d-block small">{selectedRequestForView.member.email}</span>}
+                    </p>
+                  </div>
+                  <div className="mb-3">
+                    <strong>Type:</strong>
+                    <p className="mb-0 mt-1"><span className="badge bg-secondary text-capitalize">{selectedRequestForView.type}</span></p>
+                  </div>
+                  <div className="mb-3">
+                    <strong>Reason:</strong>
+                    <p className="mb-0 mt-1">{selectedRequestForView.reason}</p>
+                  </div>
+                  <div className="mb-3">
+                    <strong>Details:</strong>
+                    <p className="mb-0 mt-1">
+                      {selectedRequestForView.type === 'leave' && (selectedRequestForView.leave_start || selectedRequestForView.leave_end)
+                        ? `${selectedRequestForView.leave_start ? formatDate(selectedRequestForView.leave_start) : '—'} to ${selectedRequestForView.leave_end ? formatDate(selectedRequestForView.leave_end) : '—'}`
+                        : selectedRequestForView.type === 'extension' && (selectedRequestForView.project_name || selectedRequestForView.requested_by_date)
+                          ? [selectedRequestForView.project_name, selectedRequestForView.requested_by_date ? formatDate(selectedRequestForView.requested_by_date) : null].filter(Boolean).join(' · ')
+                          : '—'}
+                    </p>
+                  </div>
+                  <div className="mb-3">
+                    <strong>Status:</strong>
+                    <p className="mb-0 mt-1">
+                      <span className={`badge ${selectedRequestForView.status === 'approved' ? 'bg-success' : selectedRequestForView.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}`}>
+                        {selectedRequestForView.status}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="mb-3">
+                    <strong>Submitted:</strong>
+                    <p className="mb-0 mt-1">{formatDateLong(selectedRequestForView.created_at)}</p>
+                  </div>
+                  {(selectedRequestForView.reviewed_by_member || selectedRequestForView.reviewed_at) && (
+                    <div className="mb-3">
+                      <strong>Reviewed by:</strong>
+                      <p className="mb-0 mt-1">
+                        {selectedRequestForView.reviewed_by_member ? `${selectedRequestForView.reviewed_by_member.first_name} ${selectedRequestForView.reviewed_by_member.last_name}` : 'Unknown'}
+                        {selectedRequestForView.reviewed_at && <span className="text-muted d-block small">{formatDateLong(selectedRequestForView.reviewed_at)}</span>}
+                      </p>
+                    </div>
+                  )}
+                  {selectedRequestForView.review_notes && selectedRequestForView.status !== 'pending' && (
+                    <div className="mb-3">
+                      <strong>Review notes:</strong>
+                      <p className="mb-0 mt-1" style={{ whiteSpace: 'pre-wrap' }}>{selectedRequestForView.review_notes}</p>
+                    </div>
+                  )}
+
+                  {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && selectedRequestForView.status === 'pending' && (
+                    <div className="mt-4 pt-3 border-top">
+                      <label className="form-label">Review notes (optional)</label>
+                      <textarea
+                        className="form-control mb-3"
+                        rows="3"
+                        value={requestReviewNotes}
+                        onChange={(e) => setRequestReviewNotes(e.target.value)}
+                        placeholder="Add comments for the member (e.g. reason for decline or follow-up)"
+                      />
+                      <div className="d-flex gap-2">
+                        <button type="button" className="btn btn-success" onClick={() => handleRequestReviewSubmitFromView('approve')}>
+                          Approve
+                        </button>
+                        <button type="button" className="btn btn-danger" onClick={() => handleRequestReviewSubmitFromView('decline')}>
+                          Decline
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-outline-dark" onClick={() => { setShowRequestViewModal(false); setSelectedRequestForView(null) }}>Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
         </>
       )}
 

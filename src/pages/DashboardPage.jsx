@@ -742,8 +742,12 @@ function DashboardPage() {
     }
   }
 
+  // In view-as mode, show only reports submitted by the viewed member; otherwise use full list (or own for non-exec)
+  const effectiveHrReports = viewAsData?.member
+    ? hrReports.filter(r => r.submitted_by === viewAsData.member.member_id)
+    : hrReports
   // Filter HR reports by status
-  const filteredHrReports = hrReports.filter(report => {
+  const filteredHrReports = effectiveHrReports.filter(report => {
     if (hrReportFilter === 'all') return true
     return report.status === hrReportFilter
   })
@@ -4475,35 +4479,35 @@ function DashboardPage() {
                     className={`btn btn-sm ${hrReportFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
                     onClick={() => setHrReportFilter('all')}
                   >
-                    All ({hrReports.length})
+                    All ({effectiveHrReports.length})
                   </button>
                   <button
                     type="button"
                     className={`btn btn-sm ${hrReportFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
                     onClick={() => setHrReportFilter('pending')}
                   >
-                    Pending ({hrReports.filter(r => r.status === 'pending').length})
+                    Pending ({effectiveHrReports.filter(r => r.status === 'pending').length})
                   </button>
                   <button
                     type="button"
                     className={`btn btn-sm ${hrReportFilter === 'reviewed' ? 'btn-info' : 'btn-outline-info'}`}
                     onClick={() => setHrReportFilter('reviewed')}
                   >
-                    Reviewed ({hrReports.filter(r => r.status === 'reviewed').length})
+                    Reviewed ({effectiveHrReports.filter(r => r.status === 'reviewed').length})
                   </button>
                   <button
                     type="button"
                     className={`btn btn-sm ${hrReportFilter === 'resolved' ? 'btn-success' : 'btn-outline-success'}`}
                     onClick={() => setHrReportFilter('resolved')}
                   >
-                    Resolved ({hrReports.filter(r => r.status === 'resolved').length})
+                    Resolved ({effectiveHrReports.filter(r => r.status === 'resolved').length})
                   </button>
                   <button
                     type="button"
                     className={`btn btn-sm ${hrReportFilter === 'dismissed' ? 'btn-secondary' : 'btn-outline-secondary'}`}
                     onClick={() => setHrReportFilter('dismissed')}
                   >
-                    Dismissed ({hrReports.filter(r => r.status === 'dismissed').length})
+                    Dismissed ({effectiveHrReports.filter(r => r.status === 'dismissed').length})
                   </button>
                 </div>
               )}

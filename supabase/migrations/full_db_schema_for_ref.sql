@@ -145,6 +145,21 @@ CREATE TABLE public.member_requests (
   CONSTRAINT member_requests_member_id_fkey FOREIGN KEY (member_id) REFERENCES public.members(member_id),
   CONSTRAINT member_requests_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.members(member_id)
 );
+CREATE TABLE public.member_suggestions (
+  suggestion_id uuid NOT NULL DEFAULT gen_random_uuid(),
+  member_id uuid NOT NULL,
+  type text NOT NULL CHECK (type = ANY (ARRAY['bill_idea'::text, 'general_interest'::text, 'web_dev_feature'::text])),
+  title text NOT NULL,
+  description text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'under_review'::text, 'approved'::text, 'declined'::text])),
+  reviewed_by uuid,
+  reviewed_at timestamp with time zone,
+  review_notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT member_suggestions_pkey PRIMARY KEY (suggestion_id),
+  CONSTRAINT member_suggestions_member_id_fkey FOREIGN KEY (member_id) REFERENCES public.members(member_id),
+  CONSTRAINT member_suggestions_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.members(member_id)
+);
 CREATE TABLE public.members (
   first_name text NOT NULL,
   last_name text NOT NULL,

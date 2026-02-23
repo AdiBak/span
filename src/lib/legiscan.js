@@ -148,6 +148,73 @@ function legiscanStatusLabel(code) {
   return labels[code] ?? null
 }
 
+/** Standard timeline stage labels (match common LegiScan / UI) */
+const TIMELINE_STAGES = ['Introduced', 'In Committee', 'Crossed Over', 'Passed', 'Dead']
+
+/**
+ * Map LegiScan status code to timeline stage index (0..4) and whether it's a terminal "dead" state.
+ */
+function statusToTimelineStage(statusCode) {
+  if (statusCode == null || statusCode === undefined) return { stageIndex: 0, isDead: false }
+  const code = Number(statusCode)
+  if (code === 4 || code === 6 || code === 7) return { stageIndex: 4, isDead: true } // Failed, Vetoed, Withdrawn -> Dead
+  if (code === 3 || code === 5) return { stageIndex: 3, isDead: false } // Passed, Enacted -> Passed
+  if (code === 2) return { stageIndex: 1, isDead: false } // In Committee
+  return { stageIndex: 0, isDead: false } // 1 Introduced or unknown
+}
+
+/**
+ * Build a timeline array for the bill (for the LegiScan timeline UI).
+ * Each item: { label: string, date: string | null, state: 'completed' | 'current' | 'pending' | 'dead' }
+ * @param {object} bill - Raw bill object from LegiScan getBill API
+ * @returns {Array<{ label: string, date: string | null, state: string }>}
+ */
+export function buildBillTimeline(bill) {
+  if (!bill) return []
+  const history = Array.isArray(bill.history) ? bill.history : []
+  const statusCode = typeof bill.status === 'number' ? bill.status : (bill.status?.status_id ?? bill.status)
+  const { stageIndex: currentStageIndex, isDead } = statusToTimelineStage(statusCode)
+
+  // Try to assign dates to stages from history (match by keyword or order)
+  const stageDates = {}
+  const stageKeywords = {
+    'Introduced': ['introduced', 'filed', 'first reading'],
+    'In Committee': ['committee', 'referred', 'hearing'],
+    'Crossed Over': ['crossed over', 'passed', 'second chamber', 'engrossed'],
+    'Passed': ['passed', 'enacted', 'signed', 'adopted'],
+    'Dead': ['failed', 'vetoed', 'withdrawn', 'died', 'dead'],
+  }
+  for (const h of history) {
+    const actionText = (h.action || h.title || h.description || h.action_desc || '').toLowerCase()
+    const date = h.date || null
+    for (let i = 0; i < TIMELINE_STAGES.length; i++) {
+      const stage = TIMELINE_STAGES[i]
+      const keywords = stageKeywords[stage]
+      if (keywords.some(kw => actionText.includes(kw)) && !stageDates[stage]) {
+        stageDates[stage] = date
+        break
+      }
+    }
+  }
+  // If we have history but no matches, assign first N dates to first N stages by order
+  if (history.length > 0 && Object.keys(stageDates).length === 0) {
+    history.slice(0, TIMELINE_STAGES.length).forEach((h, i) => {
+      if (TIMELINE_STAGES[i] && h.date) stageDates[TIMELINE_STAGES[i]] = h.date
+    })
+  }
+
+  return TIMELINE_STAGES.map((label, i) => {
+    let state = 'pending'
+    if (isDead && i === 4) state = 'dead'
+    else if (i < currentStageIndex || (i === currentStageIndex && !isDead)) state = 'completed'
+    else if (i === currentStageIndex && isDead) state = 'dead'
+    else if (i === currentStageIndex) state = 'current'
+    const date = stageDates[label] || null
+    if (date && state === 'pending') state = 'completed' // has date => treat as completed
+    return { label, date, state }
+  })
+}
+
 /**
  * Normalize state name to 2-letter code for LegiScan API
  */
@@ -228,7 +295,8 @@ export async function getBill(billId, expectedHash = null) {
       if (last.date) statusDate = last.date
     }
 
-    return { status, lastAction, statusDate, changeHash }
+    const timeline = buildBillTimeline(bill)
+    return { status, lastAction, statusDate, changeHash, timeline }
   } catch (err) {
     console.error('LegiScan getBill error:', err)
     return null

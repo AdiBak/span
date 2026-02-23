@@ -30,6 +30,8 @@ Project Overview
     
 - **`member_requests`** \- Leave/break and project extension requests. Fields: `request_id`, `member_id`, `type` ('leave' | 'extension'), `reason`, `leave_start`, `leave_end`, `project_name`, `requested_by_date`, `status` ('pending', 'approved', 'declined'), `reviewed_by`, `reviewed_at`, `review_notes`, `created_at`. Members submit; execs approve or decline.  
     
+- **`member_suggestions`** \- Ideas and suggestions (bill ideas, general interests, web/feature suggestions). Fields: `suggestion_id`, `member_id`, `type` ('bill_idea' | 'general_interest' | 'web_dev_feature'), `title`, `description`, `status` ('pending' | 'under_review' | 'approved' | 'declined'), `reviewed_by`, `reviewed_at`, `review_notes`, `created_at`. Members submit; execs view all, set status, and leave comments. See `docs/SUGGESTIONS.md`.  
+    
 - **`schools`** \- School partners. Fields: `school_id`, `school_name`, `school_image` (filename), `display_order`, `active`.  
     
 - **`partners`** \- Partner organizations. Fields: `partner_id`, `partner_name`, `partner_logo` (filename), `website_url`, `display_order`, `active`.
@@ -191,6 +193,13 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 3. **Request View modal** \- Every request has a **View** button (members and execs). Modal shows: Member (name, email), Type, Reason, Details, Status, Submitted, **Reviewed by** (name + date) if set, **Review notes** if set. For **execs on pending requests**, the same modal has optional “Review notes” textarea and **Approve** / **Decline** buttons; submit updates `status`, `reviewed_by`, `reviewed_at`, `review_notes`. Execs approve/decline only from the modal, not inline in the table.  
 4. **Reviewer data** \- `loadMyRequests` and `loadAllMemberRequests` load reviewer and attach `reviewed_by_member` (first_name, last_name). The **view-member-dashboard** Edge Function enriches `leave_requests` with `reviewed_by_member` so “view as” also has reviewer info.
 
+### Ideas & suggestions
+
+1. **Submission** \- Any member can submit from the dashboard: **Type** (Bill idea | General interest | Web / feature suggestion), **Title** (required), **Description** (optional) → stored in `member_suggestions` with `status = 'pending'`.  
+2. **Viewing** \- Members see their own suggestions; **execs** see all with filters (All, Pending, Under review, Approved, Declined). Section sits after Leave & extension, before Volunteer hours.  
+3. **Suggestion View modal** \- View button opens modal with full details. **Execs** can set status (Pending, Under review, Approved, Declined) and optional **Review notes** (comments for the member). Updates set or clear `reviewed_by`, `reviewed_at`, `review_notes`.  
+4. **Table:** `member_suggestions`. Migration: `supabase/migrations/create_member_suggestions_table.sql`. See `docs/SUGGESTIONS.md`.
+
 ### Profile Picture Management
 
 1. **Own profile** \- Members can update their own profile picture:  
@@ -245,6 +254,9 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 - **Database schema:** `supabase/migrations/full_db_schema_for_ref.sql` (reference only, not meant to run)  
 - **Setup guide:** `docs/SETUP.md`  
 - **Auth provisioning docs:** `docs/auth-provisioning.md`  
+- **Ideas & suggestions:** `docs/SUGGESTIONS.md`  
+- **LegiScan timeline (bill status UI):** `docs/LEGISCAN_TIMELINE_SPEC.md`  
+- **Docs changelog:** `docs/DOCS_CHANGELOG.md` — updates to the guide and docs  
 - **Supabase client:** `src/lib/supabase.js`  
 - **Main app router:** `src/App.jsx`  
 - **Entry point:** `src/main.jsx`

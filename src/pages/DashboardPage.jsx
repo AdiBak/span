@@ -136,6 +136,15 @@ function DashboardPage() {
   const [requestReviewAction, setRequestReviewAction] = useState(null) // 'approve' | 'decline'
   const [selectedRequestForView, setSelectedRequestForView] = useState(null)
   const [showRequestViewModal, setShowRequestViewModal] = useState(false)
+  const [mySuggestions, setMySuggestions] = useState([])
+  const [allSuggestions, setAllSuggestions] = useState([])
+  const [suggestionFilter, setSuggestionFilter] = useState('all') // 'all' | 'pending' | 'under_review' | 'approved' | 'declined'
+  const [suggestionForm, setSuggestionForm] = useState({ type: 'bill_idea', title: '', description: '' })
+  const [suggestionError, setSuggestionError] = useState('')
+  const [suggestionSuccess, setSuggestionSuccess] = useState('')
+  const [showSuggestionViewModal, setShowSuggestionViewModal] = useState(false)
+  const [selectedSuggestionForView, setSelectedSuggestionForView] = useState(null)
+  const [suggestionReviewNotes, setSuggestionReviewNotes] = useState('')
   const [viewAsData, setViewAsData] = useState(null)
   const [viewAsLoading, setViewAsLoading] = useState(false)
   const [viewAsError, setViewAsError] = useState(null)
@@ -285,12 +294,14 @@ function DashboardPage() {
       if (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')) {
         loadHrReports()
         loadAllMemberRequests()
+        loadAllSuggestions()
         loadSchools()
         loadPartners()
       } else if (member) {
         loadMyHrReports()
       }
       loadMyRequests()
+      if (member) loadMySuggestions()
     }
   }, [member])
 
@@ -607,6 +618,50 @@ function DashboardPage() {
     setAllMemberRequests(data || [])
   }
 
+  const loadMySuggestions = async () => {
+    if (!member?.member_id) return
+    const { data, error } = await supabase
+      .from('member_suggestions')
+      .select('*')
+      .eq('member_id', member.member_id)
+      .order('created_at', { ascending: false })
+    if (error) {
+      console.error('Error loading my suggestions:', error)
+      setMySuggestions([])
+      return
+    }
+    setMySuggestions(data || [])
+  }
+
+  const loadAllSuggestions = async () => {
+    if (!member) return
+    const { data, error } = await supabase
+      .from('member_suggestions')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (error) {
+      console.error('Error loading suggestions:', error)
+      setAllSuggestions([])
+      return
+    }
+    if (data && data.length > 0) {
+      const memberIds = [...new Set(data.map(s => s.member_id))]
+      const reviewerIds = [...new Set(data.map(s => s.reviewed_by).filter(Boolean))]
+      const allIds = [...new Set([...memberIds, ...reviewerIds])]
+      const { data: membersData } = await supabase
+        .from('members')
+        .select('member_id, first_name, last_name, email')
+        .in('member_id', allIds)
+      const membersMap = {}
+      if (membersData) membersData.forEach(m => { membersMap[m.member_id] = m })
+      data.forEach(s => {
+        s.member = membersMap[s.member_id]
+        s.reviewed_by_member = s.reviewed_by ? membersMap[s.reviewed_by] : null
+      })
+    }
+    setAllSuggestions(data || [])
+  }
+
   // HR Report handlers
   const handleSubmitHrReport = async () => {
     const { nature, regardingMemberId, regardingName, dateOccurred, details } = hrReportForm
@@ -866,10 +921,116 @@ function DashboardPage() {
     }
   }
 
+  const handleRequestStatusChangeFromView = async (newStatus) => {
+    if (!selectedRequestForView || !member?.member_id) return
+    try {
+      const payload = {
+        status: newStatus,
+        review_notes: requestReviewNotes.trim() || null
+      }
+      if (newStatus === 'pending') {
+        payload.reviewed_by = null
+        payload.reviewed_at = null
+      } else {
+        payload.reviewed_by = member.member_id
+        payload.reviewed_at = new Date().toISOString()
+      }
+      const { error } = await supabase
+        .from('member_requests')
+        .update(payload)
+        .eq('request_id', selectedRequestForView.request_id)
+      if (error) throw error
+      setShowRequestViewModal(false)
+      setSelectedRequestForView(null)
+      setRequestReviewNotes('')
+      await loadAllMemberRequests()
+      await loadMyRequests()
+    } catch (err) {
+      alert(err.message || 'Failed to update request.')
+    }
+  }
+
+  const handleSubmitSuggestion = async (e) => {
+    e?.preventDefault()
+    setSuggestionError('')
+    setSuggestionSuccess('')
+    const { type, title, description } = suggestionForm
+    if (!title?.trim()) {
+      setSuggestionError('Title is required.')
+      return
+    }
+    if (!member?.member_id) {
+      setSuggestionError('Member data not loaded.')
+      return
+    }
+    try {
+      const { error } = await supabase
+        .from('member_suggestions')
+        .insert({
+          member_id: member.member_id,
+          type,
+          title: title.trim(),
+          description: description?.trim() || null
+        })
+      if (error) throw error
+      setSuggestionSuccess('Suggestion submitted. Execs will review it.')
+      setSuggestionForm({ type: 'bill_idea', title: '', description: '' })
+      await loadMySuggestions()
+      if (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')) {
+        await loadAllSuggestions()
+      }
+    } catch (err) {
+      setSuggestionError(err.message || 'Failed to submit suggestion.')
+    }
+  }
+
+  const openSuggestionViewModal = (suggestion) => {
+    setSelectedSuggestionForView(suggestion)
+    setSuggestionReviewNotes(suggestion?.review_notes || '')
+    setShowSuggestionViewModal(true)
+  }
+
+  const handleSuggestionStatusChangeFromView = async (newStatus) => {
+    if (!selectedSuggestionForView || !member?.member_id) return
+    try {
+      const payload = {
+        status: newStatus,
+        review_notes: suggestionReviewNotes.trim() || null
+      }
+      if (newStatus === 'pending') {
+        payload.reviewed_by = null
+        payload.reviewed_at = null
+      } else {
+        payload.reviewed_by = member.member_id
+        payload.reviewed_at = new Date().toISOString()
+      }
+      const { error } = await supabase
+        .from('member_suggestions')
+        .update(payload)
+        .eq('suggestion_id', selectedSuggestionForView.suggestion_id)
+      if (error) throw error
+      setShowSuggestionViewModal(false)
+      setSelectedSuggestionForView(null)
+      setSuggestionReviewNotes('')
+      await loadMySuggestions()
+      await loadAllSuggestions()
+    } catch (err) {
+      alert(err.message || 'Failed to update suggestion.')
+    }
+  }
+
   const filteredMemberRequests = allMemberRequests.filter(r => {
     if (memberRequestFilter === 'all') return true
     return r.status === memberRequestFilter
   })
+
+  const filteredSuggestions = allSuggestions.filter(s => {
+    if (suggestionFilter === 'all') return true
+    return s.status === suggestionFilter
+  })
+
+  const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
+  const effectiveSuggestions = viewAsData ? [] : (isExec ? filteredSuggestions : mySuggestions)
 
   const loadMemberData = async (skipRedirect = false) => {
     try {
@@ -3382,6 +3543,126 @@ function DashboardPage() {
           })()}
         </section>
 
+        {/* Ideas & suggestions - members submit; execs view all and set status/comments */}
+        <section className="mt-5">
+          <h3 className="mb-4">Ideas &amp; suggestions</h3>
+          <p className="text-muted mb-3">Suggest a bill you want to work on, share interests, or propose a web or feature idea. Execs can review and leave comments.</p>
+
+          {!viewAsData && (
+            <div className="card mb-4">
+              <div className="card-body">
+                <h5 className="card-title mb-3">Submit an idea</h5>
+                <form onSubmit={handleSubmitSuggestion}>
+                  <div className="row g-3">
+                    <div className="col-md-4">
+                      <label className="form-label">Type</label>
+                      <select
+                        className="form-select"
+                        value={suggestionForm.type}
+                        onChange={(e) => setSuggestionForm({ ...suggestionForm, type: e.target.value })}
+                      >
+                        <option value="bill_idea">Bill idea</option>
+                        <option value="general_interest">General interest</option>
+                        <option value="web_dev_feature">Web / feature suggestion</option>
+                      </select>
+                    </div>
+                    <div className="col-md-8">
+                      <label className="form-label">Title</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Short title for your idea"
+                        value={suggestionForm.title}
+                        onChange={(e) => setSuggestionForm({ ...suggestionForm, title: e.target.value })}
+                      />
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label">Description (optional)</label>
+                      <textarea
+                        className="form-control"
+                        rows="2"
+                        placeholder="Add details, links, or context"
+                        value={suggestionForm.description}
+                        onChange={(e) => setSuggestionForm({ ...suggestionForm, description: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  {suggestionError && <div className="text-danger small mt-2">{suggestionError}</div>}
+                  {suggestionSuccess && <div className="text-success small mt-2">{suggestionSuccess}</div>}
+                  <button type="submit" className="btn btn-dark mt-3">Submit suggestion</button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          <div className="d-flex align-items-center gap-2 mb-3">
+            {isExec && !viewAsData && (
+              <div className="btn-group" role="group">
+                <button type="button" className={`btn btn-sm ${suggestionFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`} onClick={() => setSuggestionFilter('all')}>All ({allSuggestions.length})</button>
+                <button type="button" className={`btn btn-sm ${suggestionFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`} onClick={() => setSuggestionFilter('pending')}>Pending ({allSuggestions.filter(s => s.status === 'pending').length})</button>
+                <button type="button" className={`btn btn-sm ${suggestionFilter === 'under_review' ? 'btn-info' : 'btn-outline-info'}`} onClick={() => setSuggestionFilter('under_review')}>Under review ({allSuggestions.filter(s => s.status === 'under_review').length})</button>
+                <button type="button" className={`btn btn-sm ${suggestionFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`} onClick={() => setSuggestionFilter('approved')}>Approved ({allSuggestions.filter(s => s.status === 'approved').length})</button>
+                <button type="button" className={`btn btn-sm ${suggestionFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`} onClick={() => setSuggestionFilter('declined')}>Declined ({allSuggestions.filter(s => s.status === 'declined').length})</button>
+              </div>
+            )}
+          </div>
+
+          {effectiveSuggestions.length > 0 ? (
+            <div className="table-responsive" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              <table className="table table-hover">
+                <thead>
+                  <tr>
+                    {isExec && !viewAsData && <th>Member</th>}
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Status</th>
+                    <th>Submitted</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {effectiveSuggestions.map(s => (
+                    <tr key={s.suggestion_id}>
+                      {isExec && !viewAsData && (
+                        <td>
+                          {s.member ? `${s.member.first_name} ${s.member.last_name}` : 'Unknown'}
+                          {s.member?.email && <div className="small text-muted">{s.member.email}</div>}
+                        </td>
+                      )}
+                      <td>
+                        <span className="badge bg-secondary">
+                          {s.type === 'bill_idea' ? 'Bill idea' : s.type === 'general_interest' ? 'General interest' : 'Web / feature'}
+                        </span>
+                      </td>
+                      <td>{s.title}</td>
+                      <td>
+                        <span className={`badge ${
+                          s.status === 'pending' ? 'bg-warning text-dark' :
+                          s.status === 'under_review' ? 'bg-info' :
+                          s.status === 'approved' ? 'bg-success' : 'bg-danger'
+                        }`}>
+                          {s.status.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td>{formatDateLong(s.created_at)}</td>
+                      <td>
+                        <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => openSuggestionViewModal(s)}>
+                          <i className="bi bi-eye me-1"></i>View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-4 text-muted">
+              <i className="bi bi-lightbulb display-4 d-block mb-2"></i>
+              <p className="mb-0">{viewAsData ? 'No suggestions to show.' : isExec ? `No ${suggestionFilter === 'all' ? '' : suggestionFilter.replace('_', ' ')} suggestions.` : 'You haven\'t submitted any suggestions yet.'}</p>
+            </div>
+          )}
+        </section>
+
         {/* Volunteer Hours Section */}
         <section className="mt-5">
           <div className="d-flex justify-content-between align-items-center mb-4">
@@ -5291,7 +5572,7 @@ function DashboardPage() {
                     </div>
                   )}
 
-                  {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && selectedRequestForView.status === 'pending' && (
+                  {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
                     <div className="mt-4 pt-3 border-top">
                       <label className="form-label">Review notes (optional)</label>
                       <textarea
@@ -5301,19 +5582,157 @@ function DashboardPage() {
                         onChange={(e) => setRequestReviewNotes(e.target.value)}
                         placeholder="Add comments for the member (e.g. reason for decline or follow-up)"
                       />
-                      <div className="d-flex gap-2">
-                        <button type="button" className="btn btn-success" onClick={() => handleRequestReviewSubmitFromView('approve')}>
-                          Approve
-                        </button>
-                        <button type="button" className="btn btn-danger" onClick={() => handleRequestReviewSubmitFromView('decline')}>
-                          Decline
-                        </button>
-                      </div>
+                      {selectedRequestForView.status === 'pending' ? (
+                        <div className="d-flex gap-2">
+                          <button type="button" className="btn btn-success" onClick={() => handleRequestReviewSubmitFromView('approve')}>
+                            Approve
+                          </button>
+                          <button type="button" className="btn btn-danger" onClick={() => handleRequestReviewSubmitFromView('decline')}>
+                            Decline
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="small text-muted mb-2">Change status:</p>
+                          <div className="d-flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              className={`btn btn-sm ${selectedRequestForView.status === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
+                              onClick={() => handleRequestStatusChangeFromView('pending')}
+                            >
+                              Set to Pending
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn btn-sm ${selectedRequestForView.status === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
+                              onClick={() => handleRequestStatusChangeFromView('approved')}
+                            >
+                              Set to Approved
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn btn-sm ${selectedRequestForView.status === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
+                              onClick={() => handleRequestStatusChangeFromView('declined')}
+                            >
+                              Set to Declined
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-outline-dark" onClick={() => { setShowRequestViewModal(false); setSelectedRequestForView(null) }}>Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
+        </>
+      )}
+
+      {/* Suggestion View Modal - details + exec status/comments */}
+      {showSuggestionViewModal && selectedSuggestionForView && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1056 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowSuggestionViewModal(false)
+                setSelectedSuggestionForView(null)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Suggestion</h5>
+                  <button type="button" className="btn-close" onClick={() => { setShowSuggestionViewModal(false); setSelectedSuggestionForView(null) }}></button>
+                </div>
+                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                  {isExec && (
+                    <div className="mb-3">
+                      <strong>Member:</strong>
+                      <p className="mb-0 mt-1">
+                        {selectedSuggestionForView.member ? `${selectedSuggestionForView.member.first_name} ${selectedSuggestionForView.member.last_name}` : 'Unknown'}
+                        {selectedSuggestionForView.member?.email && <span className="text-muted d-block small">{selectedSuggestionForView.member.email}</span>}
+                      </p>
+                    </div>
+                  )}
+                  <div className="mb-3">
+                    <strong>Type:</strong>
+                    <p className="mb-0 mt-1">
+                      <span className="badge bg-secondary">
+                        {selectedSuggestionForView.type === 'bill_idea' ? 'Bill idea' : selectedSuggestionForView.type === 'general_interest' ? 'General interest' : 'Web / feature suggestion'}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="mb-3">
+                    <strong>Title:</strong>
+                    <p className="mb-0 mt-1">{selectedSuggestionForView.title}</p>
+                  </div>
+                  {selectedSuggestionForView.description && (
+                    <div className="mb-3">
+                      <strong>Description:</strong>
+                      <p className="mb-0 mt-1" style={{ whiteSpace: 'pre-wrap' }}>{selectedSuggestionForView.description}</p>
+                    </div>
+                  )}
+                  <div className="mb-3">
+                    <strong>Status:</strong>
+                    <p className="mb-0 mt-1">
+                      <span className={`badge ${
+                        selectedSuggestionForView.status === 'pending' ? 'bg-warning text-dark' :
+                        selectedSuggestionForView.status === 'under_review' ? 'bg-info' :
+                        selectedSuggestionForView.status === 'approved' ? 'bg-success' : 'bg-danger'
+                      }`}>
+                        {selectedSuggestionForView.status.replace('_', ' ')}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="mb-3">
+                    <strong>Submitted:</strong>
+                    <p className="mb-0 mt-1">{formatDateLong(selectedSuggestionForView.created_at)}</p>
+                  </div>
+                  {(selectedSuggestionForView.reviewed_by_member || selectedSuggestionForView.reviewed_at) && (
+                    <div className="mb-3">
+                      <strong>Reviewed by:</strong>
+                      <p className="mb-0 mt-1">
+                        {selectedSuggestionForView.reviewed_by_member ? `${selectedSuggestionForView.reviewed_by_member.first_name} ${selectedSuggestionForView.reviewed_by_member.last_name}` : 'Unknown'}
+                        {selectedSuggestionForView.reviewed_at && <span className="text-muted d-block small">{formatDateLong(selectedSuggestionForView.reviewed_at)}</span>}
+                      </p>
+                    </div>
+                  )}
+                  {selectedSuggestionForView.review_notes && (
+                    <div className="mb-3">
+                      <strong>Review notes:</strong>
+                      <p className="mb-0 mt-1" style={{ whiteSpace: 'pre-wrap' }}>{selectedSuggestionForView.review_notes}</p>
+                    </div>
+                  )}
+
+                  {!viewAsData && isExec && (
+                    <div className="mt-4 pt-3 border-top">
+                      <label className="form-label">Review notes (optional)</label>
+                      <textarea
+                        className="form-control mb-3"
+                        rows="3"
+                        value={suggestionReviewNotes}
+                        onChange={(e) => setSuggestionReviewNotes(e.target.value)}
+                        placeholder="Leave a comment for the member..."
+                      />
+                      <p className="small text-muted mb-2">Change status:</p>
+                      <div className="d-flex flex-wrap gap-2">
+                        <button type="button" className={`btn btn-sm ${selectedSuggestionForView.status === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`} onClick={() => handleSuggestionStatusChangeFromView('pending')}>Pending</button>
+                        <button type="button" className={`btn btn-sm ${selectedSuggestionForView.status === 'under_review' ? 'btn-info' : 'btn-outline-info'}`} onClick={() => handleSuggestionStatusChangeFromView('under_review')}>Under review</button>
+                        <button type="button" className={`btn btn-sm ${selectedSuggestionForView.status === 'approved' ? 'btn-success' : 'btn-outline-success'}`} onClick={() => handleSuggestionStatusChangeFromView('approved')}>Approved</button>
+                        <button type="button" className={`btn btn-sm ${selectedSuggestionForView.status === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`} onClick={() => handleSuggestionStatusChangeFromView('declined')}>Declined</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-outline-dark" onClick={() => { setShowSuggestionViewModal(false); setSelectedSuggestionForView(null) }}>Close</button>
                 </div>
               </div>
             </div>

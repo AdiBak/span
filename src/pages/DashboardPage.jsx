@@ -49,7 +49,7 @@ function DashboardPage() {
   const [allMembers, setAllMembers] = useState([])
   const [allBills, setAllBills] = useState([])
   const [mySubmittedBills, setMySubmittedBills] = useState([])
-  const [billFilter, setBillFilter] = useState('all') // 'all', 'under_review', 'approved', 'modified', 'rejected'
+  const [billFilter, setBillFilter] = useState('under_review') // exec Bill Management defaults to Under Review; 'all', 'under_review', 'approved', 'modified', 'rejected'
   const [showEditBillModal, setShowEditBillModal] = useState(false)
   const [showDeleteBillModal, setShowDeleteBillModal] = useState(false)
   const [selectedBillForEdit, setSelectedBillForEdit] = useState(null)

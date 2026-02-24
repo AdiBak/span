@@ -1031,6 +1031,9 @@ function DashboardPage() {
 
   const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
   const effectiveSuggestions = viewAsData ? [] : (isExec ? filteredSuggestions : mySuggestions)
+  const dashboardOrder = isExec
+    ? { yourInfo: 1, leaveExtension: 2, billManagement: 3, applications: 4, ideasSuggestions: 5, volunteerHours: 6, hrReports: 7, memberManagement: 8, schoolsPartners: 9, changePassword: 10, billSubmission: 99 }
+    : { yourInfo: 1, leaveExtension: 2, billSubmission: 3, volunteerHours: 4, ideasSuggestions: 5, hrReports: 6, changePassword: 7, billManagement: 99, applications: 99, memberManagement: 99, schoolsPartners: 99 }
 
   const loadMemberData = async (skipRedirect = false) => {
     try {
@@ -3179,9 +3182,9 @@ function DashboardPage() {
           )}
         </div>
 
-
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
         {/* Your Info Section - Split Design */}
-        <section className="mt-5" style={{ backgroundColor: 'transparent' }}>
+        <section className="mt-5" style={{ backgroundColor: 'transparent', order: dashboardOrder.yourInfo }}>
           <h3 className="mb-4">Your Info</h3>
           <div className="card shadow-sm border-0" style={{ borderRadius: '16px', overflow: 'hidden' }}>
             {/* Top Section - Dark Background */}
@@ -3435,7 +3438,7 @@ function DashboardPage() {
         </section>
 
         {/* Leave & extension requests - single section: members see own requests + make new; execs see all + filters + make new */}
-        <section className="mt-5">
+        <section className="mt-5" style={{ order: dashboardOrder.leaveExtension }}>
           <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h3 className="mb-0">Leave & Extension Requests</h3>
             <div className="d-flex align-items-center gap-2">
@@ -3544,8 +3547,8 @@ function DashboardPage() {
         </section>
 
         {/* Ideas & suggestions - members submit; execs view all and set status/comments */}
-        <section className="mt-5">
-          <h3 className="mb-4">Ideas &amp; suggestions</h3>
+        <section className="mt-5" style={{ order: dashboardOrder.ideasSuggestions }}>
+          <h3 className="mb-4">Ideas & Suggestions</h3>
           <p className="text-muted mb-3">Suggest a bill you want to work on, share interests, or propose a web or feature idea. Execs can review and leave comments.</p>
 
           {!viewAsData && (
@@ -3664,7 +3667,7 @@ function DashboardPage() {
         </section>
 
         {/* Volunteer Hours Section */}
-        <section className="mt-5">
+        <section className="mt-5" style={{ order: dashboardOrder.volunteerHours }}>
           <div className="d-flex justify-content-between align-items-center mb-4">
             <h3>Volunteer Hours</h3>
             {!viewAsData && (
@@ -3819,7 +3822,7 @@ function DashboardPage() {
           const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
           return isExec
         })() && (
-          <section className="mt-5">
+          <section className="mt-5" style={{ order: dashboardOrder.billManagement }}>
             <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
               <h3 className="mb-0">Bill Management</h3>
               <div className="d-flex align-items-center gap-2">
@@ -4095,7 +4098,7 @@ function DashboardPage() {
           const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
           return hasBills && !isExec
         })() && (
-          <section className="mt-5">
+          <section className="mt-5" style={{ order: dashboardOrder.billSubmission }}>
             <div className="d-flex justify-content-between align-items-center mb-4">
               <h3>Bill Submission</h3>
               {!viewAsData && (
@@ -4198,7 +4201,7 @@ function DashboardPage() {
           console.log('Rendering Member Management section?', hasReg, 'member.registration =', member?.registration)
           return hasReg
         })() && (
-          <section className="mt-5">
+          <section className="mt-5" style={{ order: dashboardOrder.memberManagement }}>
             <div className="d-flex justify-content-between align-items-center mb-4">
               <h3>Member Management</h3>
               <button className="btn btn-dark" onClick={handleAddMember}>
@@ -4590,7 +4593,7 @@ function DashboardPage() {
 
         {/* Schools & Partners - Execs only */}
         {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
-          <section className="mt-5">
+          <section className="mt-5" style={{ order: dashboardOrder.schoolsPartners }}>
             <h3 className="mb-4">Schools &amp; Partners</h3>
             <div className="alert alert-info mb-4">
               <i className="bi bi-info-circle me-2"></i>
@@ -4798,7 +4801,7 @@ function DashboardPage() {
           console.log('Rendering Applications section?', hasApps, 'member.applications =', member?.applications)
           return hasApps
         })() && (
-          <section className="mt-5">
+          <section className="mt-5" style={{ order: dashboardOrder.applications }}>
             <div className="d-flex justify-content-between align-items-center mb-4">
               <h3>New Member Applications</h3>
               <div className="btn-group" role="group">
@@ -4906,7 +4909,7 @@ function DashboardPage() {
         )}
 
         {/* HR Reports - single section: all members can submit; execs see filters + list */}
-        <section className="mt-5">
+        <section className="mt-5" style={{ order: dashboardOrder.hrReports }}>
           <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h3 className="mb-0">HR Reports</h3>
             <div className="d-flex align-items-center gap-2">
@@ -5102,7 +5105,7 @@ function DashboardPage() {
         </section>
 
         {/* Password Change */}
-        <section className="mt-5">
+        <section className="mt-5" style={{ order: dashboardOrder.changePassword }}>
           <h3>Change Password</h3>
           <div className="card mt-3">
             <div className="card-body">
@@ -5141,6 +5144,7 @@ function DashboardPage() {
             </div>
           </div>
         </section>
+        </div>
       </div>
 
       {/* SPAN Card Password Modal */}
@@ -5421,7 +5425,7 @@ function DashboardPage() {
                             />
                           </div>
                           <div className="col-md-6">
-                            <label className="form-label">Requested by date (optional)</label>
+                            <label className="form-label">Requested New Deadline (optional)</label>
                             <input
                               type="date"
                               className="form-control"

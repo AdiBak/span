@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { createPortal } from 'react-dom'
 import CollaboratorAvatars from './CollaboratorAvatars'
+import BillStatusTimeline from './BillStatusTimeline'
 import { fetchBillStatus } from '../lib/legiscan'
 import './BillCard.css'
 
@@ -17,97 +18,49 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
   // Status info popover (small 'i' on public bill cards)
   const [showStatusPopover, setShowStatusPopover] = useState(false)
   const statusPopoverRef = useRef(null)
-  const [legiscanInfo, setLegiscanInfo] = useState(null) // null | { status, lastAction, statusDate } | 'loading' | 'error'
+  const [legiscanInfo, setLegiscanInfo] = useState(null) // null | { status, lastAction, statusDate, timeline } | 'loading' | 'error'
 
   // Map state abbreviations/variations to full state names for SVG files
   const getStateFileName = (state) => {
     if (!state) return 'United States'
-    
     const stateMap = {
-      'AL': 'Alabama',
-      'AK': 'Alaska',
-      'AZ': 'Arizona',
-      'AR': 'Arkansas',
-      'CA': 'California',
-      'CO': 'Colorado',
-      'CT': 'Connecticut',
-      'DE': 'Delaware',
-      'DC': 'District of Columbia',
-      'FL': 'Florida',
-      'GA': 'Georgia',
-      'HI': 'Hawaii',
-      'ID': 'Idaho',
-      'IL': 'Illinois',
-      'IN': 'Indiana',
-      'IA': 'Iowa',
-      'KS': 'Kansas',
-      'KY': 'Kentucky',
-      'LA': 'Louisiana',
-      'ME': 'Maine',
-      'MD': 'Maryland',
-      'MA': 'Massachusetts',
-      'MI': 'Michigan',
-      'MN': 'Minnesota',
-      'MS': 'Mississippi',
-      'MO': 'Missouri',
-      'MT': 'Montana',
-      'NE': 'Nebraska',
-      'NV': 'Nevada',
-      'NH': 'New Hampshire',
-      'NJ': 'New Jersey',
-      'NM': 'New Mexico',
-      'NY': 'New York',
-      'NC': 'North Carolina',
-      'ND': 'North Dakota',
-      'OH': 'Ohio',
-      'OK': 'Oklahoma',
-      'OR': 'Oregon',
-      'PA': 'Pennsylvania',
-      'RI': 'Rhode Island',
-      'SC': 'South Carolina',
-      'SD': 'South Dakota',
-      'TN': 'Tennessee',
-      'TX': 'Texas',
-      'UT': 'Utah',
-      'VT': 'Vermont',
-      'VA': 'Virginia',
-      'WA': 'Washington',
-      'WV': 'West Virginia',
-      'WI': 'Wisconsin',
-      'WY': 'Wyoming',
-      'US': 'United States'
+      'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
+      'CA': 'California', 'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
+      'DC': 'District of Columbia', 'FL': 'Florida', 'GA': 'Georgia', 'HI': 'Hawaii',
+      'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
+      'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine',
+      'MD': 'Maryland', 'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota',
+      'MS': 'Mississippi', 'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska',
+      'NV': 'Nevada', 'NH': 'New Hampshire', 'NJ': 'New Jersey', 'NM': 'New Mexico',
+      'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
+      'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island',
+      'SC': 'South Carolina', 'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas',
+      'UT': 'Utah', 'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington',
+      'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming', 'US': 'United States'
     }
-    
-    // Check if it's already a full state name (case-insensitive)
+
     const stateUpper = state.toUpperCase()
     if (stateMap[stateUpper]) {
       return stateMap[stateUpper]
     }
-    
-    // Check if it matches a full state name (case-insensitive)
+
     const fullStateNames = Object.values(stateMap)
     const matched = fullStateNames.find(name => name.toLowerCase() === state.toLowerCase())
     if (matched) {
       return matched
     }
-    
-    // Return original if no match found
     return state
   }
-  
+
   const stateFileName = getStateFileName(bill.state)
-  
-  // Determine correct PDF path when PDF viewer opens
-  // Try both formats: sanitized (new uploads) and URL-encoded (old uploads)
+
   useEffect(() => {
     if (showPDF && !pdfPath) {
       const getPdfPath = async () => {
-        // Try sanitized format first (new uploads)
         const sanitizedName = bill.name.replace(/[^a-zA-Z0-9]/g, '_')
         const sanitizedState = bill.state.replace(/[^a-zA-Z0-9]/g, '_')
         const sanitizedPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
-        
-        // Check if sanitized exists
+
         try {
           const response = await fetch(sanitizedPath, { method: 'HEAD' })
           if (response.ok) {
@@ -115,21 +68,18 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
             return
           }
         } catch {}
-        
-        // Fall back to original format with URL encoding (old uploads)
+
         const originalState = encodeURIComponent(bill.state)
         const originalName = encodeURIComponent(bill.name)
         const originalPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${originalState}/${originalName}.pdf`
         setPdfPath(originalPath)
       }
-      
       getPdfPath()
     } else if (!showPDF) {
-      setPdfPath(null) // Reset when closing
+      setPdfPath(null)
     }
   }, [showPDF, pdfPath, bill.name, bill.state])
 
-  // Create modal root element on mount, keep it for the component lifecycle
   useEffect(() => {
     if (!modalRef.current) {
       modalRef.current = document.createElement('div')
@@ -143,9 +93,8 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
         setPortalReady(false)
       }
     }
-  }, []) // Only run on mount/unmount
+  }, [])
 
-  // Prevent body scroll when modal is open
   useEffect(() => {
     if (showPDF) {
       document.body.style.overflow = 'hidden'
@@ -157,7 +106,6 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
     }
   }, [showPDF])
 
-  // When status popover opens, optionally fetch LegiScan status
   useEffect(() => {
     if (!showStatusPopover) return
     if (!bill?.state || !bill?.name) {
@@ -172,7 +120,6 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
       .catch(() => setLegiscanInfo('error'))
   }, [showStatusPopover, bill?.state, bill?.name, bill?.legiscan_link])
 
-  // Click outside to close status popover
   useEffect(() => {
     if (!showStatusPopover) return
     const handleClick = (e) => {
@@ -205,15 +152,12 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
   }
 
   const handlePDFTextExtracted = (text) => {
-    // Extract keywords from PDF text (simple keyword extraction)
-    // Remove common words and extract meaningful terms
     const commonWords = new Set([
       'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
       'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
       'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should',
       'could', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those'
     ])
-
     const words = text
       .toLowerCase()
       .replace(/[^\w\s]/g, ' ')
@@ -224,15 +168,13 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
         return acc
       }, {})
 
-    // Get top 10 most frequent words as keywords
     const keywords = Object.entries(words)
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => b[5] - a[5])
       .slice(0, 10)
       .map(([word]) => word)
 
     setExtractedKeywords(keywords)
-    
-    // Notify parent component of extracted keywords
+
     if (bill.bill_id && onKeywordExtracted) {
       onKeywordExtracted(bill.bill_id, keywords)
     }
@@ -246,8 +188,10 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
       data-aos="fade-up"
       data-aos-duration="700"
       data-aos-delay={aosDelay}
+      style={{ zIndex: showStatusPopover ? 100 : 1, position: 'relative' }}
     >
-      <div className="impact-card card h-100 shadow-sm position-relative overflow-hidden">
+      {/* Added the overflow style here to override any stubborn CSS files */}
+      <div className="impact-card card h-100 shadow-sm position-relative" style={{ overflow: 'visible' }}>
         <div className="card-body position-relative d-flex flex-column">
           <div ref={statusPopoverRef} className="bill-status-info-area">
             <h5 className="card-title bill-card-title d-flex align-items-center gap-1">
@@ -262,40 +206,52 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
                 <i className="bi bi-info-circle" aria-hidden="true"></i>
               </button>
             </h5>
+
             {showStatusPopover && (
               <div className="bill-status-popover-wrapper">
-                <div className="bill-status-popover">
-                <div className="small mb-2 fw-semibold">Bill status</div>
-                <p className="small mb-1"><strong>SPAN position:</strong> {bill.position}</p>
-                <p className="small mb-1"><strong>Bill date:</strong> {formatDate(bill.bill_date)}</p>
-                {bill.legiscan_link && (
-                  <p className="small mb-2">
-                    <a href={bill.legiscan_link} target="_blank" rel="noopener noreferrer">View on LegiScan</a>
-                  </p>
-                )}
-                {legiscanInfo === 'loading' && (
-                  <p className="small text-muted mb-0">Loading LegiScan status…</p>
-                )}
-                {legiscanInfo === 'error' && (
-                  <p className="small text-muted mb-0">Status unavailable from LegiScan.</p>
-                )}
-                {legiscanInfo && typeof legiscanInfo === 'object' && (
-                  <>
-                    {legiscanInfo.status && (
-                      <p className="small mb-1"><strong>LegiScan status:</strong> {legiscanInfo.status}</p>
-                    )}
-                    {legiscanInfo.lastAction && (
-                      <p className="small mb-1"><strong>Last action:</strong> {legiscanInfo.lastAction}</p>
-                    )}
-                    {legiscanInfo.statusDate && (
-                      <p className="small mb-0 text-muted"><strong>Date:</strong> {legiscanInfo.statusDate}</p>
-                    )}
-                  </>
-                )}
+                <div className="bill-status-popover" style={{ width: 'max-content', maxWidth: '90vw', minWidth: '400px' }}>
+                  <div className="small mb-2 fw-semibold">Bill status</div>
+                  <p className="small mb-1"><strong>SPAN position:</strong> {bill.position}</p>
+                  <p className="small mb-1"><strong>Bill date:</strong> {formatDate(bill.bill_date)}</p>
+
+                  {bill.legiscan_link && (
+                    <p className="small mb-2">
+                      <a href={bill.legiscan_link} target="_blank" rel="noopener noreferrer">View on LegiScan</a>
+                    </p>
+                  )}
+
+                  {legiscanInfo === 'loading' && (
+                    <p className="small text-muted mb-0">Loading LegiScan status…</p>
+                  )}
+
+                  {legiscanInfo === 'error' && (
+                    <p className="small text-muted mb-0">Status unavailable from LegiScan.</p>
+                  )}
+
+                  {legiscanInfo && typeof legiscanInfo === 'object' && (
+                    <>
+                      {legiscanInfo.timeline && legiscanInfo.timeline.length > 0 ? (
+                        <BillStatusTimeline stages={legiscanInfo.timeline} />
+                      ) : (
+                        <>
+                          {legiscanInfo.status && (
+                            <p className="small mb-1"><strong>LegiScan status:</strong> {legiscanInfo.status}</p>
+                          )}
+                          {legiscanInfo.lastAction && (
+                            <p className="small mb-1"><strong>Last action:</strong> {legiscanInfo.lastAction}</p>
+                          )}
+                          {legiscanInfo.statusDate && (
+                            <p className="small mb-0 text-muted"><strong>Date:</strong> {legiscanInfo.statusDate}</p>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}
           </div>
+
           <span className={`badge ${getPositionBadge(bill.position)} mb-2`}>
             {bill.position}
           </span>
@@ -312,6 +268,7 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
               >
                 <i className="bi bi-file-pdf"></i> {showPDF ? 'Hide' : 'View'}
               </button>
+
               {bill.bill_collaborators && bill.bill_collaborators.length > 0 && (
                 <CollaboratorAvatars
                   collaborators={bill.bill_collaborators}
@@ -345,9 +302,9 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
           {showPDF && portalReady && modalRef.current && createPortal(
             <>
               {/* Backdrop */}
-              <div 
+              <div
                 className="modal-backdrop fade show bill-modal-backdrop"
-                style={{ 
+                style={{
                   position: 'fixed',
                   top: 0,
                   left: 0,
@@ -359,9 +316,9 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
                 onClick={() => setShowPDF(false)}
               />
               {/* Modal */}
-              <div 
-                className="modal fade show d-block bill-modal" 
-                style={{ 
+              <div
+                className="modal fade show d-block bill-modal"
+                style={{
                   position: 'fixed',
                   top: 0,
                   left: 0,
@@ -370,7 +327,7 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
                   zIndex: 1050,
                   display: 'block',
                   overflow: 'auto'
-                }} 
+                }}
                 tabIndex="-1"
                 role="dialog"
                 aria-modal="true"
@@ -451,4 +408,3 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
 }
 
 export default BillCard
-

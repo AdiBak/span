@@ -103,7 +103,7 @@ function DashboardPage() {
   const [sendRejectionEmail, setSendRejectionEmail] = useState(true)
   const [rejectionEmailSending, setRejectionEmailSending] = useState(false)
   const [hrReports, setHrReports] = useState([])
-  const [hrReportFilter, setHrReportFilter] = useState('all') // 'all', 'pending', 'reviewed', 'resolved', 'dismissed'
+  const [hrReportFilter, setHrReportFilter] = useState('pending') // exec HR Reports default to Pending; 'all', 'pending', 'reviewed', 'resolved', 'dismissed'
   const [showHrReportModal, setShowHrReportModal] = useState(false)
   const [hrReportForm, setHrReportForm] = useState({
     nature: '',

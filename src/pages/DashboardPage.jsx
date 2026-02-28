@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
 import QRCode from 'qrcode'
 import RegistrationForm from '../components/RegistrationForm'
 import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import './DashboardPage.css'
+
+const PDFViewer = lazy(() => import('../components/PDFViewer'))
 
 const IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
 
@@ -54,6 +56,7 @@ function DashboardPage() {
   const [showDeleteBillModal, setShowDeleteBillModal] = useState(false)
   const [selectedBillForEdit, setSelectedBillForEdit] = useState(null)
   const [selectedBillForDelete, setSelectedBillForDelete] = useState(null)
+  const [billPdfPreviewBill, setBillPdfPreviewBill] = useState(null)
   const [editBillForm, setEditBillForm] = useState({
     state: '',
     name: '',
@@ -401,7 +404,33 @@ function DashboardPage() {
       return
     }
 
-    setAllBills(billsData || [])
+    const billsWithPDF = await Promise.all((billsData || []).map(async (bill) => {
+      const { exists, url } = await checkBillPdfExists(bill.state, bill.name)
+      return { ...bill, pdfExists: exists, pdfUrl: url || undefined }
+    }))
+    setAllBills(billsWithPDF)
+  }
+
+  async function checkBillPdfExists(state, name) {
+    if (!state || !name) return { exists: false, url: null }
+    const sanitizedName = (name || '').replace(/[^a-zA-Z0-9]/g, '_')
+    const sanitizedState = (state || '').replace(/[^a-zA-Z0-9]/g, '_')
+    const sanitizedPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
+    try {
+      const r = await fetch(sanitizedPath, { method: 'HEAD' })
+      if (r.ok) return { exists: true, url: sanitizedPath }
+    } catch {}
+    const originalPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${encodeURIComponent(state)}/${encodeURIComponent(name)}.pdf`
+    try {
+      const r = await fetch(originalPath, { method: 'HEAD' })
+      return { exists: r.ok, url: r.ok ? originalPath : null }
+    } catch {
+      return { exists: false, url: null }
+    }
+  }
+
+  function getBillPdfUrl(bill) {
+    return bill?.pdfUrl || (bill ? `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${(bill.state || '').replace(/[^a-zA-Z0-9]/g, '_')}/${(bill.name || '').replace(/[^a-zA-Z0-9]/g, '_')}.pdf` : null)
   }
 
 
@@ -420,7 +449,11 @@ function DashboardPage() {
       return
     }
 
-    setMySubmittedBills(billsData || [])
+    const billsWithPDF = await Promise.all((billsData || []).map(async (bill) => {
+      const { exists, url } = await checkBillPdfExists(bill.state, bill.name)
+      return { ...bill, pdfExists: exists, pdfUrl: url || undefined }
+    }))
+    setMySubmittedBills(billsWithPDF)
   }
 
   // Load all applications (executive directors only)
@@ -4006,6 +4039,15 @@ function DashboardPage() {
                                       </div>
                                     )}
                                     <div className="mt-3 d-flex gap-2 flex-wrap">
+                                      {bill.pdfExists && (
+                                        <button
+                                          type="button"
+                                          className="btn btn-sm btn-outline-dark"
+                                          onClick={() => setBillPdfPreviewBill(bill)}
+                                        >
+                                          <i className="bi bi-file-pdf me-1"></i>View PDF
+                                        </button>
+                                      )}
                                       {bill.status === 'under_review' ? (
                                         <>
                                           <button
@@ -6213,6 +6255,39 @@ function DashboardPage() {
             </div>
           </div>
           <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Bill PDF Preview Modal - Dashboard Bill Management */}
+      {billPdfPreviewBill && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1060 }}
+            onClick={() => setBillPdfPreviewBill(null)}
+          >
+            <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    {billPdfPreviewBill.state} {billPdfPreviewBill.name} – Proposal PDF
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setBillPdfPreviewBill(null)}
+                    aria-label="Close"
+                  />
+                </div>
+                <div className="modal-body">
+                  <Suspense fallback={<div className="text-center py-5"><div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading PDF...</span></div></div>}>
+                    <PDFViewer url={getBillPdfUrl(billPdfPreviewBill)} />
+                  </Suspense>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }} />
         </>
       )}
 

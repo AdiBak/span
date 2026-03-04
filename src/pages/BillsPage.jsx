@@ -33,6 +33,7 @@ function BillsPage() {
     billDate: '',
     legiscanLink: '',
     googleDocLink: '',
+    hidden: false,
     collaborators: []
   })
   const [editBillPdfFile, setEditBillPdfFile] = useState(null)
@@ -113,11 +114,12 @@ function BillsPage() {
 
   async function fetchData() {
     try {
-      // Fetch only approved bills (or bills without status for backwards compatibility)
+      // Fetch only approved bills (or bills without status for backwards compatibility), excluding hidden
       const { data: billsData, error: billsError } = await supabase
         .from('bills')
         .select('*')
         .or('status.eq.approved,status.eq.modified,status.is.null')
+        .eq('hidden', false)
 
       if (billsError) throw billsError
 
@@ -245,6 +247,7 @@ function BillsPage() {
       billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
       legiscanLink: bill.legiscan_link || '',
       googleDocLink: bill.google_doc_link || '',
+      hidden: !!(bill.hidden),
       collaborators: bill.bill_collaborators || []
     })
     setEditBillPdfFile(null)
@@ -259,7 +262,7 @@ function BillsPage() {
   }
 
   const handleSaveEditBill = async () => {
-    const { state, name, position, description, billDate, legiscanLink, googleDocLink, collaborators } = editBillForm
+    const { state, name, position, description, billDate, legiscanLink, googleDocLink, hidden, collaborators } = editBillForm
     setBillError('')
     setBillSuccess('')
 
@@ -322,6 +325,7 @@ function BillsPage() {
           bill_date: billDate,
           legiscan_link: legiscanLink.trim() || null,
           google_doc_link: googleDocLink.trim() || null,
+          hidden: !!hidden,
           bill_collaborators: collaborators.length > 0 ? collaborators : null
         })
         .eq('bill_id', selectedBill.bill_id)
@@ -795,6 +799,20 @@ function BillsPage() {
                     </div>
                     <small className="text-muted">Select at least one collaborator</small>
                   </div>
+                  {currentUser && (currentUser.bills === true || currentUser.bills === 'true') && (
+                    <div className="mb-3 form-check">
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        id="editBillHiddenBillsPage"
+                        checked={!!editBillForm.hidden}
+                        onChange={(e) => setEditBillForm({ ...editBillForm, hidden: e.target.checked })}
+                      />
+                      <label className="form-check-label" htmlFor="editBillHiddenBillsPage">
+                        Hide from public site (approved but not shown on Bills page)
+                      </label>
+                    </div>
+                  )}
                   {billError && <div className="text-danger mt-2">{billError}</div>}
                   {billSuccess && <div className="text-success mt-2">{billSuccess}</div>}
                 </div>

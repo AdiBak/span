@@ -66,6 +66,7 @@ function DashboardPage() {
     billDate: '',
     legiscanLink: '',
     googleDocLink: '',
+    hidden: false,
     collaborators: []
   })
   const [editBillPdfFile, setEditBillPdfFile] = useState(null)
@@ -1933,7 +1934,7 @@ function DashboardPage() {
 
   // Bill edit/delete handlers for dashboard
   const handleSaveEditBill = async () => {
-    const { state, name, position, description, billDate, legiscanLink, googleDocLink, collaborators } = editBillForm
+    const { state, name, position, description, billDate, legiscanLink, googleDocLink, hidden, collaborators } = editBillForm
     setBillError('')
     setBillSuccess('')
 
@@ -1996,6 +1997,7 @@ function DashboardPage() {
           bill_date: billDate,
           legiscan_link: legiscanLink.trim() || null,
           google_doc_link: googleDocLink.trim() || null,
+          hidden: !!hidden,
           bill_collaborators: collaborators.length > 0 ? collaborators : null
         })
         .eq('bill_id', selectedBillForEdit.bill_id)
@@ -2088,15 +2090,18 @@ function DashboardPage() {
   }
 
   // Bill review handlers (for execs and policy leads)
-  const handleApproveBill = async (bill, modified = false) => {
+  const handleApproveBill = async (bill, modified = false, hidden = false) => {
     try {
+      const updatePayload = {
+        status: modified ? 'modified' : 'approved',
+        reviewed_by: member.member_id,
+        reviewed_at: new Date().toISOString()
+      }
+      if (!modified) updatePayload.hidden = hidden
+
       const { error } = await supabase
         .from('bills')
-        .update({
-          status: modified ? 'modified' : 'approved',
-          reviewed_by: member.member_id,
-          reviewed_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('bill_id', bill.bill_id)
 
       if (error) throw error
@@ -2141,6 +2146,7 @@ function DashboardPage() {
       billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
       legiscanLink: bill.legiscan_link || '',
       googleDocLink: bill.google_doc_link || '',
+      hidden: !!(bill.hidden),
       collaborators: bill.bill_collaborators || []
     })
     setEditBillPdfFile(null)
@@ -4027,6 +4033,9 @@ function DashboardPage() {
                                              bill.status}
                                           </span>
                                         )}
+                                        {bill.hidden && (bill.status === 'approved' || bill.status === 'modified') && (
+                                          <span className="badge bg-secondary" title="Hidden from public Bills page">Hidden</span>
+                                        )}
                                       </div>
                                       <span className="text-muted">{formatDate(bill.bill_date)}</span>
                                     </div>
@@ -4103,11 +4112,22 @@ function DashboardPage() {
                                             className="btn btn-sm btn-success"
                                             onClick={() => {
                                               if (window.confirm(`Approve "${bill.name}" and make it live?`)) {
-                                                handleApproveBill(bill, false)
+                                                handleApproveBill(bill, false, false)
                                               }
                                             }}
                                           >
                                             <i className="bi bi-check-circle me-1"></i>Approve
+                                          </button>
+                                          <button
+                                            className="btn btn-sm btn-outline-success"
+                                            onClick={() => {
+                                              if (window.confirm(`Approve "${bill.name}" but keep it hidden from the public site? It will stay in the backend and the submitter can still see it.`)) {
+                                                handleApproveBill(bill, false, true)
+                                              }
+                                            }}
+                                            title="Approved but not shown on public Bills page"
+                                          >
+                                            <i className="bi bi-eye-slash me-1"></i>Approve but hide
                                           </button>
                                           <button
                                             className="btn btn-sm btn-primary"
@@ -4141,6 +4161,7 @@ function DashboardPage() {
                                                 billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
                                                 legiscanLink: bill.legiscan_link || '',
                                                 googleDocLink: bill.google_doc_link || '',
+                                                hidden: !!(bill.hidden),
                                                 collaborators: bill.bill_collaborators || []
                                               })
                                               setEditBillPdfFile(null)
@@ -4229,6 +4250,9 @@ function DashboardPage() {
                                bill.status === 'rejected' ? 'Rejected' :
                                'Pending'}
                             </span>
+                            {bill.hidden && (
+                              <span className="badge bg-secondary me-2" title="Hidden from public Bills page">Hidden</span>
+                            )}
                             <span className="text-muted">{formatDate(bill.bill_date)}</span>
                           </div>
                         </button>
@@ -6291,6 +6315,23 @@ function DashboardPage() {
                     </div>
                     <small className="text-muted">Select at least one collaborator</small>
                   </div>
+                  {(() => {
+                    const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
+                    return isExec ? (
+                      <div className="mb-3 form-check">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id="editBillHidden"
+                          checked={!!editBillForm.hidden}
+                          onChange={(e) => setEditBillForm({ ...editBillForm, hidden: e.target.checked })}
+                        />
+                        <label className="form-check-label" htmlFor="editBillHidden">
+                          Hide from public site (approved but not shown on Bills page)
+                        </label>
+                      </div>
+                    ) : null
+                  })()}
                   {billError && <div className="text-danger mt-2">{billError}</div>}
                   {billSuccess && <div className="text-success mt-2">{billSuccess}</div>}
                 </div>

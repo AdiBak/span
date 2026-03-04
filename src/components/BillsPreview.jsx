@@ -16,10 +16,12 @@ function BillsPreview() {
 
   async function fetchData() {
     try {
-      // Fetch bills
+      // Fetch only approved/modified bills that are not hidden (public Bills page)
       const { data: billsData, error: billsError } = await supabase
         .from('bills')
         .select('*')
+        .or('status.eq.approved,status.eq.modified,status.is.null')
+        .eq('hidden', false)
 
       if (billsError) throw billsError
 

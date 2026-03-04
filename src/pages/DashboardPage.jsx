@@ -43,6 +43,7 @@ function DashboardPage() {
     description: '',
     billDate: '',
     legiscanLink: '',
+    googleDocLink: '',
     collaborators: []
   })
   const [billPdfFile, setBillPdfFile] = useState(null)
@@ -64,6 +65,7 @@ function DashboardPage() {
     description: '',
     billDate: '',
     legiscanLink: '',
+    googleDocLink: '',
     collaborators: []
   })
   const [editBillPdfFile, setEditBillPdfFile] = useState(null)
@@ -1796,6 +1798,7 @@ function DashboardPage() {
       description: '',
       billDate: '',
       legiscanLink: '',
+      googleDocLink: '',
       collaborators: []
     })
     setBillPdfFile(null)
@@ -1825,13 +1828,23 @@ function DashboardPage() {
   }
 
   const handleSaveBill = async () => {
-    const { state, name, position, description, billDate, legiscanLink, collaborators } = billForm
+    const { state, name, position, description, billDate, legiscanLink, googleDocLink, collaborators } = billForm
     setBillError('')
     setBillSuccess('')
 
     // Validation
     if (!state || !name || !description || !billDate) {
       setBillError('State, name, description, and bill date are required.')
+      return
+    }
+    const hasPdf = !!billPdfFile
+    const hasDocLink = !!(googleDocLink && googleDocLink.trim())
+    if (!hasPdf && !hasDocLink) {
+      setBillError('Please provide either a proposal PDF or a link to the proposal document (e.g. Google Doc).')
+      return
+    }
+    if (!collaborators || collaborators.length === 0) {
+      setBillError('Please select at least one collaborator.')
       return
     }
 
@@ -1874,6 +1887,7 @@ function DashboardPage() {
           description: description.trim(),
           bill_date: billDate,
           legiscan_link: legiscanLink.trim() || null,
+          google_doc_link: googleDocLink.trim() || null,
           bill_collaborators: collaborators.length > 0 ? collaborators : null,
           status: billStatus,
           submitted_by: billStatus === 'under_review' ? member.member_id : null,
@@ -1900,6 +1914,7 @@ function DashboardPage() {
         description: '',
         billDate: '',
         legiscanLink: '',
+        googleDocLink: '',
         collaborators: []
       })
       setBillPdfFile(null)
@@ -1918,12 +1933,24 @@ function DashboardPage() {
 
   // Bill edit/delete handlers for dashboard
   const handleSaveEditBill = async () => {
-    const { state, name, position, description, billDate, legiscanLink, collaborators } = editBillForm
+    const { state, name, position, description, billDate, legiscanLink, googleDocLink, collaborators } = editBillForm
     setBillError('')
     setBillSuccess('')
 
     if (!state || !name || !description || !billDate) {
       setBillError('State, name, description, and bill date are required.')
+      return
+    }
+    const hasNewPdf = !!editBillPdfFile
+    const hadPdf = !!(selectedBillForEdit && selectedBillForEdit.pdfExists)
+    const hasDocLink = !!(googleDocLink && googleDocLink.trim())
+    const hadDocLink = !!(selectedBillForEdit && selectedBillForEdit.google_doc_link)
+    if (!hasNewPdf && !hadPdf && !hasDocLink && !hadDocLink) {
+      setBillError('Please provide either a proposal PDF or a link to the proposal document (e.g. Google Doc).')
+      return
+    }
+    if (!collaborators || collaborators.length === 0) {
+      setBillError('Please select at least one collaborator.')
       return
     }
 
@@ -1968,6 +1995,7 @@ function DashboardPage() {
           description: description.trim(),
           bill_date: billDate,
           legiscan_link: legiscanLink.trim() || null,
+          google_doc_link: googleDocLink.trim() || null,
           bill_collaborators: collaborators.length > 0 ? collaborators : null
         })
         .eq('bill_id', selectedBillForEdit.bill_id)
@@ -2112,6 +2140,7 @@ function DashboardPage() {
       description: bill.description || '',
       billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
       legiscanLink: bill.legiscan_link || '',
+      googleDocLink: bill.google_doc_link || '',
       collaborators: bill.bill_collaborators || []
     })
     setEditBillPdfFile(null)
@@ -4019,6 +4048,16 @@ function DashboardPage() {
                                         </p>
                                       </div>
                                     )}
+                                    {bill.google_doc_link && (
+                                      <div className="mb-3">
+                                        <strong>Proposal (Google Doc):</strong>
+                                        <p className="mt-1 mb-0">
+                                          <a href={bill.google_doc_link} target="_blank" rel="noopener noreferrer" className="text-primary">
+                                            {bill.google_doc_link}
+                                          </a>
+                                        </p>
+                                      </div>
+                                    )}
                                     {bill.bill_collaborators && bill.bill_collaborators.length > 0 && (
                                       <div className="mb-3">
                                         <strong>Collaborators:</strong>
@@ -4047,6 +4086,16 @@ function DashboardPage() {
                                         >
                                           <i className="bi bi-file-pdf me-1"></i>View PDF
                                         </button>
+                                      )}
+                                      {bill.google_doc_link && (
+                                        <a
+                                          href={bill.google_doc_link}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="btn btn-sm btn-outline-secondary"
+                                        >
+                                          <i className="bi bi-link-45deg me-1"></i>Proposal (Google Doc)
+                                        </a>
                                       )}
                                       {bill.status === 'under_review' ? (
                                         <>
@@ -4091,6 +4140,7 @@ function DashboardPage() {
                                                 description: bill.description || '',
                                                 billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
                                                 legiscanLink: bill.legiscan_link || '',
+                                                googleDocLink: bill.google_doc_link || '',
                                                 collaborators: bill.bill_collaborators || []
                                               })
                                               setEditBillPdfFile(null)
@@ -4222,6 +4272,43 @@ function DashboardPage() {
                               <p className="mt-1 mb-0">{formatDateLong(bill.reviewed_at)}</p>
                             </div>
                           )}
+                          {bill.legiscan_link && (
+                            <div className="mb-3">
+                              <strong>LegiScan:</strong>
+                              <p className="mt-1 mb-0">
+                                <a href={bill.legiscan_link} target="_blank" rel="noopener noreferrer" className="text-primary">{bill.legiscan_link}</a>
+                              </p>
+                            </div>
+                          )}
+                          {bill.google_doc_link && (
+                            <div className="mb-3">
+                              <strong>Proposal (Google Doc):</strong>
+                              <p className="mt-1 mb-0">
+                                <a href={bill.google_doc_link} target="_blank" rel="noopener noreferrer" className="text-primary">Open proposal doc</a>
+                              </p>
+                            </div>
+                          )}
+                          <div className="mt-3 d-flex gap-2 flex-wrap">
+                            {bill.pdfExists && (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-dark"
+                                onClick={() => setBillPdfPreviewBill(bill)}
+                              >
+                                <i className="bi bi-file-pdf me-1"></i>View PDF
+                              </button>
+                            )}
+                            {bill.google_doc_link && (
+                              <a
+                                href={bill.google_doc_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn btn-sm btn-outline-secondary"
+                              >
+                                <i className="bi bi-link-45deg me-1"></i>Proposal (Google Doc)
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -5979,6 +6066,17 @@ function DashboardPage() {
                     />
                   </div>
                   <div className="mb-3">
+                    <label className="form-label">Proposal link (Google Doc or similar)</label>
+                    <input
+                      type="url"
+                      className="form-control"
+                      placeholder="https://docs.google.com/..."
+                      value={billForm.googleDocLink}
+                      onChange={(e) => setBillForm({ ...billForm, googleDocLink: e.target.value })}
+                    />
+                    <small className="text-muted">Provide a link to the proposal doc so it can be edited. Required if you don’t upload a PDF.</small>
+                  </div>
+                  <div className="mb-3">
                     <label className="form-label">Proposal PDF</label>
                     <input
                       type="file"
@@ -5995,10 +6093,10 @@ function DashboardPage() {
                         }
                       }}
                     />
-                    <small className="text-muted">Optional: Upload the proposal PDF. Will be stored as {billForm.state}/{billForm.name || 'bill'}.pdf</small>
+                    <small className="text-muted">Optional if you provided a doc link above. Will be stored as {billForm.state}/{billForm.name || 'bill'}.pdf</small>
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Collaborators</label>
+                    <label className="form-label">Collaborators <span className="text-danger">*</span></label>
                     <div className="border rounded p-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                       {allMembers.length === 0 ? (
                         <p className="text-muted small mb-0">Loading members...</p>
@@ -6022,7 +6120,7 @@ function DashboardPage() {
                         </div>
                       )}
                     </div>
-                    <small className="text-muted">Select members who worked on this bill</small>
+                    <small className="text-muted">Select at least one member who worked on this bill</small>
                   </div>
                   {billError && <div className="text-danger mt-2">{billError}</div>}
                   {billSuccess && <div className="text-success mt-2">{billSuccess}</div>}
@@ -6137,6 +6235,17 @@ function DashboardPage() {
                     />
                   </div>
                   <div className="mb-3">
+                    <label className="form-label">Proposal link (Google Doc or similar)</label>
+                    <input
+                      type="url"
+                      className="form-control"
+                      placeholder="https://docs.google.com/..."
+                      value={editBillForm.googleDocLink}
+                      onChange={(e) => setEditBillForm({ ...editBillForm, googleDocLink: e.target.value })}
+                    />
+                    <small className="text-muted">Link to the proposal doc. Either this or a PDF is required.</small>
+                  </div>
+                  <div className="mb-3">
                     <label className="form-label">Proposal PDF (New)</label>
                     <input
                       type="file"
@@ -6156,7 +6265,7 @@ function DashboardPage() {
                     <small className="text-muted">Optional: Upload a new PDF to replace the existing one</small>
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Collaborators</label>
+                    <label className="form-label">Collaborators <span className="text-danger">*</span></label>
                     <div className="border rounded p-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                       {allMembers.length === 0 ? (
                         <p className="text-muted small mb-0">Loading members...</p>
@@ -6180,7 +6289,7 @@ function DashboardPage() {
                         </div>
                       )}
                     </div>
-                    <small className="text-muted">Select members who worked on this bill</small>
+                    <small className="text-muted">Select at least one collaborator</small>
                   </div>
                   {billError && <div className="text-danger mt-2">{billError}</div>}
                   {billSuccess && <div className="text-success mt-2">{billSuccess}</div>}

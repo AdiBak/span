@@ -32,6 +32,7 @@ function BillsPage() {
     description: '',
     billDate: '',
     legiscanLink: '',
+    googleDocLink: '',
     collaborators: []
   })
   const [editBillPdfFile, setEditBillPdfFile] = useState(null)
@@ -243,6 +244,7 @@ function BillsPage() {
       description: bill.description || '',
       billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
       legiscanLink: bill.legiscan_link || '',
+      googleDocLink: bill.google_doc_link || '',
       collaborators: bill.bill_collaborators || []
     })
     setEditBillPdfFile(null)
@@ -257,12 +259,24 @@ function BillsPage() {
   }
 
   const handleSaveEditBill = async () => {
-    const { state, name, position, description, billDate, legiscanLink, collaborators } = editBillForm
+    const { state, name, position, description, billDate, legiscanLink, googleDocLink, collaborators } = editBillForm
     setBillError('')
     setBillSuccess('')
 
     if (!state || !name || !description || !billDate) {
       setBillError('State, name, description, and bill date are required.')
+      return
+    }
+    const hasNewPdf = !!editBillPdfFile
+    const hadPdf = !!(selectedBill && selectedBill.pdfExists)
+    const hasDocLink = !!(googleDocLink && googleDocLink.trim())
+    const hadDocLink = !!(selectedBill && selectedBill.google_doc_link)
+    if (!hasNewPdf && !hadPdf && !hasDocLink && !hadDocLink) {
+      setBillError('Please provide either a proposal PDF or a link to an editable document (e.g. Google Doc).')
+      return
+    }
+    if (!collaborators || collaborators.length === 0) {
+      setBillError('Please select at least one collaborator.')
       return
     }
 
@@ -307,6 +321,7 @@ function BillsPage() {
           description: description.trim(),
           bill_date: billDate,
           legiscan_link: legiscanLink.trim() || null,
+          google_doc_link: googleDocLink.trim() || null,
           bill_collaborators: collaborators.length > 0 ? collaborators : null
         })
         .eq('bill_id', selectedBill.bill_id)
@@ -724,6 +739,17 @@ function BillsPage() {
                     />
                   </div>
                   <div className="mb-3">
+                    <label className="form-label">Proposal link (Google Doc or similar)</label>
+                    <input
+                      type="url"
+                      className="form-control"
+                      placeholder="https://docs.google.com/..."
+                      value={editBillForm.googleDocLink}
+                      onChange={(e) => setEditBillForm({ ...editBillForm, googleDocLink: e.target.value })}
+                    />
+                    <small className="text-muted">Either this or a PDF is required.</small>
+                  </div>
+                  <div className="mb-3">
                     <label className="form-label">Proposal PDF (New)</label>
                     <input
                       type="file"
@@ -743,7 +769,7 @@ function BillsPage() {
                     <small className="text-muted">Optional: Upload a new PDF to replace the existing one</small>
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Collaborators</label>
+                    <label className="form-label">Collaborators <span className="text-danger">*</span></label>
                     <div className="border rounded p-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                       {members.length === 0 ? (
                         <p className="text-muted small mb-0">Loading members...</p>
@@ -767,7 +793,7 @@ function BillsPage() {
                         </div>
                       )}
                     </div>
-                    <small className="text-muted">Select members who worked on this bill</small>
+                    <small className="text-muted">Select at least one collaborator</small>
                   </div>
                   {billError && <div className="text-danger mt-2">{billError}</div>}
                   {billSuccess && <div className="text-success mt-2">{billSuccess}</div>}

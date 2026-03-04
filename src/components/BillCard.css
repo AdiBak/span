@@ -9,6 +9,10 @@
   position: relative;
 }
 
+.bill-status-info-area.is-popover-open {
+  z-index: 10;
+}
+
 .bill-status-info-btn {
   padding: 0;
   margin: 0;
@@ -36,9 +40,9 @@
   top: 100%;
   left: 0;
   margin-top: 0.25rem;
-  z-index: 20;
-  min-width: 260px;
-  max-width: 320px;
+  z-index: 1000;
+  overflow: visible;
+  width: min(90vw, 300px);
 }
 
 .bill-status-popover {
@@ -47,10 +51,97 @@
   border-radius: 0.375rem;
   box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
   padding: 0.75rem 1rem;
+  width: 100%;
+  max-width: 100%;
+  height: min(70vh, 275px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
 }
 
 .bill-status-popover a {
   color: #0d6efd;
+}
+
+/* Timeline in status popover: fixed width row so it can scroll horizontally */
+.bill-status-popover .bill-status-timeline {
+  overflow: visible;
+  margin: 0.5rem 0;
+  min-width: 0;
+}
+
+.bill-status-popover .bill-status-timeline-row {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  min-height: 52px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.bill-status-popover .bill-status-timeline-block {
+  flex: 0 0 80px;
+  min-width: 80px;
+  text-align: center;
+  padding: 0.4rem 0.35rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.5);
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+
+.bill-status-popover .bill-status-timeline-row-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #6c757d;
+  margin-bottom: 0.35rem;
+}
+
+.bill-status-popover .bill-status-timeline-block:last-child {
+  border-right: none;
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+
+.bill-status-popover .bill-status-timeline-block:first-child {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+
+.bill-status-popover .bill-status-timeline-block .bill-status-timeline-stage-name {
+  font-weight: 600;
+  line-height: 1.15;
+  min-height: 2.3em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.bill-status-popover .bill-status-timeline-block .bill-status-timeline-stage-date {
+  font-size: 0.65rem;
+  margin-top: 2px;
+  white-space: nowrap;
+  opacity: 0.95;
+}
+
+.bill-status-popover .bill-status-timeline-block.bg-light {
+  border-right-color: rgba(0, 0, 0, 0.08);
+}
+
+.bill-status-popover .bill-status-timeline-chamber-row {
+  margin-bottom: 0.75rem;
+}
+
+.bill-status-popover .bill-status-timeline-chamber-row:last-child {
+  margin-bottom: 0;
 }
 
 .bill-card-title {

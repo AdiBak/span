@@ -209,7 +209,7 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
 
             {showStatusPopover && (
               <div className="bill-status-popover-wrapper">
-                <div className="bill-status-popover" style={{ width: 'max-content', maxWidth: '90vw', minWidth: '400px' }}>
+                <div className="bill-status-popover">
                   <div className="small mb-2 fw-semibold">Bill status</div>
                   <p className="small mb-1"><strong>SPAN position:</strong> {bill.position}</p>
                   <p className="small mb-1"><strong>Bill date:</strong> {formatDate(bill.bill_date)}</p>
@@ -235,7 +235,9 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
 
                   {legiscanInfo && typeof legiscanInfo === 'object' && (
                     <>
-                      {legiscanInfo.timeline && legiscanInfo.timeline.length > 0 ? (
+                      {legiscanInfo.timelineHouse && legiscanInfo.timelineSenate && legiscanInfo.timelineHouse.length > 0 && legiscanInfo.timelineSenate.length > 0 ? (
+                        <BillStatusTimeline houseStages={legiscanInfo.timelineHouse} senateStages={legiscanInfo.timelineSenate} />
+                      ) : legiscanInfo.timeline && legiscanInfo.timeline.length > 0 ? (
                         <BillStatusTimeline stages={legiscanInfo.timeline} />
                       ) : (
                         <>

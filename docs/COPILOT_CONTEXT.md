@@ -256,7 +256,7 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 - **Setup guide:** `docs/SETUP.md`  
 - **Auth provisioning docs:** `docs/auth-provisioning.md`  
 - **Ideas & suggestions:** `docs/SUGGESTIONS.md`  
-- **LegiScan timeline (bill status UI):** `docs/LEGISCAN_TIMELINE_SPEC.md`  
+- **LegiScan timeline (bill status UI, reference):** `docs/LEGISCAN_TIMELINE_SPEC.md`  
 - **Docs changelog:** `docs/DOCS_CHANGELOG.md` — updates to the guide and docs  
 - **Supabase client:** `src/lib/supabase.js`  
 - **Main app router:** `src/App.jsx`  

@@ -152,6 +152,114 @@ function legiscanStatusLabel(code) {
 const TIMELINE_STAGES = ['Introduced', 'In Committee', 'Crossed Over', 'Passed', 'Dead']
 
 /**
+ * Detect which chamber (house or senate) an history action refers to, if any.
+ * @param {string} actionText - Lowercased action/title text
+ * @returns {'house'|'senate'|null}
+ */
+function detectChamber(actionText) {
+  if (!actionText) return null
+  // "Assembly" is lower chamber in some states (e.g. CA, NY)
+  if (/\b(house|assembly|lower\s+chamber|h\.\s*b\.|hb\s+\d)/.test(actionText)) return 'house'
+  if (/\b(senate|upper\s+chamber|s\.\s*b\.|sb\s+\d)/.test(actionText)) return 'senate'
+  return null
+}
+
+/**
+ * Detect which stage index (0..4) an history action refers to, and whether it's a dead outcome.
+ * @param {string} actionText - Lowercased action/title text
+ * @returns {{ stageIndex: number, isDead: boolean }|null}
+ */
+function detectStageFromAction(actionText) {
+  if (!actionText) return null
+  if (/\b(failed|vetoed|withdrawn|died|dead)\b/.test(actionText)) return { stageIndex: 4, isDead: true }
+  if (/\b(passed\s+(?:the\s+)?(?:house|assembly)|passed\s+(?:the\s+)?senate|adopted|enacted|signed)\b/.test(actionText)) return { stageIndex: 3, isDead: false }
+  if (/\b(crossed\s+over|received\s+in\s+(?:house|senate)|second\s+chamber|engrossed)\b/.test(actionText)) return { stageIndex: 2, isDead: false }
+  if (/\b(committee|referred|hearing)\b/.test(actionText)) return { stageIndex: 1, isDead: false }
+  if (/\b(introduced|filed|first\s+reading)\b/.test(actionText)) return { stageIndex: 0, isDead: false }
+  // "Passed" without chamber might be generic - could map to 3
+  if (/\bpassed\b/.test(actionText)) return { stageIndex: 3, isDead: false }
+  return null
+}
+
+/**
+ * Build House and Senate timeline arrays from bill history.
+ * Each chamber gets the same 5 stages; dates and state are derived from history events that mention that chamber.
+ * @param {object} bill - Raw bill object from LegiScan getBill API
+ * @returns {{ house: Array<{label, date, state}>, senate: Array<{label, date, state}> }}
+ */
+export function buildBillTimelineByChamber(bill) {
+  const emptyStages = () => TIMELINE_STAGES.map(label => ({ label, date: null, state: 'pending' }))
+  const house = emptyStages()
+  const senate = emptyStages()
+  const history = Array.isArray(bill.history) ? bill.history : []
+  const statusCode = typeof bill.status === 'number' ? bill.status : (bill.status?.status_id ?? bill.status)
+  const { isDead: billDead } = statusToTimelineStage(statusCode)
+
+  // Per-chamber: best date we have for each stage (earliest event wins for that stage)
+  const houseDates = {}
+  const senateDates = {}
+  const houseDead = { value: false }
+  const senateDead = { value: false }
+
+  for (const h of history) {
+    const actionText = (h.action || h.title || h.description || h.action_desc || '').toLowerCase()
+    const date = h.date || null
+    const chamber = detectChamber(actionText)
+    const stageInfo = detectStageFromAction(actionText)
+    if (!stageInfo) continue
+
+    const { stageIndex, isDead } = stageInfo
+    const stageLabel = TIMELINE_STAGES[stageIndex]
+
+    if (chamber === 'house') {
+      if (!houseDates[stageLabel] || (date && date < (houseDates[stageLabel] || ''))) houseDates[stageLabel] = date
+      if (isDead) houseDead.value = true
+    } else if (chamber === 'senate') {
+      if (!senateDates[stageLabel] || (date && date < (senateDates[stageLabel] || ''))) senateDates[stageLabel] = date
+      if (isDead) senateDead.value = true
+    } else {
+      // Unspecified chamber: apply to both if it's a generic milestone (e.g. "Introduced")
+      if (stageIndex <= 1) {
+        if (!houseDates[stageLabel]) houseDates[stageLabel] = date
+        if (!senateDates[stageLabel]) senateDates[stageLabel] = date
+      }
+    }
+  }
+
+  // Fill dates and set completed/current/pending per chamber
+  function fillChamberStages(stagesArr, datesObj, chamberDead) {
+    let lastCompletedIndex = -1
+    for (let i = 0; i < TIMELINE_STAGES.length; i++) {
+      const label = TIMELINE_STAGES[i]
+      const date = datesObj[label] || null
+      if (date) {
+        stagesArr[i].date = date
+        lastCompletedIndex = i
+      }
+    }
+    for (let i = 0; i < lastCompletedIndex; i++) {
+      stagesArr[i].state = (i === 4 && (chamberDead || billDead)) ? 'dead' : 'completed'
+    }
+    if (lastCompletedIndex >= 0) {
+      if (lastCompletedIndex === 4) {
+        stagesArr[4].state = (chamberDead || billDead) ? 'dead' : 'completed'
+      } else if (lastCompletedIndex === 3) {
+        stagesArr[3].state = 'completed'
+      } else {
+        stagesArr[lastCompletedIndex].state = 'current'
+      }
+    } else {
+      stagesArr[0].state = 'current'
+    }
+  }
+
+  fillChamberStages(house, houseDates, houseDead.value)
+  fillChamberStages(senate, senateDates, senateDead.value)
+
+  return { house, senate }
+}
+
+/**
  * Map LegiScan status code to timeline stage index (0..4) and whether it's a terminal "dead" state.
  */
 function statusToTimelineStage(statusCode) {
@@ -296,7 +404,8 @@ export async function getBill(billId, expectedHash = null) {
     }
 
     const timeline = buildBillTimeline(bill)
-    return { status, lastAction, statusDate, changeHash, timeline }
+    const { house: timelineHouse, senate: timelineSenate } = buildBillTimelineByChamber(bill)
+    return { status, lastAction, statusDate, changeHash, timeline, timelineHouse, timelineSenate }
   } catch (err) {
     console.error('LegiScan getBill error:', err)
     return null

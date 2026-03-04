@@ -20,7 +20,7 @@ Project Overview
 
 - **`members`** \- Member profiles with role-based permissions (`volunteer`, `applications`, `bills`, `registration` booleans). Links to `auth.users` via `user_id`. Fields: `member_id` (UUID), `first_name`, `last_name`, `email`, `original_email`, `role`, `active`, `image` (filename in storage), `registration_complete`, etc.  
     
-- **`bills`** \- Legislation tracking. Fields: `bill_id`, `state`, `name`, `position` ('Support', 'Oppose', 'Support If Amended', 'Propose'), `description`, `bill_date`, `legiscan_link`, `bill_collaborators` (JSONB), `status` ('under\_review', 'approved', 'modified', 'rejected'), `submitted_by`, `reviewed_by`, etc.  
+- **`bills`** \- Legislation tracking. Fields: `bill_id`, `state`, `name`, `position` ('Support', 'Oppose', 'Support If Amended', 'Propose'), `description`, `bill_date`, `legiscan_link`, **`google_doc_link`** (optional link to proposal doc, e.g. Google Doc), `bill_collaborators` (JSONB), `status` ('under\_review', 'approved', 'modified', 'rejected'), **`hidden`** (boolean: when true, approved but not shown on public Bills page; still in Bill Management and submitter's list), `submitted_by`, `reviewed_by`, etc. Either PDF (in storage) or `google_doc_link` required; collaborators required.  
     
 - **`applications`** \- New member applications. Fields: `application_id`, `email`, `phone_number`, `full_name`, `grade`, `school`, `state`, `hours_per_week`, `status` ('pending', 'under\_review', 'contacted', 'accepted', 'rejected'), `reviewed_by`, `linkedin_url`, `instagram_url`, `resume_file`, etc.  
     
@@ -73,6 +73,7 @@ Project Overview
 
 - Exactly **all 4 permissions**: `volunteer`, `applications`, `bills`, `registration`. Used for bill approval, member management, and the “View dashboard” action.  
 - **View-member-dashboard API:** `GET /functions/v1/view-member-dashboard?member_id=<uuid>` with `Authorization: Bearer <session JWT>`. Returns `{ member, volunteer_entries, leave_requests, bills, applications }` for that member. Caller must be an exec (all 4 perms); otherwise 403\.
+- **Dashboard section order:** Sections use a flex container and CSS `order` in `DashboardPage.jsx` (`dashboardOrder` from `isExec`). Members: Your Info → Leave & Extension Requests → Bill Submission → Volunteer Hours → Ideas & Suggestions → HR Reports → Change Password. Execs: same start, then Bill Management → New Member Applications → … → Member Management → Schools & Partners → Change Password. Non-applicable sections use `order: 99`. Full list: `docs/DASHBOARD_FUNCTIONS.md`.
 
 **Email service (Resend):**
 
@@ -167,11 +168,11 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 ### Bill Submission & Approval Workflow
 
 1. **Submission** \- Members with `bills` permission can submit bills:  
-   - **Execs** (all 4 permissions): Bills auto-approved (`status = 'approved'`) → appear on public Bills page immediately  
-   - **Non-execs** (only `bills` permission): Bills submitted with `status = 'under_review'` → hidden from public until approved  
-2. **Review** \- Execs see "Under Review" bills in dashboard → can approve, reject, or modify-and-approve  
-3. **Public display** \- Only bills with `status = 'approved'` or `status = 'modified'` appear on public Bills page  
-4. **Bill management** \- Execs can edit/delete bills, upload PDFs to `proposals` bucket (organized by state)
+   - **Execs** (all 4 permissions): Bills auto-approved (`status = 'approved'`) → appear on public Bills page immediately (unless hidden)  
+   - **Non-execs** (only `bills` permission): Bills submitted with `status = 'under_review'` → hidden from public until approved. Must provide **either** a proposal PDF **or** `google_doc_link`, and at least one collaborator. They can view their submissions in **My Submitted Bills** (View PDF, open Google Doc, LegiScan).  
+2. **Review** \- Execs see "Under Review" bills in dashboard → can **Approve** (live), **Approve but hide** (approved but not on public site), reject, or modify-and-approve. In Edit, execs can toggle **Hide from public site**.  
+3. **Public display** \- Only bills with `status` in ('approved', 'modified') and **`hidden = false`** appear on public Bills page. Hidden bills stay in backend; execs and submitters still see them in their dashboards.  
+4. **Bill management** \- Execs can edit/delete bills, upload PDFs to `proposals` bucket (organized by state).
 
 ### Volunteer Hours Management
 
@@ -195,8 +196,8 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 
 ### Ideas & suggestions
 
-1. **Submission** \- Any member can submit from the dashboard: **Type** (Bill idea | General interest | Web / feature suggestion), **Title** (required), **Description** (optional) → stored in `member_suggestions` with `status = 'pending'`.  
-2. **Viewing** \- Members see their own suggestions; **execs** see all with filters (All, Pending, Under review, Approved, Declined). Section sits after Leave & extension, before Volunteer hours.  
+1. **Submission** \- Any member can submit from the dashboard: **Type** (Bill idea | General interest | Web / feature suggestion), **Title** (required), **Description** (optional) → stored in `member_suggestions` with `status = 'pending'`.
+2. **Viewing** \- Members see their own suggestions; **execs** see all with filters (All, Pending, Under review, Approved, Declined). The list **defaults to Pending**. Section sits after Leave & extension, before Volunteer hours.
 3. **Suggestion View modal** \- View button opens modal with full details. **Execs** can set status (Pending, Under review, Approved, Declined) and optional **Review notes** (comments for the member). Updates set or clear `reviewed_by`, `reviewed_at`, `review_notes`.  
 4. **Table:** `member_suggestions`. Migration: `supabase/migrations/create_member_suggestions_table.sql`. See `docs/SUGGESTIONS.md`.
 

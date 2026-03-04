@@ -144,7 +144,7 @@ function DashboardPage() {
   const [showRequestViewModal, setShowRequestViewModal] = useState(false)
   const [mySuggestions, setMySuggestions] = useState([])
   const [allSuggestions, setAllSuggestions] = useState([])
-  const [suggestionFilter, setSuggestionFilter] = useState('all') // 'all' | 'pending' | 'under_review' | 'approved' | 'declined'
+  const [suggestionFilter, setSuggestionFilter] = useState('pending') // 'all' | 'pending' | 'under_review' | 'approved' | 'declined'
   const [suggestionForm, setSuggestionForm] = useState({ type: 'bill_idea', title: '', description: '' })
   const [suggestionError, setSuggestionError] = useState('')
   const [suggestionSuccess, setSuggestionSuccess] = useState('')

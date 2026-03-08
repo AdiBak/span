@@ -1,14 +1,18 @@
-# LegiScan bill status timeline — spec for frontend
+# LegiScan bill status timeline — reference
 
-Joel asked to show LegiScan bill status as a **horizontal timeline** (like the reference: Introduced → In Committee → Crossed Over → Passed → Dead), with minimal extra info. This doc is the spec for building that UI.
+**Status: Implemented.** This doc describes how the LegiScan timeline works in the app (data, components, popover behavior). Use it as reference for onboarding or when changing the timeline or popover.
+
+The timeline shows bill status as a **horizontal progression** (Introduced → In Committee → Crossed Over → Passed → Dead), with separate **House** and **Senate** rows when the API provides chamber-specific data.
 
 ---
 
 ## 1. Data (already wired)
 
-- **Source:** When a user opens the LegiScan status popover on a bill card, the app calls `fetchBillStatus(bill)` from `src/lib/legiscan.js`. That now returns (among other fields) a **`timeline`** array.
+- **Source:** When a user opens the LegiScan status popover on a bill card, the app calls `fetchBillStatus(bill)` from `src/lib/legiscan.js`. That returns (among other fields):
+  - **`timeline`** — single array (legacy / when chamber is not split).
+  - **`timelineHouse`** and **`timelineSenate`** — when the API provides enough info to split by chamber, so the UI can show **separate House and Senate** progress (e.g. “Passed” in one chamber doesn’t imply the bill is done).
 - **No DB:** All data comes from the LegiScan API; no new tables or migrations.
-- **Shape of `timeline`:** Each item has:
+- **Shape of timeline item:** Each item has:
   - **`label`** (string) — e.g. `"Introduced"`, `"In Committee"`, `"Crossed Over"`, `"Passed"`, `"Dead"`.
   - **`date`** (string | null) — Date when that stage happened (e.g. `"2024-11-12"`), or `null` if not yet / unknown.
   - **`state`** (string) — One of: `'completed'`, `'current'`, `'pending'`, `'dead'`.
@@ -17,37 +21,41 @@ Joel asked to show LegiScan bill status as a **horizontal timeline** (like the r
     - **pending** — Not reached yet (e.g. grey).
     - **dead** — Terminal failure (e.g. red); only the last stage (“Dead”) should use this when the bill failed/died.
 
-So in the popover you’ll have `legiscanInfo.timeline` as an array of `{ label, date, state }`.
+So in the popover you’ll have `legiscanInfo.timeline` and, when available, `legiscanInfo.timelineHouse` and `legiscanInfo.timelineSenate`, each as an array of `{ label, date, state }`.
 
 ---
 
-## 2. Where to render
+## 2. Where it renders
 
 - **Component:** `src/components/BillCard.jsx`.
-- **Place:** Inside the **LegiScan status popover** (the same area where we currently show “LegiScan status”, “Last action”, “Date”). Replace or supplement that text with the **timeline** when `legiscanInfo.timeline` exists and has length.
-- **When:** Only when `bill.legiscan_link` is set and LegiScan data is loaded (`legiscanInfo` is an object with a `timeline` array). Keep existing “View on LegiScan” link; keep loading/error states as they are.
+- **Place:** Inside the **LegiScan status popover** (info icon next to the bill title). The popover shows “Bill status”, SPAN position, bill date, “View on LegiScan”, and the timeline when LegiScan data has loaded.
+- **When:** Only when `bill.legiscan_link` is set and LegiScan data is loaded (`legiscanInfo` has a `timeline` or `timelineHouse`/`timelineSenate`). Loading and error states (“Status unavailable from LegiScan”) are shown when the API fails or is unavailable.
 
 ---
 
-## 3. Timeline component (what to build)
+## 3. Timeline component
 
-- **Input (props):** A single prop, e.g. **`stages`**, which is an array of `{ label: string, date: string | null, state: 'completed' | 'current' | 'pending' | 'dead' }`. This is exactly what `legiscanInfo.timeline` provides.
-- **Layout:** Horizontal timeline: left to right, one segment per stage, with arrows or connectors between segments (as in the reference image).
+- **Component:** `src/components/BillStatusTimeline.jsx`.
+- **Input (props):**
+  - **`stages`** — single array of `{ label, date, state }` (used when chamber split is not available).
+  - **`houseStages`** and **`senateStages`** — when both are present and non-empty, the component renders **two rows** (“House” and “Senate”), each with the same stage shape. This makes it clear which chamber has passed and which is still in progress.
+- **Shape of each stage:** `{ label: string, date: string | null, state: 'completed' | 'current' | 'pending' | 'dead' }`.
+- **Layout:** Horizontal timeline: left to right, one segment per stage. Labels can wrap; dates shown below when present.
 - **Per segment:**
-  - Show **label** (e.g. “Introduced”, “In Committee”).
-  - Show **date** under the label when `date` is not null; otherwise leave blank or “—”.
-  - **Colors by `state`:**
-    - **completed** / **current** — e.g. dark blue (filled).
-    - **pending** — e.g. light grey (unfilled or muted).
-    - **dead** — e.g. red (only “Dead” stage when the bill died).
-- **Scope:** Just the timeline. No extra summary text or extra LegiScan info is required; keep the block minimal.
+  - **label** (e.g. “Introduced”, “In Committee”).
+  - **date** under the label when present; otherwise “—”.
+  - **Colors by `state`:** completed/current = filled (e.g. blue), pending = muted (grey), dead = red when the bill died.
 
-You can implement the timeline as:
+---
 
-- A **small reusable component** (e.g. `BillStatusTimeline.jsx` in `src/components/`) that takes `stages` and renders the horizontal bar, or
-- Inline markup in `BillCard.jsx` if you prefer to keep it in one place first.
+## 3b. Status popover UI (BillCard)
 
-Using a separate component is easier to test and reuse (e.g. if we add the same timeline elsewhere later).
+- **Placement:** The status popover is absolutely positioned below the bill title/info area; it uses a high z-index and an `is-popover-open` class on the parent so it stacks above the rest of the card (e.g. collaborator avatars).
+- **Size & scrolling:**
+  - **Width:** The popover wrapper has a fixed width: `min(90vw, 560px)`. The popover fills the wrapper so the content is constrained; no inline width overrides.
+  - **Height:** The popover has `max-height: min(70vh, 320px)` and `overflow-y: auto`, so long content (e.g. House + Senate timelines plus text) scrolls **vertically** inside the popover.
+  - **Timeline rows:** Each House/Senate row has fixed-width stage blocks (`flex: 0 0 80px`). When the combined stage width exceeds the popover width, the row scrolls **horizontally** (`overflow-x: auto`). The timeline container uses `min-width: 0` so the flex layout allows overflow and scrollbars to appear.
+- **Styling:** `src/components/BillCard.css` — `.bill-status-popover-wrapper`, `.bill-status-popover`, `.bill-status-timeline`, `.bill-status-timeline-row`, `.bill-status-timeline-block`, etc.
 
 ---
 
@@ -55,17 +63,19 @@ Using a separate component is easier to test and reuse (e.g. if we add the same 
 
 - **Visual reference:** The image Joel shared: horizontal segments, arrows between them, dates under labels, dark blue for done/current, grey for upcoming, red for “Dead” when applicable.
 - **Existing code:**  
-  - `src/lib/legiscan.js` — `fetchBillStatus`, `getBill`, `buildBillTimeline`.  
-  - `src/components/BillCard.jsx` — status popover, `legiscanInfo`, `setLegiscanInfo` (from `fetchBillStatus`).  
+  - `src/lib/legiscan.js` — `fetchBillStatus`, `getBill`, `buildBillTimeline`, `buildBillTimelineByChamber`; returns `timeline`, `timelineHouse`, `timelineSenate` when available.  
+  - `src/components/BillCard.jsx` — status popover, `legiscanInfo`, `setLegiscanInfo` (from `fetchBillStatus`); uses `houseStages` / `senateStages` when present, else `stages`.  
+  - `src/components/BillStatusTimeline.jsx` — renders one or two timeline rows.  
+  - `src/components/BillCard.css` — popover and timeline styles (width, scroll, z-index).  
 - **Styling:** Use existing Bootstrap + Bootstrap Icons; no new design system. Prefer simple CSS (flexbox/grid) for the horizontal layout.
 
 ---
 
-## 5. Acceptance checklist
+## 5. Current behavior (summary)
 
-- [ ] Timeline appears in the LegiScan popover when a bill has `legiscan_link` and LegiScan data loads successfully.
-- [ ] Timeline shows the five stages (Introduced, In Committee, Crossed Over, Passed, Dead) in order, with dates where available.
-- [ ] Colors/styling match intent: completed/current = filled (e.g. blue), pending = muted (e.g. grey), dead = red when the bill is dead.
-- [ ] Loading and error states for LegiScan are unchanged (no regression).
-- [ ] “View on LegiScan” link remains.
-- [ ] No new backend or DB changes; all data from existing `legiscan.js` and `legiscanInfo.timeline`.
+- Timeline appears in the LegiScan popover when a bill has `legiscan_link` and LegiScan data loads successfully.
+- When `timelineHouse` and `timelineSenate` are present, two labeled rows (House, Senate) are shown; otherwise a single `timeline` row is shown.
+- Five stages in order: Introduced, In Committee, Crossed Over, Passed, Dead; dates shown where available.
+- Colors: completed/current = blue, pending = grey, dead = red when the bill died.
+- Popover has a fixed max width and scrolls vertically when content is tall; timeline rows scroll horizontally when stages don’t fit.
+- “View on LegiScan” link and loading/error states are present. No backend or DB; all data from LegiScan API via `legiscan.js`.

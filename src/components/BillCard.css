@@ -72,17 +72,56 @@
   min-width: 0;
 }
 
+/* Scroll wrapper: native scrollbar hidden; custom scrollbar shown below */
+.bill-status-popover .bill-status-timeline-row-scroll-wrapper {
+  overflow-x: scroll;
+  overflow-y: hidden;
+  min-width: 0;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.bill-status-popover .bill-status-timeline-row-scroll-wrapper::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom scrollbar (always visible below each timeline row) */
+.bill-status-popover .bill-status-timeline-custom-scrollbar {
+  height: 10px;
+  background: #e9ecef;
+  border-radius: 4px;
+  margin-top: 4px;
+  cursor: pointer;
+  position: relative;
+  min-height: 10px;
+}
+
+.bill-status-popover .bill-status-timeline-custom-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  height: 10px;
+  min-width: 40px;
+  background: #495057;
+  border-radius: 4px;
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.bill-status-popover .bill-status-timeline-custom-scrollbar-thumb:active {
+  cursor: grabbing;
+}
+
 .bill-status-popover .bill-status-timeline-row {
   display: flex;
   flex-direction: row;
-  width: 100%;
-  min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  border-radius: 6px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  width: max-content;
+  min-width: 100%;
   min-height: 52px;
-  -webkit-overflow-scrolling: touch;
+  border-radius: 6px;
 }
 
 .bill-status-popover .bill-status-timeline-block {

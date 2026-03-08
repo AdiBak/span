@@ -145,6 +145,7 @@ function DashboardPage() {
   const [mySuggestions, setMySuggestions] = useState([])
   const [allSuggestions, setAllSuggestions] = useState([])
   const [suggestionFilter, setSuggestionFilter] = useState('pending') // 'all' | 'pending' | 'under_review' | 'approved' | 'declined'
+  const [volunteerFilter, setVolunteerFilter] = useState('pending') // 'all' | 'pending' (waiting) | 'approved' | 'declined' (denied)
   const [suggestionForm, setSuggestionForm] = useState({ type: 'bill_idea', title: '', description: '' })
   const [suggestionError, setSuggestionError] = useState('')
   const [suggestionSuccess, setSuggestionSuccess] = useState('')
@@ -3108,14 +3109,19 @@ function DashboardPage() {
   }
 
   const effectiveVolunteerEntries = viewAsData ? (viewAsData.volunteer_entries ?? []) : volunteerEntries
+  const approvedToFilter = () => (volunteerFilter === 'pending' ? 'waiting' : volunteerFilter === 'declined' ? 'denied' : volunteerFilter)
+  const filteredVolunteerEntries = volunteerFilter === 'all'
+    ? effectiveVolunteerEntries
+    : effectiveVolunteerEntries.filter(e => e.approved === approvedToFilter())
+
   const effectiveBills = viewAsData ? (viewAsData.bills ?? []) : (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? allBills : mySubmittedBills)
   const effectiveRequests = viewAsData ? (viewAsData.leave_requests ?? []) : (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? filteredMemberRequests : myRequests)
   const effectiveApplications = viewAsData ? (viewAsData.applications ?? []) : applications
   const filteredEffectiveApplications = applicationFilter === 'all' ? effectiveApplications : effectiveApplications.filter(app => app.status === applicationFilter)
 
-  // Group volunteer entries by member_id
+  // Group volunteer entries by member_id (use filtered list)
   const groupedEntries = {}
-  effectiveVolunteerEntries.forEach(entry => {
+  filteredVolunteerEntries.forEach(entry => {
     if (!groupedEntries[entry.member_id]) {
       groupedEntries[entry.member_id] = []
     }
@@ -3736,13 +3742,45 @@ function DashboardPage() {
 
         {/* Volunteer Hours Section */}
         <section className="mt-5" style={{ order: dashboardOrder.volunteerHours }}>
-          <div className="d-flex justify-content-between align-items-center mb-4">
-            <h3>Volunteer Hours</h3>
-            {!viewAsData && (
-              <button className="btn btn-dark" onClick={handleAddVolunteer}>
-                <i className="bi bi-plus-circle me-2"></i>Add Entry
-              </button>
-            )}
+          <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <h3 className="mb-0">Volunteer Hours</h3>
+            <div className="d-flex align-items-center gap-2">
+              <div className="btn-group" role="group">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${volunteerFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setVolunteerFilter('all')}
+                >
+                  All ({effectiveVolunteerEntries.length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${volunteerFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
+                  onClick={() => setVolunteerFilter('pending')}
+                >
+                  Pending ({effectiveVolunteerEntries.filter(e => e.approved === 'waiting').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${volunteerFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
+                  onClick={() => setVolunteerFilter('approved')}
+                >
+                  Approved ({effectiveVolunteerEntries.filter(e => e.approved === 'approved').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${volunteerFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
+                  onClick={() => setVolunteerFilter('declined')}
+                >
+                  Declined ({effectiveVolunteerEntries.filter(e => e.approved === 'denied').length})
+                </button>
+              </div>
+              {!viewAsData && (
+                <button className="btn btn-dark btn-sm" onClick={handleAddVolunteer}>
+                  <i className="bi bi-plus-circle me-2"></i>Add Entry
+                </button>
+              )}
+            </div>
           </div>
           <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
             {Object.entries(groupedEntries).map(([memberId, entries]) => {
@@ -3876,10 +3914,14 @@ function DashboardPage() {
                 </div>
               )
             })}
-            {effectiveVolunteerEntries.length === 0 && (
+            {Object.keys(groupedEntries).length === 0 && (
               <div className="text-center py-5 text-muted">
                 <i className="bi bi-clock-history display-4 d-block mb-3"></i>
-                <p>No volunteer entries found.{!viewAsData && ' Add your first entry to get started.'}</p>
+                <p>
+                  {effectiveVolunteerEntries.length === 0
+                    ? `No volunteer entries found.${!viewAsData ? ' Add your first entry to get started.' : ''}`
+                    : `No ${volunteerFilter === 'all' ? '' : volunteerFilter === 'pending' ? 'pending' : volunteerFilter === 'declined' ? 'declined' : 'approved'} entries.`}
+                </p>
               </div>
             )}
           </div>

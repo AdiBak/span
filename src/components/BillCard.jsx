@@ -219,11 +219,6 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
                       <a href={bill.legiscan_link} target="_blank" rel="noopener noreferrer">View on LegiScan</a>
                     </p>
                   )}
-                  {bill.google_doc_link && (
-                    <p className="small mb-2">
-                      <a href={bill.google_doc_link} target="_blank" rel="noopener noreferrer">View proposal (Google Doc)</a>
-                    </p>
-                  )}
 
                   {legiscanInfo === 'loading' && (
                     <p className="small text-muted mb-0">Loading LegiScan status…</p>
@@ -265,8 +260,8 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
           <p className="card-text bill-card-description">{bill.description}</p>
           <p className="text-muted small mb-3">{formatDate(bill.bill_date)}</p>
 
-          {/* PDF / Proposal link and Collaborator Section */}
-          {(bill.pdfExists || bill.google_doc_link) && (
+          {/* PDF / Collaborator Section */}
+          {(bill.pdfExists || (bill.bill_collaborators && bill.bill_collaborators.length > 0)) && (
             <div className="bill-card-actions">
               {bill.pdfExists && (
                 <button
@@ -277,18 +272,6 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
                   <i className="bi bi-file-pdf"></i> {showPDF ? 'Hide' : 'View'}
                 </button>
               )}
-              {bill.google_doc_link && (
-                <a
-                  href={bill.google_doc_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="btn btn-outline-secondary btn-sm"
-                  style={{ whiteSpace: 'nowrap' }}
-                >
-                  <i className="bi bi-link-45deg"></i> Proposal (Google Doc)
-                </a>
-              )}
-
               {bill.bill_collaborators && bill.bill_collaborators.length > 0 && (
                 <CollaboratorAvatars
                   collaborators={bill.bill_collaborators}

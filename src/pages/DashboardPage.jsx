@@ -9,6 +9,43 @@ const PDFViewer = lazy(() => import('../components/PDFViewer'))
 
 const IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
 
+/** Application pipeline status labels (DB values: pending, invited, met_with, onboard, accepted, rejected) */
+const APPLICATION_STATUS_LABELS = {
+  pending: 'Pending',
+  invited: 'Invited',
+  met_with: 'Met with',
+  onboard: 'Onboard',
+  accepted: 'Accepted',
+  rejected: 'Rejected',
+}
+
+function applicationStatusLabel(status) {
+  return APPLICATION_STATUS_LABELS[status] || (status ? status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ') : '')
+}
+
+function applicationStatusBadgeClass(status) {
+  switch (status) {
+    case 'pending':
+      return 'bg-warning text-dark'
+    case 'invited':
+      return 'bg-info'
+    case 'met_with':
+      return 'bg-primary'
+    case 'onboard':
+      return 'bg-secondary'
+    case 'accepted':
+      return 'bg-success'
+    case 'rejected':
+      return 'bg-danger'
+    default:
+      return 'bg-secondary'
+  }
+}
+
+function isApplicationPipelineStatus(status) {
+  return ['pending', 'invited', 'met_with', 'onboard'].includes(status)
+}
+
 function DashboardPage() {
   console.log('DashboardPage component rendering...')
   const [member, setMember] = useState(null)
@@ -100,10 +137,12 @@ function DashboardPage() {
   const [memberError, setMemberError] = useState('')
   const [memberSuccess, setMemberSuccess] = useState('')
   const [applications, setApplications] = useState([])
-  const [applicationFilter, setApplicationFilter] = useState('pending') // 'all', 'pending', 'accepted', 'rejected'
+  const [applicationFilter, setApplicationFilter] = useState('pending') // 'all', 'pending', 'invited', 'met_with', 'onboard', 'accepted', 'rejected'
   const [selectedApplication, setSelectedApplication] = useState(null)
   const [showApplicationModal, setShowApplicationModal] = useState(false)
   const [applicationNotes, setApplicationNotes] = useState('')
+  /** Internal review score (numeric); stored as applications.numeric_grade */
+  const [applicationNumericGrade, setApplicationNumericGrade] = useState('')
   const [showDeleteApplicationModal, setShowDeleteApplicationModal] = useState(false)
   const [showRejectConfirmModal, setShowRejectConfirmModal] = useState(false)
   const [sendRejectionEmail, setSendRejectionEmail] = useState(true)
@@ -2417,7 +2456,49 @@ function DashboardPage() {
   const handleViewApplication = (application) => {
     setSelectedApplication(application)
     setApplicationNotes(application.notes || '')
+    setApplicationNumericGrade(
+      application.numeric_grade != null && application.numeric_grade !== ''
+        ? String(application.numeric_grade)
+        : ''
+    )
     setShowApplicationModal(true)
+  }
+
+  const handleSaveApplicationNumericGrade = async () => {
+    if (!selectedApplication) return
+    const t = applicationNumericGrade.trim()
+    let value = null
+    if (t !== '') {
+      const n = parseFloat(t)
+      if (!Number.isFinite(n)) {
+        alert('Please enter a valid number (e.g. 1, 2, 3, or 1.5).')
+        return
+      }
+      value = n
+    }
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({ numeric_grade: value })
+        .eq('application_id', selectedApplication.application_id)
+      if (error) {
+        console.error('Error saving review score:', error)
+        alert('Failed to save review score: ' + error.message)
+        return
+      }
+      await loadApplications()
+      setSelectedApplication((prev) => (prev ? { ...prev, numeric_grade: value } : null))
+    } catch (err) {
+      console.error('Error saving review score:', err)
+      alert('Failed to save review score.')
+    }
+  }
+
+  const closeApplicationModal = () => {
+    setShowApplicationModal(false)
+    setSelectedApplication(null)
+    setApplicationNotes('')
+    setApplicationNumericGrade('')
   }
 
   const handleUpdateApplicationStatus = async (status) => {
@@ -2441,9 +2522,7 @@ function DashboardPage() {
       }
 
       await loadApplications()
-      setShowApplicationModal(false)
-      setSelectedApplication(null)
-      setApplicationNotes('')
+      closeApplicationModal()
     } catch (err) {
       console.error('Error updating application:', err)
       alert('Failed to update application status.')
@@ -2474,9 +2553,7 @@ function DashboardPage() {
       const appData = { ...selectedApplication }
 
       await loadApplications()
-      setShowApplicationModal(false)
-      setSelectedApplication(null)
-      setApplicationNotes('')
+      closeApplicationModal()
 
       // Pre-fill the Add Member form with application data and open it
       setEditingMemberId(null)
@@ -2545,9 +2622,7 @@ function DashboardPage() {
       setShowRejectConfirmModal(false)
       setSendRejectionEmail(true)
       await loadApplications()
-      setShowApplicationModal(false)
-      setSelectedApplication(null)
-      setApplicationNotes('')
+      closeApplicationModal()
     } catch (err) {
       console.error('Error rejecting application:', err)
       alert('Failed to reject application.')
@@ -2571,8 +2646,7 @@ function DashboardPage() {
 
       // Close both modals and refresh the list
       setShowDeleteApplicationModal(false)
-      setShowApplicationModal(false)
-      setSelectedApplication(null)
+      closeApplicationModal()
       await loadApplications()
     } catch (err) {
       console.error('Error deleting application:', err)
@@ -4997,9 +5071,9 @@ function DashboardPage() {
           return hasApps
         })() && (
           <section className="mt-5" style={{ order: dashboardOrder.applications }}>
-            <div className="d-flex justify-content-between align-items-center mb-4">
-              <h3>New Member Applications</h3>
-              <div className="btn-group" role="group">
+            <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+              <h3 className="mb-0">New Member Applications</h3>
+              <div className="btn-group flex-wrap" role="group">
                 <button
                   type="button"
                   className={`btn btn-sm ${applicationFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
@@ -5016,17 +5090,24 @@ function DashboardPage() {
                 </button>
                 <button
                   type="button"
-                  className={`btn btn-sm ${applicationFilter === 'under_review' ? 'btn-info' : 'btn-outline-info'}`}
-                  onClick={() => setApplicationFilter('under_review')}
+                  className={`btn btn-sm ${applicationFilter === 'invited' ? 'btn-info' : 'btn-outline-info'}`}
+                  onClick={() => setApplicationFilter('invited')}
                 >
-                  Under Review ({effectiveApplications.filter(a => a.status === 'under_review').length})
+                  Invited ({effectiveApplications.filter(a => a.status === 'invited').length})
                 </button>
                 <button
                   type="button"
-                  className={`btn btn-sm ${applicationFilter === 'contacted' ? 'btn-primary' : 'btn-outline-primary'}`}
-                  onClick={() => setApplicationFilter('contacted')}
+                  className={`btn btn-sm ${applicationFilter === 'met_with' ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => setApplicationFilter('met_with')}
                 >
-                  Contacted ({effectiveApplications.filter(a => a.status === 'contacted').length})
+                  Met with ({effectiveApplications.filter(a => a.status === 'met_with').length})
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${applicationFilter === 'onboard' ? 'btn-secondary' : 'btn-outline-secondary'}`}
+                  onClick={() => setApplicationFilter('onboard')}
+                >
+                  Onboard ({effectiveApplications.filter(a => a.status === 'onboard').length})
                 </button>
                 <button
                   type="button"
@@ -5052,7 +5133,8 @@ function DashboardPage() {
                     <tr>
                       <th>Name</th>
                       <th>Email</th>
-                      <th>Grade</th>
+                      <th>School grade</th>
+                      <th>Review score</th>
                       <th>State</th>
                       <th>Submitted</th>
                       <th>Status</th>
@@ -5067,18 +5149,12 @@ function DashboardPage() {
                           <a href={`mailto:${app.email}`}>{app.email}</a>
                         </td>
                         <td>{app.grade}</td>
+                        <td>{app.numeric_grade != null && app.numeric_grade !== '' ? app.numeric_grade : '—'}</td>
                         <td>{app.state}</td>
                         <td>{formatDateLong(app.submitted_at)}</td>
                         <td>
-                          <span className={`badge ${
-                            app.status === 'pending' ? 'bg-warning text-dark' :
-                            app.status === 'under_review' ? 'bg-info' :
-                            app.status === 'contacted' ? 'bg-primary' :
-                            app.status === 'accepted' ? 'bg-success' :
-                            'bg-danger'
-                          }`}>
-                            {app.status === 'under_review' ? 'Under Review' :
-                             app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                          <span className={`badge ${applicationStatusBadgeClass(app.status)}`}>
+                            {applicationStatusLabel(app.status)}
                           </span>
                         </td>
                         <td className="text-end">
@@ -5097,7 +5173,7 @@ function DashboardPage() {
             ) : (
               <div className="text-center py-5 text-muted">
                 <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
-                <p>No {applicationFilter === 'all' ? '' : applicationFilter} applications found.</p>
+                <p>No {applicationFilter === 'all' ? '' : `${applicationStatusLabel(applicationFilter).toLowerCase()} `}applications found.</p>
               </div>
             )}
           </section>
@@ -6809,7 +6885,7 @@ function DashboardPage() {
             style={{ display: 'block', zIndex: 1055 }}
             onClick={(e) => {
               if (e.target.className.includes('modal fade show')) {
-                setShowApplicationModal(false)
+                closeApplicationModal()
               }
             }}
           >
@@ -6820,7 +6896,7 @@ function DashboardPage() {
                   <button
                     type="button"
                     className="btn-close"
-                    onClick={() => setShowApplicationModal(false)}
+                    onClick={() => closeApplicationModal()}
                   ></button>
                 </div>
                 <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
@@ -6838,7 +6914,7 @@ function DashboardPage() {
                       <p>{selectedApplication.age || 'Not provided'}</p>
                     </div>
                     <div className="col-md-6">
-                      <strong>Grade:</strong>
+                      <strong>School grade:</strong>
                       <p>{selectedApplication.grade}</p>
                     </div>
                     <div className="col-md-6">
@@ -6906,17 +6982,38 @@ function DashboardPage() {
                     <div className="col-md-6">
                       <strong>Status:</strong>
                       <p>
-                        <span className={`badge ${
-                          selectedApplication.status === 'pending' ? 'bg-warning text-dark' :
-                          selectedApplication.status === 'under_review' ? 'bg-info' :
-                          selectedApplication.status === 'contacted' ? 'bg-primary' :
-                          selectedApplication.status === 'accepted' ? 'bg-success' :
-                          'bg-danger'
-                        }`}>
-                          {selectedApplication.status === 'under_review' ? 'Under Review' :
-                           selectedApplication.status.charAt(0).toUpperCase() + selectedApplication.status.slice(1)}
+                        <span className={`badge ${applicationStatusBadgeClass(selectedApplication.status)}`}>
+                          {applicationStatusLabel(selectedApplication.status)}
                         </span>
                       </p>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label" htmlFor="applicationNumericGradeInput">
+                      <strong>Review score</strong>
+                      <span className="text-muted fw-normal ms-1">(internal, e.g. 1, 2, 3, 1.5)</span>
+                    </label>
+                    <div className="d-flex flex-wrap gap-2 align-items-center">
+                      <input
+                        id="applicationNumericGradeInput"
+                        type="number"
+                        className="form-control"
+                        style={{ maxWidth: '140px' }}
+                        step="any"
+                        min="0"
+                        inputMode="decimal"
+                        value={applicationNumericGrade}
+                        onChange={(e) => setApplicationNumericGrade(e.target.value)}
+                        placeholder="—"
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-primary"
+                        onClick={() => handleSaveApplicationNumericGrade()}
+                      >
+                        <i className="bi bi-save me-1"></i>Save review score
+                      </button>
                     </div>
                   </div>
 
@@ -6931,10 +7028,10 @@ function DashboardPage() {
                     />
                   </div>
 
-                  {(selectedApplication.status === 'pending' || selectedApplication.status === 'under_review' || selectedApplication.status === 'contacted') && (
+                  {isApplicationPipelineStatus(selectedApplication.status) && (
                     <div className="alert alert-info">
                       <i className="bi bi-info-circle me-2"></i>
-                      You can update the status to track your progress with this application. Add notes for your records.
+                      You can update the status to track your progress with this application. Add notes and a review score for your records.
                     </div>
                   )}
                 </div>
@@ -6942,26 +7039,33 @@ function DashboardPage() {
                   <button
                     type="button"
                     className="btn btn-outline-dark"
-                    onClick={() => setShowApplicationModal(false)}
+                    onClick={() => closeApplicationModal()}
                   >
                     Close
                   </button>
                   <div className="d-flex gap-2 flex-wrap">
-                    {(selectedApplication.status === 'pending' || selectedApplication.status === 'under_review' || selectedApplication.status === 'contacted') && (
+                    {isApplicationPipelineStatus(selectedApplication.status) && (
                       <>
                         <button
                           type="button"
                           className="btn btn-info"
-                          onClick={() => handleUpdateApplicationStatus('under_review')}
+                          onClick={() => handleUpdateApplicationStatus('invited')}
                         >
-                          <i className="bi bi-eye me-1"></i>Mark Under Review
+                          <i className="bi bi-envelope me-1"></i>Mark Invited
                         </button>
                         <button
                           type="button"
                           className="btn btn-primary"
-                          onClick={() => handleUpdateApplicationStatus('contacted')}
+                          onClick={() => handleUpdateApplicationStatus('met_with')}
                         >
-                          <i className="bi bi-envelope-check me-1"></i>Mark Contacted
+                          <i className="bi bi-people me-1"></i>Mark Met with
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => handleUpdateApplicationStatus('onboard')}
+                        >
+                          <i className="bi bi-person-check me-1"></i>Mark Onboard
                         </button>
                         <button
                           type="button"
@@ -7043,7 +7147,7 @@ function DashboardPage() {
                 </div>
                 <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
                   <p className="text-muted mb-3">Select an application to import data into the member form:</p>
-                  {applications.filter(app => app.status === 'pending' || app.status === 'accepted').length > 0 ? (
+                  {applications.filter(app => ['pending', 'invited', 'met_with', 'onboard', 'accepted'].includes(app.status)).length > 0 ? (
                     <div className="table-responsive">
                       <table className="table table-hover">
                         <thead>
@@ -7058,7 +7162,7 @@ function DashboardPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {applications.filter(app => app.status === 'pending' || app.status === 'accepted').map(app => (
+                          {applications.filter(app => ['pending', 'invited', 'met_with', 'onboard', 'accepted'].includes(app.status)).map(app => (
                             <tr key={app.application_id}>
                               <td>{app.full_name}</td>
                               <td>{app.email}</td>
@@ -7066,12 +7170,8 @@ function DashboardPage() {
                               <td>{app.state || '-'}</td>
                               <td>{formatDateLong(app.submitted_at)}</td>
                               <td>
-                                <span className={`badge ${
-                                  app.status === 'pending' ? 'bg-warning text-dark' :
-                                  app.status === 'accepted' ? 'bg-success' :
-                                  'bg-danger'
-                                }`}>
-                                  {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                                <span className={`badge ${applicationStatusBadgeClass(app.status)}`}>
+                                  {applicationStatusLabel(app.status)}
                                 </span>
                               </td>
                               <td>
@@ -7088,7 +7188,7 @@ function DashboardPage() {
                       </table>
                     </div>
                   ) : (
-                    <p className="text-muted text-center py-4">No pending or accepted applications found.</p>
+                    <p className="text-muted text-center py-4">No applications available to import (pending through onboard, or accepted).</p>
                   )}
                 </div>
                 <div className="modal-footer">

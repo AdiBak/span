@@ -20,9 +20,10 @@ Project Overview
 
 - **`members`** \- Member profiles with role-based permissions (`volunteer`, `applications`, `bills`, `registration` booleans). Links to `auth.users` via `user_id`. Fields: `member_id` (UUID), `first_name`, `last_name`, `email`, `original_email`, `role`, `active`, `image` (filename in storage), `registration_complete`, etc.  
     
-- **`bills`** \- Legislation tracking. Fields: `bill_id`, `state`, `name`, `position` ('Support', 'Oppose', 'Support If Amended', 'Propose'), `description`, `bill_date`, `legiscan_link`, **`google_doc_link`** (optional link to proposal doc, e.g. Google Doc), `bill_collaborators` (JSONB), `status` ('under\_review', 'approved', 'modified', 'rejected'), **`hidden`** (boolean: when true, approved but not shown on public Bills page; still in Bill Management and submitter's list), `submitted_by`, `reviewed_by`, etc. Either PDF (in storage) or `google_doc_link` required; collaborators required.  
+- **`bills`** \- Legislation tracking. Fields: `bill_id`, `state`, `name`, `position` ('Support', 'Oppose', 'Support If Amended', 'Propose'), `description`, `bill_date`, `legiscan_link`, **`google_doc_link`** (optional link to proposal doc, e.g. Google Doc), `bill_collaborators` (JSONB), `status` ('under\_review', 'approved', 'modified', 'rejected'), **`hidden`** (boolean: when true, approved but not shown on public Bills page; still in Bill Management and submitter's list), `submitted_by`, `reviewed_by`, etc. Either PDF (in storage) or `google_doc_link` required; collaborators required.
+- **`bill_assignments`** \- Exec-assigned **work items** (not the same as `bills` rows). `title`, `goal`, `additional_info`, `assignee_member_id`, `assigned_by_member_id`, optional `due_date`, `status` (`not_started` \| `in_progress` \| `completed` \| `in_review` \| `approved`), `deliverable_doc_link`, `deliverable_pdf_url`. RLS: execs (all four `members` permission flags) full CRUD including delete; assignee SELECT + UPDATE own rows. **Assignees** are chosen only from members with **`bills`** permission. Dashboard: **Bill Management → Assigned work** (exec); **Bill Submission → Assigned to me** (non-exec with `bills`).  
     
-- **`applications`** \- New member applications. Fields: `application_id`, `email`, `phone_number`, `full_name`, `grade`, `school`, `state`, `hours_per_week`, `status` ('pending', 'under\_review', 'contacted', 'accepted', 'rejected'), `reviewed_by`, `linkedin_url`, `instagram_url`, `resume_file`, etc.  
+- **`applications`** \- New member applications. Fields: `application_id`, `email`, `phone_number`, `full_name`, `grade` (applicant school grade text), `school`, `state`, `hours_per_week`, `status` ('pending', 'invited', 'met\_with', 'onboard', 'accepted', 'rejected'), **`numeric_grade`** (optional internal score, decimals OK), `reviewed_by`, `linkedin_url`, `instagram_url`, `resume_file`, etc.  
     
 - **`volunteers`** \- Volunteer hour entries. Fields: `id`, `member_id`, `start_timestamp`, `end_timestamp`, `volunteering_job_title`, `volunteering_job_desc`, `approved` ('approved', 'denied', 'waiting'), `supervisor_comment`.  
     
@@ -160,7 +161,7 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 ### Member Onboarding Flow
 
 1. **Application submission** \- Public submits application via homepage form → stored in `applications` table with `status = 'pending'`  
-2. **Application review** \- Execs (with `applications` permission) review in dashboard, can accept/reject/add notes  
+2. **Application review** \- Execs (with `applications` permission) review in dashboard: status pipeline (invited → met with → onboard), optional **numeric_grade** review score, notes, accept/reject  
 3. **Member creation** \- When accepted, a member with **registration** permission (or an exec) opens Add Member (data pre-filled) and submits → calls `create_member` RPC → creates `members` row \+ Supabase Auth user → triggers Edge Function (`members-provision`) → sends welcome email with temp password \+ sets up Cloudflare email routing. Only **execs** can set the new member's permissions when adding or editing.  
 4. **Registration form** \- New member logs in → sees registration form if `registration_complete = false` → fills required fields (name, email, phone, DOB, school, city, state, profile photo) → uploads photo to `members-images` bucket → sets `registration_complete = true`  
 5. **Dashboard access** \- Once `registration_complete = true`, member can access full dashboard
@@ -256,7 +257,8 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 - **Setup guide:** `docs/SETUP.md`  
 - **Auth provisioning docs:** `docs/auth-provisioning.md`  
 - **Ideas & suggestions:** `docs/SUGGESTIONS.md`  
-- **LegiScan timeline (bill status UI, reference):** `docs/LEGISCAN_TIMELINE_SPEC.md`  
+- **LegiScan timeline (bill status UI, reference):** `docs/LEGISCAN_TIMELINE_SPEC.md`
+- **Bills exec suite (phased):** `docs/BILLS_EXEC_SUITE_SPEC.md` — **Assigned work** (`bill_assignments` + dashboard tabs) is implemented; **Research** / **Outreach** tabs and legislator tracking are later.  
 - **Docs changelog:** `docs/DOCS_CHANGELOG.md` — updates to the guide and docs  
 - **Supabase client:** `src/lib/supabase.js`  
 - **Main app router:** `src/App.jsx`  

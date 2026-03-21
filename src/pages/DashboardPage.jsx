@@ -46,6 +46,35 @@ function isApplicationPipelineStatus(status) {
   return ['pending', 'invited', 'met_with', 'onboard'].includes(status)
 }
 
+const BILL_ASSIGNMENT_STATUS_LABELS = {
+  not_started: 'Not started',
+  in_progress: 'In progress',
+  completed: 'Completed',
+  in_review: 'In review',
+  approved: 'Approved',
+}
+
+function billAssignmentStatusLabel(status) {
+  return BILL_ASSIGNMENT_STATUS_LABELS[status] || (status || '')
+}
+
+function billAssignmentStatusBadgeClass(status) {
+  switch (status) {
+    case 'not_started':
+      return 'bg-secondary'
+    case 'in_progress':
+      return 'bg-primary'
+    case 'completed':
+      return 'bg-info text-dark'
+    case 'in_review':
+      return 'bg-warning text-dark'
+    case 'approved':
+      return 'bg-success'
+    default:
+      return 'bg-secondary'
+  }
+}
+
 function DashboardPage() {
   console.log('DashboardPage component rendering...')
   const [member, setMember] = useState(null)
@@ -89,6 +118,27 @@ function DashboardPage() {
   const [allMembers, setAllMembers] = useState([])
   const [allBills, setAllBills] = useState([])
   const [mySubmittedBills, setMySubmittedBills] = useState([])
+  const [billAssignments, setBillAssignments] = useState([])
+  const [execBillSectionTab, setExecBillSectionTab] = useState('review_queue')
+  const [memberBillSectionTab, setMemberBillSectionTab] = useState('my_bills')
+  const [execAssignmentFilter, setExecAssignmentFilter] = useState('all')
+  const [memberAssignmentFilter, setMemberAssignmentFilter] = useState('all')
+  const [showAssignBillModal, setShowAssignBillModal] = useState(false)
+  const [assignBillForm, setAssignBillForm] = useState({
+    title: '',
+    goal: '',
+    additionalInfo: '',
+    assigneeMemberId: '',
+    dueDate: '',
+  })
+  const [assignBillError, setAssignBillError] = useState('')
+  const [assignBillSaving, setAssignBillSaving] = useState(false)
+  const [showDeleteAssignmentModal, setShowDeleteAssignmentModal] = useState(false)
+  const [assignmentToDelete, setAssignmentToDelete] = useState(null)
+  const [deleteAssignmentError, setDeleteAssignmentError] = useState('')
+  const [deleteAssignmentSaving, setDeleteAssignmentSaving] = useState(false)
+  /** assignee_id -> { doc, pdf } for inline deliverable fields */
+  const [memberDeliverableInputs, setMemberDeliverableInputs] = useState({})
   const [billFilter, setBillFilter] = useState('under_review') // exec Bill Management defaults to Under Review; 'all', 'under_review', 'approved', 'modified', 'rejected'
   const [showEditBillModal, setShowEditBillModal] = useState(false)
   const [showDeleteBillModal, setShowDeleteBillModal] = useState(false)
@@ -331,6 +381,9 @@ function DashboardPage() {
         // Members with bills permission see only their submitted bills
         loadMySubmittedBills()
       }
+      if (hasPermission('bills') && !viewAsData) {
+        loadBillAssignments()
+      }
       if (hasPermission('applications')) {
         loadApplications()
       }
@@ -349,7 +402,7 @@ function DashboardPage() {
       loadMyRequests()
       if (member) loadMySuggestions()
     }
-  }, [member])
+  }, [member, viewAsData])
 
   // View-as mode: when URL has ?viewAs=member_id and current user is exec, fetch that member's dashboard
   useEffect(() => {
@@ -404,6 +457,27 @@ function DashboardPage() {
         .finally(() => setViewAsLoading(false))
     })
   }, [member])
+
+  // Draft inputs for assignee deliverable fields (preserve typing when list refreshes)
+  useEffect(() => {
+    if (!member?.member_id || viewAsData) return
+    setMemberDeliverableInputs((prev) => {
+      const next = {}
+      for (const a of billAssignments) {
+        if (a.assignee_member_id !== member.member_id) continue
+        const existing = prev[a.assignment_id]
+        if (existing) {
+          next[a.assignment_id] = existing
+        } else {
+          next[a.assignment_id] = {
+            doc: a.deliverable_doc_link || '',
+            pdf: a.deliverable_pdf_url || '',
+          }
+        }
+      }
+      return next
+    })
+  }, [billAssignments, member?.member_id, viewAsData])
 
   // Load all members for collaborator selection
   const loadAllMembers = async () => {
@@ -497,6 +571,19 @@ function DashboardPage() {
       return { ...bill, pdfExists: exists, pdfUrl: url || undefined }
     }))
     setMySubmittedBills(billsWithPDF)
+  }
+
+  const loadBillAssignments = async () => {
+    const { data, error } = await supabase
+      .from('bill_assignments')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error loading bill assignments:', error)
+      return
+    }
+    setBillAssignments(data || [])
   }
 
   // Load all applications (executive directors only)
@@ -1828,6 +1915,139 @@ function DashboardPage() {
     } finally {
       setVerificationSending(false)
     }
+  }
+
+  const resolveBillAssignmentMemberName = (memberId) => {
+    const m =
+      allMembersForManagement.find((x) => x.member_id === memberId) ||
+      allMembers.find((x) => x.member_id === memberId)
+    return m ? `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Unknown' : 'Unknown'
+  }
+
+  const handleOpenAssignBillModal = () => {
+    setAssignBillError('')
+    setAssignBillForm({
+      title: '',
+      goal: '',
+      additionalInfo: '',
+      assigneeMemberId: '',
+      dueDate: '',
+    })
+    setShowAssignBillModal(true)
+  }
+
+  const handleCreateBillAssignment = async () => {
+    setAssignBillError('')
+    if (!assignBillForm.title?.trim() || !assignBillForm.goal?.trim() || !assignBillForm.assigneeMemberId) {
+      setAssignBillError('Topic / concept, goal, and assignee are required.')
+      return
+    }
+    const assigneeRow = allMembersForManagement.find((m) => m.member_id === assignBillForm.assigneeMemberId)
+    if (
+      !assigneeRow ||
+      (assigneeRow.bills !== true && assigneeRow.bills !== 'true')
+    ) {
+      setAssignBillError('Assignee must be a member with Bill permission.')
+      return
+    }
+    if (!member?.member_id) return
+    setAssignBillSaving(true)
+    const { error } = await supabase.from('bill_assignments').insert({
+      title: assignBillForm.title.trim(),
+      goal: assignBillForm.goal.trim(),
+      additional_info: assignBillForm.additionalInfo?.trim() || null,
+      assignee_member_id: assignBillForm.assigneeMemberId,
+      assigned_by_member_id: member.member_id,
+      due_date: assignBillForm.dueDate?.trim() || null,
+      status: 'not_started',
+    })
+    setAssignBillSaving(false)
+    if (error) {
+      setAssignBillError(error.message || 'Could not create assignment.')
+      return
+    }
+    setShowAssignBillModal(false)
+    setAssignBillForm({
+      title: '',
+      goal: '',
+      additionalInfo: '',
+      assigneeMemberId: '',
+      dueDate: '',
+    })
+    await loadBillAssignments()
+  }
+
+  const handleExecBillAssignmentStatus = async (assignmentId, status) => {
+    const { error } = await supabase
+      .from('bill_assignments')
+      .update({ status })
+      .eq('assignment_id', assignmentId)
+    if (error) {
+      alert(error.message || 'Update failed.')
+      return
+    }
+    await loadBillAssignments()
+  }
+
+  const handleSaveAssignmentDeliverable = async (assignmentId) => {
+    const draft = memberDeliverableInputs[assignmentId]
+    if (!draft) return
+    const { error } = await supabase
+      .from('bill_assignments')
+      .update({
+        deliverable_doc_link: draft.doc?.trim() || null,
+        deliverable_pdf_url: draft.pdf?.trim() || null,
+      })
+      .eq('assignment_id', assignmentId)
+    if (error) {
+      alert(error.message || 'Could not save.')
+      return
+    }
+    await loadBillAssignments()
+  }
+
+  const handleAssigneeAssignmentStatus = async (assignmentId, status) => {
+    const draft = memberDeliverableInputs[assignmentId] || {}
+    const doc = draft.doc?.trim() || ''
+    const pdf = draft.pdf?.trim() || ''
+    if (status === 'completed' && !doc && !pdf) {
+      alert('Add at least a Google Doc link or PDF URL before marking complete.')
+      return
+    }
+    const payload = { status }
+    if (status === 'completed') {
+      payload.deliverable_doc_link = doc || null
+      payload.deliverable_pdf_url = pdf || null
+    }
+    const { error } = await supabase.from('bill_assignments').update(payload).eq('assignment_id', assignmentId)
+    if (error) {
+      alert(error.message || 'Update failed.')
+      return
+    }
+    await loadBillAssignments()
+  }
+
+  /** Members with Bill permission only (assignees must be able to use Bill Submission / Assigned to me). */
+  const assigneePickerMembers = allMembersForManagement.filter(
+    (m) => m.bills === true || m.bills === 'true'
+  )
+
+  const handleConfirmDeleteBillAssignment = async () => {
+    if (!assignmentToDelete?.assignment_id) return
+    setDeleteAssignmentError('')
+    setDeleteAssignmentSaving(true)
+    const { error } = await supabase
+      .from('bill_assignments')
+      .delete()
+      .eq('assignment_id', assignmentToDelete.assignment_id)
+    setDeleteAssignmentSaving(false)
+    if (error) {
+      setDeleteAssignmentError(error.message || 'Could not delete assignment.')
+      return
+    }
+    setShowDeleteAssignmentModal(false)
+    setAssignmentToDelete(null)
+    await loadBillAssignments()
   }
 
   // Bill upload management
@@ -4007,9 +4227,31 @@ function DashboardPage() {
           return isExec
         })() && (
           <section className="mt-5" style={{ order: dashboardOrder.billManagement }}>
+            <div className="mb-3">
+              <h3 className="mb-2">Bill Management</h3>
+              <div className="btn-group" role="group">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${execBillSectionTab === 'review_queue' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setExecBillSectionTab('review_queue')}
+                >
+                  Review queue
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${execBillSectionTab === 'assigned_bills' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setExecBillSectionTab('assigned_bills')}
+                >
+                  Assigned work
+                </button>
+              </div>
+            </div>
+
+            {execBillSectionTab === 'review_queue' && (
+            <>
             <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-              <h3 className="mb-0">Bill Management</h3>
-              <div className="d-flex align-items-center gap-2">
+              <span className="text-muted small align-self-center">Submitted proposals for approval</span>
+              <div className="d-flex align-items-center gap-2 flex-wrap">
                 <div className="btn-group" role="group">
                   <button
                     type="button"
@@ -4318,6 +4560,157 @@ function DashboardPage() {
               </div>
             )
             })()}
+            </>
+            )}
+
+            {execBillSectionTab === 'assigned_bills' && (
+              <>
+                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                  <div className="btn-group flex-wrap" role="group">
+                    {['all', 'not_started', 'in_progress', 'completed', 'in_review', 'approved'].map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`btn btn-sm ${execAssignmentFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => setExecAssignmentFilter(key)}
+                      >
+                        {key === 'all'
+                          ? `All (${billAssignments.length})`
+                          : `${billAssignmentStatusLabel(key)} (${billAssignments.filter((x) => x.status === key).length})`}
+                      </button>
+                    ))}
+                  </div>
+                  {!viewAsData && (
+                    <button type="button" className="btn btn-dark btn-sm" onClick={handleOpenAssignBillModal}>
+                      <i className="bi bi-plus-circle me-1"></i>Assign work
+                    </button>
+                  )}
+                </div>
+                {(() => {
+                  const filtered =
+                    execAssignmentFilter === 'all'
+                      ? billAssignments
+                      : billAssignments.filter((x) => x.status === execAssignmentFilter)
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="text-center py-5 text-muted">
+                        <i className="bi bi-list-task display-4 d-block mb-3"></i>
+                        <p>No assignments match this filter.</p>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div className="accordion mb-4" id="execBillAssignmentsAccordion" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                      {filtered.map((a) => {
+                        const cid = `collapseExecAssign${String(a.assignment_id).replace(/-/g, '')}`
+                        return (
+                          <div key={a.assignment_id} className="accordion-item mb-2 shadow-sm border rounded">
+                            <h2 className="accordion-header">
+                              <button
+                                className="accordion-button collapsed bg-white text-dark"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target={`#${cid}`}
+                                aria-expanded="false"
+                              >
+                                <div className="d-flex w-100 justify-content-between align-items-center flex-wrap gap-2 pe-2">
+                                  <span className="fw-bold text-start">{a.title}</span>
+                                  <span className={`badge ${billAssignmentStatusBadgeClass(a.status)}`}>
+                                    {billAssignmentStatusLabel(a.status)}
+                                  </span>
+                                  <span className="text-muted small">
+                                    {resolveBillAssignmentMemberName(a.assignee_member_id)}
+                                    {a.due_date ? ` · due ${formatDate(a.due_date)}` : ''}
+                                  </span>
+                                </div>
+                              </button>
+                            </h2>
+                            <div id={cid} className="accordion-collapse collapse" data-bs-parent="#execBillAssignmentsAccordion">
+                              <div className="accordion-body">
+                                <div className="mb-2">
+                                  <strong>Goal</strong>
+                                  <p className="mb-0 mt-1">{a.goal}</p>
+                                </div>
+                                {a.additional_info && (
+                                  <div className="mb-2">
+                                    <strong>Additional info</strong>
+                                    <p className="mb-0 mt-1">{a.additional_info}</p>
+                                  </div>
+                                )}
+                                <div className="mb-2 small text-muted">
+                                  Assigned by {resolveBillAssignmentMemberName(a.assigned_by_member_id)}
+                                </div>
+                                {(a.deliverable_doc_link || a.deliverable_pdf_url) && (
+                                  <div className="mb-3">
+                                    <strong>Deliverables</strong>
+                                    {a.deliverable_doc_link && (
+                                      <p className="mb-1 mt-1">
+                                        <a href={a.deliverable_doc_link} target="_blank" rel="noopener noreferrer">
+                                          Open doc / link
+                                        </a>
+                                      </p>
+                                    )}
+                                    {a.deliverable_pdf_url && (
+                                      <p className="mb-0 mt-1">
+                                        <a href={a.deliverable_pdf_url} target="_blank" rel="noopener noreferrer">
+                                          PDF URL
+                                        </a>
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                                <div className="d-flex flex-wrap gap-2 align-items-center w-100">
+                                  {a.status === 'completed' && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-warning"
+                                        onClick={() => handleExecBillAssignmentStatus(a.assignment_id, 'in_review')}
+                                      >
+                                        Mark in review
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-success"
+                                        onClick={() => handleExecBillAssignmentStatus(a.assignment_id, 'approved')}
+                                      >
+                                        Approve
+                                      </button>
+                                    </>
+                                  )}
+                                  {a.status === 'in_review' && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-success"
+                                      onClick={() => handleExecBillAssignmentStatus(a.assignment_id, 'approved')}
+                                    >
+                                      Approve
+                                    </button>
+                                  )}
+                                  {!viewAsData && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger ms-auto"
+                                      onClick={() => {
+                                        setAssignmentToDelete(a)
+                                        setDeleteAssignmentError('')
+                                        setShowDeleteAssignmentModal(true)
+                                      }}
+                                    >
+                                      <i className="bi bi-trash me-1"></i>Delete
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </>
+            )}
           </section>
         )}
 
@@ -4328,17 +4721,187 @@ function DashboardPage() {
           return hasBills && !isExec
         })() && (
           <section className="mt-5" style={{ order: dashboardOrder.billSubmission }}>
-            <div className="d-flex justify-content-between align-items-center mb-4">
-              <h3>Bill Submission</h3>
-              {!viewAsData && (
+            <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+              <h3 className="mb-0">Bill Submission</h3>
+              {!viewAsData && memberBillSectionTab === 'my_bills' && (
                 <button className="btn btn-dark" onClick={handleAddBill}>
                   <i className="bi bi-plus-circle me-2"></i>Submit Bill for Review
                 </button>
               )}
             </div>
+            {!viewAsData && (
+              <div className="btn-group mb-3" role="group">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${memberBillSectionTab === 'my_bills' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setMemberBillSectionTab('my_bills')}
+                >
+                  My bills
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${memberBillSectionTab === 'assigned_to_me' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setMemberBillSectionTab('assigned_to_me')}
+                >
+                  Assigned to me
+                </button>
+              </div>
+            )}
 
-            {/* My Submitted Bills */}
-            {effectiveBills.length > 0 ? (
+            {!viewAsData && memberBillSectionTab === 'assigned_to_me' ? (
+              <>
+                <p className="text-muted small mb-3">
+                  Work items assigned by the exec team. Add your Google Doc and/or PDF link, then mark complete when ready for review.
+                </p>
+                <div className="btn-group flex-wrap mb-3" role="group">
+                  {['all', 'not_started', 'in_progress', 'completed', 'in_review', 'approved'].map((key) => {
+                    const mine = billAssignments.filter((x) => x.assignee_member_id === member?.member_id)
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`btn btn-sm ${memberAssignmentFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
+                        onClick={() => setMemberAssignmentFilter(key)}
+                      >
+                        {key === 'all'
+                          ? `All (${mine.length})`
+                          : `${billAssignmentStatusLabel(key)} (${mine.filter((x) => x.status === key).length})`}
+                      </button>
+                    )
+                  })}
+                </div>
+                {(() => {
+                  const mine = billAssignments.filter((x) => x.assignee_member_id === member?.member_id)
+                  const filtered =
+                    memberAssignmentFilter === 'all'
+                      ? mine
+                      : mine.filter((x) => x.status === memberAssignmentFilter)
+                  if (filtered.length === 0) {
+                    return (
+                      <div className="text-center py-5 text-muted">
+                        <i className="bi bi-inbox display-4 d-block mb-3"></i>
+                        <p>No assignments in this view.</p>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div className="accordion mb-4" id="memberBillAssignmentsAccordion" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                      {filtered.map((a) => {
+                        const cid = `collapseMemberAssign${String(a.assignment_id).replace(/-/g, '')}`
+                        const draft = memberDeliverableInputs[a.assignment_id] || { doc: '', pdf: '' }
+                        return (
+                          <div key={a.assignment_id} className="accordion-item mb-2 shadow-sm border rounded">
+                            <h2 className="accordion-header">
+                              <button
+                                className="accordion-button collapsed bg-white text-dark"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target={`#${cid}`}
+                                aria-expanded="false"
+                              >
+                                <div className="d-flex w-100 justify-content-between align-items-center flex-wrap gap-2 pe-2">
+                                  <span className="fw-bold text-start">{a.title}</span>
+                                  <span className={`badge ${billAssignmentStatusBadgeClass(a.status)}`}>
+                                    {billAssignmentStatusLabel(a.status)}
+                                  </span>
+                                  {a.due_date && (
+                                    <span className="text-muted small">Due {formatDate(a.due_date)}</span>
+                                  )}
+                                </div>
+                              </button>
+                            </h2>
+                            <div id={cid} className="accordion-collapse collapse" data-bs-parent="#memberBillAssignmentsAccordion">
+                              <div className="accordion-body">
+                                <div className="mb-2">
+                                  <strong>Goal</strong>
+                                  <p className="mb-0 mt-1">{a.goal}</p>
+                                </div>
+                                {a.additional_info && (
+                                  <div className="mb-3">
+                                    <strong>Additional info</strong>
+                                    <p className="mb-0 mt-1">{a.additional_info}</p>
+                                  </div>
+                                )}
+                                <div className="mb-2">
+                                  <label className="form-label small mb-0">Deliverable — Google Doc or other link</label>
+                                  <input
+                                    type="url"
+                                    className="form-control form-control-sm"
+                                    placeholder="https://docs.google.com/..."
+                                    value={draft.doc}
+                                    disabled={a.status === 'approved'}
+                                    onChange={(e) =>
+                                      setMemberDeliverableInputs((prev) => ({
+                                        ...prev,
+                                        [a.assignment_id]: { ...draft, doc: e.target.value },
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <div className="mb-3">
+                                  <label className="form-label small mb-0">Deliverable — PDF URL (optional)</label>
+                                  <input
+                                    type="url"
+                                    className="form-control form-control-sm"
+                                    placeholder="https://..."
+                                    value={draft.pdf}
+                                    disabled={a.status === 'approved'}
+                                    onChange={(e) =>
+                                      setMemberDeliverableInputs((prev) => ({
+                                        ...prev,
+                                        [a.assignment_id]: { ...draft, pdf: e.target.value },
+                                      }))
+                                    }
+                                  />
+                                </div>
+                                <div className="d-flex flex-wrap gap-2">
+                                  {a.status !== 'approved' && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-secondary"
+                                      onClick={() => handleSaveAssignmentDeliverable(a.assignment_id)}
+                                    >
+                                      Save deliverables
+                                    </button>
+                                  )}
+                                  {a.status === 'not_started' && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-primary"
+                                      onClick={() => handleAssigneeAssignmentStatus(a.assignment_id, 'in_progress')}
+                                    >
+                                      Start work
+                                    </button>
+                                  )}
+                                  {(a.status === 'in_progress' || a.status === 'not_started') && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-success"
+                                      onClick={() => handleAssigneeAssignmentStatus(a.assignment_id, 'completed')}
+                                    >
+                                      Mark complete for review
+                                    </button>
+                                  )}
+                                </div>
+                                {a.status === 'completed' && (
+                                  <p className="small text-muted mt-2 mb-0">Submitted — waiting for exec review.</p>
+                                )}
+                                {a.status === 'in_review' && (
+                                  <p className="small text-warning mt-2 mb-0">In review by exec team.</p>
+                                )}
+                                {a.status === 'approved' && (
+                                  <p className="small text-success mt-2 mb-0">Approved. Thank you!</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </>
+            ) : effectiveBills.length > 0 ? (
               <div>
                 <h4 className="mb-3">My Submitted Bills</h4>
                 <div className="accordion mb-4" style={{ maxHeight: '600px', overflowY: 'auto' }}>
@@ -6517,6 +7080,175 @@ function DashboardPage() {
                     onClick={handleConfirmDeleteBill}
                   >
                     Delete Bill
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Assign bill work — exec only */}
+      {showAssignBillModal && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowAssignBillModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Assign work</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    aria-label="Close"
+                    onClick={() => setShowAssignBillModal(false)}
+                  />
+                </div>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label">Topic / concept</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={assignBillForm.title}
+                      onChange={(e) => setAssignBillForm({ ...assignBillForm, title: e.target.value })}
+                      placeholder="Short title"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Goal</label>
+                    <textarea
+                      className="form-control"
+                      rows={3}
+                      value={assignBillForm.goal}
+                      onChange={(e) => setAssignBillForm({ ...assignBillForm, goal: e.target.value })}
+                      placeholder="What should be delivered?"
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Additional info (optional)</label>
+                    <textarea
+                      className="form-control"
+                      rows={2}
+                      value={assignBillForm.additionalInfo}
+                      onChange={(e) => setAssignBillForm({ ...assignBillForm, additionalInfo: e.target.value })}
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Assignee</label>
+                    <p className="form-text small text-muted mb-2">
+                      Only members with <strong>Bill</strong> permission can receive assignments (they use Bill Submission → Assigned to me).
+                    </p>
+                    {assigneePickerMembers.length === 0 ? (
+                      <div className="alert alert-warning small mb-0 py-2">
+                        No members have Bill permission yet. Enable it in Member Management for at least one member.
+                      </div>
+                    ) : (
+                      <select
+                        className="form-select"
+                        value={assignBillForm.assigneeMemberId}
+                        onChange={(e) => setAssignBillForm({ ...assignBillForm, assigneeMemberId: e.target.value })}
+                      >
+                        <option value="">Select member</option>
+                        {assigneePickerMembers.map((m) => (
+                          <option key={m.member_id} value={m.member_id}>
+                            {m.first_name} {m.last_name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Due date (optional)</label>
+                    <input
+                      type="date"
+                      className="form-control"
+                      value={assignBillForm.dueDate}
+                      onChange={(e) => setAssignBillForm({ ...assignBillForm, dueDate: e.target.value })}
+                    />
+                  </div>
+                  {assignBillError && <div className="text-danger small">{assignBillError}</div>}
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-outline-secondary" onClick={() => setShowAssignBillModal(false)}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    disabled={assignBillSaving || assigneePickerMembers.length === 0}
+                    onClick={handleCreateBillAssignment}
+                  >
+                    {assignBillSaving ? 'Saving…' : 'Create assignment'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
+        </>
+      )}
+
+      {/* Delete bill assignment — exec only */}
+      {showDeleteAssignmentModal && assignmentToDelete && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1055 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show')) {
+                setShowDeleteAssignmentModal(false)
+                setAssignmentToDelete(null)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title text-danger">Delete assignment</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    aria-label="Close"
+                    onClick={() => {
+                      setShowDeleteAssignmentModal(false)
+                      setAssignmentToDelete(null)
+                    }}
+                  />
+                </div>
+                <div className="modal-body">
+                  <p className="mb-0">
+                    Delete this assignment for <strong>{assignmentToDelete.title}</strong>? The assignee will no longer see it.
+                    This cannot be undone.
+                  </p>
+                  {deleteAssignmentError && <div className="text-danger small mt-2">{deleteAssignmentError}</div>}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={() => {
+                      setShowDeleteAssignmentModal(false)
+                      setAssignmentToDelete(null)
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    disabled={deleteAssignmentSaving}
+                    onClick={handleConfirmDeleteBillAssignment}
+                  >
+                    {deleteAssignmentSaving ? 'Deleting…' : 'Delete assignment'}
                   </button>
                 </div>
               </div>

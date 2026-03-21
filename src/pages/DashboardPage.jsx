@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
 import QRCode from 'qrcode'
 import RegistrationForm from '../components/RegistrationForm'
+import BillResearchPanel from '../components/BillResearchPanel'
 import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import './DashboardPage.css'
 
@@ -139,6 +140,13 @@ function DashboardPage() {
   const [deleteAssignmentSaving, setDeleteAssignmentSaving] = useState(false)
   /** assignee_id -> { doc, pdf } for inline deliverable fields */
   const [memberDeliverableInputs, setMemberDeliverableInputs] = useState({})
+  const [researchBills, setResearchBills] = useState([])
+  const [researchBillsLoading, setResearchBillsLoading] = useState(false)
+  const [researchBillsError, setResearchBillsError] = useState('')
+  const [researchBillSearchState, setResearchBillSearchState] = useState('')
+  const [researchBillSearchNumber, setResearchBillSearchNumber] = useState('')
+  const [researchBillSearchKeywords, setResearchBillSearchKeywords] = useState('')
+  const [researchBillStatusFilter, setResearchBillStatusFilter] = useState('all')
   const [billFilter, setBillFilter] = useState('under_review') // exec Bill Management defaults to Under Review; 'all', 'under_review', 'approved', 'modified', 'rejected'
   const [showEditBillModal, setShowEditBillModal] = useState(false)
   const [showDeleteBillModal, setShowDeleteBillModal] = useState(false)
@@ -383,6 +391,7 @@ function DashboardPage() {
       }
       if (hasPermission('bills') && !viewAsData) {
         loadBillAssignments()
+        loadResearchBills()
       }
       if (hasPermission('applications')) {
         loadApplications()
@@ -584,6 +593,29 @@ function DashboardPage() {
       return
     }
     setBillAssignments(data || [])
+  }
+
+  /** Safe columns only (no review_notes); requires get_bills_research() migration. */
+  const loadResearchBills = async () => {
+    setResearchBillsLoading(true)
+    setResearchBillsError('')
+    const { data, error } = await supabase.rpc('get_bills_research')
+    if (error) {
+      console.error('Error loading research bills:', error)
+      setResearchBillsError(error.message || 'Could not load research data.')
+      setResearchBills([])
+      setResearchBillsLoading(false)
+      return
+    }
+    const raw = data || []
+    const billsWithPDF = await Promise.all(
+      raw.map(async (bill) => {
+        const { exists, url } = await checkBillPdfExists(bill.state, bill.name)
+        return { ...bill, pdfExists: exists, pdfUrl: url || undefined }
+      })
+    )
+    setResearchBills(billsWithPDF)
+    setResearchBillsLoading(false)
   }
 
   // Load all applications (executive directors only)
@@ -4244,8 +4276,36 @@ function DashboardPage() {
                 >
                   Assigned work
                 </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${execBillSectionTab === 'research' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setExecBillSectionTab('research')}
+                >
+                  Research
+                </button>
               </div>
             </div>
+
+            {execBillSectionTab === 'research' && (
+              <BillResearchPanel
+                bills={researchBills}
+                loading={researchBillsLoading}
+                loadError={researchBillsError}
+                spanSearchState={researchBillSearchState}
+                onSpanSearchStateChange={setResearchBillSearchState}
+                spanSearchBillNumber={researchBillSearchNumber}
+                onSpanSearchBillNumberChange={setResearchBillSearchNumber}
+                spanSearchKeywords={researchBillSearchKeywords}
+                onSpanSearchKeywordsChange={setResearchBillSearchKeywords}
+                statusFilter={researchBillStatusFilter}
+                onStatusFilterChange={setResearchBillStatusFilter}
+                allMembers={allMembers}
+                getBillPdfUrl={getBillPdfUrl}
+                formatDate={formatDate}
+                onRefresh={loadResearchBills}
+                getStateFileName={getStateFileName}
+              />
+            )}
 
             {execBillSectionTab === 'review_queue' && (
             <>
@@ -4745,10 +4805,36 @@ function DashboardPage() {
                 >
                   Assigned to me
                 </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${memberBillSectionTab === 'research' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setMemberBillSectionTab('research')}
+                >
+                  Research
+                </button>
               </div>
             )}
 
-            {!viewAsData && memberBillSectionTab === 'assigned_to_me' ? (
+            {!viewAsData && memberBillSectionTab === 'research' ? (
+              <BillResearchPanel
+                bills={researchBills}
+                loading={researchBillsLoading}
+                loadError={researchBillsError}
+                spanSearchState={researchBillSearchState}
+                onSpanSearchStateChange={setResearchBillSearchState}
+                spanSearchBillNumber={researchBillSearchNumber}
+                onSpanSearchBillNumberChange={setResearchBillSearchNumber}
+                spanSearchKeywords={researchBillSearchKeywords}
+                onSpanSearchKeywordsChange={setResearchBillSearchKeywords}
+                statusFilter={researchBillStatusFilter}
+                onStatusFilterChange={setResearchBillStatusFilter}
+                allMembers={allMembers}
+                getBillPdfUrl={getBillPdfUrl}
+                formatDate={formatDate}
+                onRefresh={loadResearchBills}
+                getStateFileName={getStateFileName}
+              />
+            ) : !viewAsData && memberBillSectionTab === 'assigned_to_me' ? (
               <>
                 <p className="text-muted small mb-3">
                   Work items assigned by the exec team. Add your Google Doc and/or PDF link, then mark complete when ready for review.

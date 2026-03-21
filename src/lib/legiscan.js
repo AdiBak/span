@@ -471,3 +471,398 @@ export async function fetchBillStatus(bill) {
     return 'error'
   }
 }
+
+/**
+ * Normalize LegiScan `texts` (array or keyed object) for UI links.
+ */
+function normalizeBillTexts(texts) {
+  if (!texts) return []
+  const list = Array.isArray(texts) ? texts : Object.values(texts)
+  return list
+    .filter(Boolean)
+    .map((t) => ({
+      date: t.date || null,
+      type: t.type_name || t.type || 'Bill text',
+      mime: t.mime || null,
+      url: t.state_link || t.url || null,
+      docId: t.doc_id ?? null,
+    }))
+    .filter((t) => t.url || t.docId)
+}
+
+/**
+ * Flatten sponsors object/array from getBill payload.
+ */
+function normalizeBillSponsors(sponsors) {
+  if (!sponsors) return []
+  const list = Array.isArray(sponsors) ? sponsors : Object.values(sponsors)
+  const out = []
+  for (const p of list) {
+    if (!p || typeof p !== 'object') continue
+    const name =
+      [p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').trim() ||
+      p.name ||
+      p.committee_name ||
+      ''
+    if (name) {
+      out.push({
+        name,
+        party: p.party || p.party_name || '',
+        role: p.role || p.role_name || p.sponsor_type || '',
+      })
+    }
+  }
+  return out
+}
+
+function rawBillStatusLabel(bill) {
+  const statusObj = bill?.status
+  if (typeof statusObj === 'string') return statusObj
+  if (statusObj?.status_desc) return statusObj.status_desc
+  if (bill?.status_str) return bill.status_str
+  if (typeof statusObj === 'number') {
+    return legiscanStatusLabel(statusObj) || `Status ${statusObj}`
+  }
+  return ''
+}
+
+/**
+ * Map full getBill `bill` object for dashboard Research (Legislature) tab.
+ */
+function mapLegiscanBillForResearch(bill) {
+  if (!bill) return null
+  const history = Array.isArray(bill.history) ? bill.history : []
+  const last = history.length > 0 ? history[history.length - 1] : null
+  const lastAction = last
+    ? last.action || last.title || last.description || last.action_desc
+    : null
+
+  const stateLabel =
+    typeof bill.state === 'string' && bill.state.length === 2
+      ? bill.state.toUpperCase()
+      : bill.state_name || bill.state_abbr || String(bill.state_id || '')
+
+  return {
+    legiscanBillId: bill.bill_id,
+    state: stateLabel,
+    billNumber: bill.bill_number || '',
+    title: bill.title || '',
+    description: bill.description || '',
+    sessionName:
+      bill.session?.session_name ||
+      (bill.session?.year_start && bill.session?.year_end
+        ? `${bill.session.year_start}–${bill.session.year_end}`
+        : '') ||
+      '',
+    chamber: bill.chamber || bill.chamber_name || '',
+    status: rawBillStatusLabel(bill),
+    statusDate: bill.status_date || null,
+    lastAction,
+    url: bill.url || null,
+    sponsors: normalizeBillSponsors(bill.sponsors),
+    /** Newest actions first, capped */
+    history: [...history].reverse().slice(0, 40),
+    texts: normalizeBillTexts(bill.texts),
+  }
+}
+
+/**
+ * Research tab: search by state + bill number, return rich bill payload (full getBill, no hash short-circuit).
+ * @returns {Promise<{ ok: true, detail: object } | { ok: false, code: string, message: string }>}
+ */
+/**
+ * Fetch full bill document via getBillText (base64 body). Caller should revoke object URLs when done.
+ * @param {number|string} docId - LegiScan document id from bill.texts[].doc_id
+ * @returns {Promise<{ ok: true, objectUrl: string, mime: string } | { ok: false, message: string }>}
+ */
+export async function fetchLegiscanBillTextDoc(docId) {
+  if (docId == null || docId === '') {
+    return { ok: false, message: 'Missing document id.' }
+  }
+  try {
+    const data = await callLegiscanApi('getBillText', { id: String(docId) })
+    if (data?.status !== 'OK' || !data?.text) {
+      return {
+        ok: false,
+        message: data?.alert?.message || data?.status || 'LegiScan did not return bill text.',
+      }
+    }
+    const t = data.text
+    const mime = (t.mime || 'application/octet-stream').toLowerCase()
+    const b64 = t.doc || t.document
+    if (!b64 || typeof b64 !== 'string') {
+      return { ok: false, message: 'No document body in response.' }
+    }
+    const clean = b64.replace(/\s/g, '')
+    let binary
+    try {
+      binary = atob(clean)
+    } catch {
+      return { ok: false, message: 'Invalid base64 in bill text response.' }
+    }
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    const blobType = mime.includes('pdf')
+      ? 'application/pdf'
+      : mime.includes('html')
+        ? 'text/html'
+        : mime.includes('rtf')
+          ? 'application/rtf'
+          : mime
+    const blob = new Blob([bytes], { type: blobType })
+    const objectUrl = URL.createObjectURL(blob)
+    return { ok: true, objectUrl, mime: blobType }
+  } catch (err) {
+    console.error('fetchLegiscanBillTextDoc:', err)
+    return { ok: false, message: err.message || 'Failed to fetch bill text.' }
+  }
+}
+
+export async function fetchLegiscanBillBySearch(state, billNumber) {
+  const num = (billNumber || '').replace(/\s/g, '')
+  if (!state || !num) {
+    return { ok: false, code: 'input', message: 'Choose a state and enter a bill number (e.g. HB970).' }
+  }
+  try {
+    const searchResult = await searchBill(state, num)
+    if (!searchResult?.billId) {
+      return {
+        ok: false,
+        code: 'not_found',
+        message: 'No matching bill in LegiScan for that state and number.',
+      }
+    }
+    const data = await callLegiscanApi('getBill', { id: String(searchResult.billId) })
+    if (data?.status !== 'OK' || !data?.bill) {
+      return {
+        ok: false,
+        code: 'api',
+        message: data?.alert?.message || 'LegiScan could not return this bill.',
+      }
+    }
+    const detail = mapLegiscanBillForResearch(data.bill)
+    if (!detail) {
+      return { ok: false, code: 'api', message: 'Could not parse bill data.' }
+    }
+    return { ok: true, detail }
+  } catch (err) {
+    console.error('fetchLegiscanBillBySearch:', err)
+    if (err.message && err.message.includes('VITE_LEGISCAN_API_KEY')) {
+      return {
+        ok: false,
+        code: 'config',
+        message: 'LegiScan API key is not set (add VITE_LEGISCAN_API_KEY). If the browser blocks the API, use a server proxy.',
+      }
+    }
+    return {
+      ok: false,
+      code: 'network',
+      message: err.message || 'Network error talking to LegiScan.',
+    }
+  }
+}
+
+function extractSearchRows(searchresult) {
+  if (!searchresult) return []
+  if (Array.isArray(searchresult.bills)) return searchresult.bills.filter(Boolean)
+  return Object.entries(searchresult)
+    .filter(([k, v]) => /^\d+$/.test(k) && v && typeof v === 'object')
+    .map(([, v]) => v)
+}
+
+function mapSearchRow(row) {
+  if (!row || !row.bill_id) return null
+  const state =
+    typeof row.state === 'string' && row.state.length === 2
+      ? row.state.toUpperCase()
+      : row.state_abbr || row.state_name || ''
+  return {
+    billId: row.bill_id,
+    state,
+    billNumber: row.bill_number || row.number || '',
+    title: row.title || '',
+    status: row.status || row.status_desc || row.status_name || '',
+    statusDate: row.status_date || null,
+    url: row.url || null,
+    changeHash: row.change_hash || null,
+  }
+}
+
+function splitUnifiedLegiscanQuery(input) {
+  const raw = String(input || '').trim()
+  if (!raw) return { state: null, bill: '', keywords: '' }
+  const parts = raw.split(/\s+/).filter(Boolean)
+  let state = null
+  if (parts.length > 0) {
+    const maybeState = normalizeStateCode(parts[0])
+    if (maybeState && maybeState.length === 2) {
+      state = maybeState
+      parts.shift()
+    }
+  }
+  const text = parts.join(' ').trim()
+  const compact = text.replace(/\s+/g, '')
+  const billLike = /^[A-Za-z]{1,6}[-.]?\d[A-Za-z0-9-]*$/.test(compact)
+  return {
+    state,
+    bill: billLike ? compact : '',
+    keywords: billLike ? '' : text,
+  }
+}
+
+/**
+ * Legislature tab: separate state, bill number, and keyword fields.
+ * @param {{ state?: string, billNumber?: string, keywords?: string }} filters
+ */
+export async function fetchLegiscanBillsByFilters(filters = {}) {
+  const stateRaw = String(filters.state || '').trim()
+  const bill = String(filters.billNumber || '').replace(/\s/g, '')
+  const query = String(filters.keywords || '').trim()
+
+  if (!stateRaw && !bill && !query) {
+    return {
+      ok: false,
+      code: 'input',
+      message: 'Enter a state, bill number, and/or keywords.',
+    }
+  }
+
+  if (bill && !stateRaw) {
+    return {
+      ok: false,
+      code: 'input',
+      message: 'Select a state when searching by bill number.',
+    }
+  }
+
+  let stateCode = null
+  if (stateRaw) {
+    stateCode = normalizeStateCode(stateRaw)
+    if (!stateCode || stateCode.length !== 2) {
+      return {
+        ok: false,
+        code: 'input',
+        message: 'Invalid state — use a two-letter code (e.g. GA) or full state name.',
+      }
+    }
+  }
+
+  const params = {}
+  if (stateCode) params.state = stateCode
+  if (bill) params.bill = bill
+  if (query) params.query = query
+  if (stateCode && !bill && !query) params.query = '*'
+
+  try {
+    const data = await callLegiscanApi('getSearch', params)
+    if (data?.status !== 'OK') {
+      return {
+        ok: false,
+        code: 'api',
+        message: data?.alert?.message || 'LegiScan search failed.',
+      }
+    }
+    const rows = extractSearchRows(data.searchresult)
+    const results = rows.map(mapSearchRow).filter(Boolean)
+    if (results.length === 0) {
+      return { ok: false, code: 'not_found', message: 'No matching bills found.' }
+    }
+    return { ok: true, results: results.slice(0, 50) }
+  } catch (err) {
+    console.error('fetchLegiscanBillsByFilters:', err)
+    if (err.message && err.message.includes('VITE_LEGISCAN_API_KEY')) {
+      return {
+        ok: false,
+        code: 'config',
+        message: 'LegiScan API key is not set (add VITE_LEGISCAN_API_KEY).',
+      }
+    }
+    return {
+      ok: false,
+      code: 'network',
+      message: err.message || 'Network error talking to LegiScan.',
+    }
+  }
+}
+
+/**
+ * Unified research search for Legislature tab.
+ * Supports:
+ * - "GA HB970" (state + bill)
+ * - "GA abortion access" (state + keywords)
+ * - "GA" (state only; broad list)
+ * - "education funding" (keywords across states)
+ */
+export async function fetchLegiscanBillsByQuery(queryText) {
+  const q = splitUnifiedLegiscanQuery(queryText)
+  if (!q.state && !q.bill && !q.keywords) {
+    return {
+      ok: false,
+      code: 'input',
+      message: 'Enter a state, bill number, keywords, or a combination.',
+    }
+  }
+
+  const params = {}
+  if (q.state) params.state = q.state
+  if (q.bill) params.bill = q.bill
+  if (q.keywords) params.query = q.keywords
+  if (q.state && !q.bill && !q.keywords) params.query = '*'
+
+  try {
+    const data = await callLegiscanApi('getSearch', params)
+    if (data?.status !== 'OK') {
+      return {
+        ok: false,
+        code: 'api',
+        message: data?.alert?.message || 'LegiScan search failed.',
+      }
+    }
+    const rows = extractSearchRows(data.searchresult)
+    const results = rows.map(mapSearchRow).filter(Boolean)
+    if (results.length === 0) {
+      return { ok: false, code: 'not_found', message: 'No matching bills found.' }
+    }
+    return { ok: true, results: results.slice(0, 50), parsed: q }
+  } catch (err) {
+    console.error('fetchLegiscanBillsByQuery:', err)
+    if (err.message && err.message.includes('VITE_LEGISCAN_API_KEY')) {
+      return {
+        ok: false,
+        code: 'config',
+        message: 'LegiScan API key is not set (add VITE_LEGISCAN_API_KEY).',
+      }
+    }
+    return {
+      ok: false,
+      code: 'network',
+      message: err.message || 'Network error talking to LegiScan.',
+    }
+  }
+}
+
+export async function fetchLegiscanBillDetailById(billId) {
+  if (!billId) return { ok: false, code: 'input', message: 'Missing bill id.' }
+  try {
+    const data = await callLegiscanApi('getBill', { id: String(billId) })
+    if (data?.status !== 'OK' || !data?.bill) {
+      return {
+        ok: false,
+        code: 'api',
+        message: data?.alert?.message || 'LegiScan could not return this bill.',
+      }
+    }
+    const detail = mapLegiscanBillForResearch(data.bill)
+    if (!detail) return { ok: false, code: 'api', message: 'Could not parse bill data.' }
+    return { ok: true, detail }
+  } catch (err) {
+    console.error('fetchLegiscanBillDetailById:', err)
+    return {
+      ok: false,
+      code: 'network',
+      message: err.message || 'Network error talking to LegiScan.',
+    }
+  }
+}

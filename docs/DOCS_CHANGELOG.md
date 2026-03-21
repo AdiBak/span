@@ -4,6 +4,14 @@ Updates to the documentation and onboarding guide (repo `docs/` and the Google D
 
 ---
 
+## 2026-01-24
+
+- **Bill Research — Legislature (LegiScan)** — **Research** tab: source switch **SPAN proposals** | **Legislature (LegiScan)**; **State**, **Bill number**, and **Keywords** fields → search results list + detail (`fetchLegiscanBillsByFilters`, `fetchLegiscanBillDetailById`). Two-column detail (metadata + **recent history** on the left, **bill text** on the right via `LegislatureBillTextPane`: **`doc_id` / `getBillText` preferred** when `state_link` exists; scrollable extracted/plain text; URL-only → PDF text extraction then **iframe**; `getBill` failure with URL falls back to URL path). Sponsors in a responsive multi-column grid. No chamber progress timeline in this view (timeline remains on bill cards when LegiScan status is loaded). `mapLegiscanBillForResearch`, `fetchLegiscanBillTextDoc` in `src/lib/legiscan.js`; UI in `BillResearchPanel.jsx`.
+
+- **Bill Research tab (v1, SPAN only)** — Dashboard **Research** under Bill Management (execs) and Bill Submission (bill members): separate **Bill state**, **Bill number**, and **Keywords** filters + status chips, accordion detail, embedded Google Doc/Sheet preview when possible, inline PDF via `PDFViewer`, collaborators + submitter name, LegiScan link. Data via RPC **`get_bills_research()`** (no review notes). Migration `bills_research_get_bills_research_rpc.sql`; UI `BillResearchPanel.jsx`, `googleDocsEmbed.js`.
+
+---
+
 ## 2026-01-23
 
 - **Bill assignments (exec suite, slice 1)** — Implemented dashboard UI: exec **Bill Management** sub-tab **Assigned work** (filters, accordion, assign modal, **delete** with confirmation); non-exec **Bill Submission** sub-tab **Assigned to me** (deliverable links, status actions). Assignee picker = members with **Bill** permission only. DB: `supabase/migrations/create_bill_assignments.sql` (`bill_assignments` + RLS). Docs: `DATABASE_ARCHITECTURE.md`, `COPILOT_CONTEXT.md`.

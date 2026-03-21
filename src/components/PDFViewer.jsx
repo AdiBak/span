@@ -10,13 +10,31 @@ if (typeof window !== 'undefined') {
   pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
 }
 
-function PDFViewer({ url, onTextExtracted }) {
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 2.5
+const ZOOM_STEP = 0.25
+
+function PDFViewer({ url, onTextExtracted, embedded = false }) {
   const [numPages, setNumPages] = useState(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [scale, setScale] = useState(embedded ? 1 : 1.25)
   const scrollContainerRef = useRef(null)
   const pageRefs = useRef({})
+  const skipUrlResetRef = useRef(true)
+
+  useEffect(() => {
+    if (skipUrlResetRef.current) {
+      skipUrlResetRef.current = false
+      return
+    }
+    setScale(embedded ? 1 : 1.25)
+    setPageNumber(1)
+    setNumPages(null)
+    setLoading(true)
+    setError(null)
+  }, [url, embedded])
 
   // Extract text from visible page only (memory-efficient)
   useEffect(() => {
@@ -147,36 +165,96 @@ function PDFViewer({ url, onTextExtracted }) {
     }
   }
 
+  const contentMaxHeight = embedded ? 'min(52vh, 520px)' : '80vh'
+
+  function zoomOut() {
+    setScale((s) => Math.max(ZOOM_MIN, Math.round((s - ZOOM_STEP) * 100) / 100))
+  }
+
+  function zoomIn() {
+    setScale((s) => Math.min(ZOOM_MAX, Math.round((s + ZOOM_STEP) * 100) / 100))
+  }
+
+  function zoomReset() {
+    setScale(1)
+  }
+
   return (
     <div className="pdf-viewer-container">
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <div>
-          <button
-            className="btn btn-outline-dark btn-sm me-2"
-            onClick={goToPrevPage}
-            disabled={pageNumber <= 1}
-          >
-            <i className="bi bi-chevron-left"></i> Previous
-          </button>
-          <span className="mx-2">
-            Page {pageNumber} of {numPages || '...'}
-          </span>
-          <button
-            className="btn btn-outline-dark btn-sm ms-2"
-            onClick={goToNextPage}
-            disabled={pageNumber >= numPages}
-          >
-            Next <i className="bi bi-chevron-right"></i>
-          </button>
-        </div>
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="btn btn-dark btn-sm"
+      <div
+        className="pdf-viewer-toolbar mb-2 py-1 px-2 mx-auto bg-light border rounded"
+        style={{ maxWidth: embedded ? '100%' : '960px' }}
+      >
+        <div
+          className="d-flex flex-nowrap align-items-center justify-content-center gap-1"
+          style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}
         >
-          <i className="bi bi-download"></i> Download PDF
-        </a>
+          <div className="d-flex align-items-center gap-1 flex-shrink-0">
+            <button
+              type="button"
+              className="btn btn-outline-dark btn-sm"
+              onClick={goToPrevPage}
+              disabled={pageNumber <= 1}
+            >
+              <i className="bi bi-chevron-left"></i> Previous
+            </button>
+            <span className="small text-nowrap px-1">
+              Page {pageNumber} of {numPages || '…'}
+            </span>
+            <button
+              type="button"
+              className="btn btn-outline-dark btn-sm"
+              onClick={goToNextPage}
+              disabled={!numPages || pageNumber >= numPages}
+            >
+              Next <i className="bi bi-chevron-right"></i>
+            </button>
+          </div>
+          <span className="text-muted user-select-none flex-shrink-0" aria-hidden="true" style={{ fontSize: '0.75rem' }}>
+            |
+          </span>
+          <div className="d-flex align-items-center gap-1 flex-shrink-0">
+            <span className="small text-muted d-none d-md-inline me-1"></span>
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              onClick={zoomOut}
+              disabled={scale <= ZOOM_MIN}
+              title="Zoom out"
+            >
+              <i className="bi bi-zoom-out"></i>
+            </button>
+            <span className="small text-nowrap px-0" style={{ minWidth: '2.75rem', textAlign: 'center' }}>
+              {Math.round(scale * 100)}%
+            </span>
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              onClick={zoomIn}
+              disabled={scale >= ZOOM_MAX}
+              title="Zoom in"
+            >
+              <i className="bi bi-zoom-in"></i>
+            </button>
+            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={zoomReset} title="Reset zoom">
+              Reset
+            </button>
+          </div>
+          <span className="text-muted user-select-none flex-shrink-0" aria-hidden="true" style={{ fontSize: '0.75rem' }}>
+            |
+          </span>
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-outline-dark btn-sm flex-shrink-0"
+            download
+            title="Download PDF"
+            aria-label="Download PDF"
+          >
+            <i className="bi bi-download" aria-hidden="true"></i>
+          </a>
+        </div>
       </div>
 
       {loading && (
@@ -193,20 +271,20 @@ function PDFViewer({ url, onTextExtracted }) {
         </div>
       )}
 
-      <div 
+      <div
         ref={scrollContainerRef}
-        className="pdf-viewer-wrapper" 
-        style={{ 
-          border: '1px solid #dee2e6', 
+        className="pdf-viewer-wrapper"
+        style={{
+          border: '1px solid #dee2e6',
           borderRadius: '0.375rem',
           overflow: 'auto',
-          maxHeight: '80vh',
+          maxHeight: contentMaxHeight,
           backgroundColor: '#f8f9fa',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           padding: '1rem',
-          gap: '1rem'
+          gap: '1rem',
         }}
       >
         <Document
@@ -237,7 +315,7 @@ function PDFViewer({ url, onTextExtracted }) {
               >
                 <Page
                   pageNumber={pageNum}
-                  width={1200}
+                  scale={scale}
                   renderTextLayer={true}
                   renderAnnotationLayer={true}
                   className="pdf-page"

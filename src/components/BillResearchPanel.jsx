@@ -1,9 +1,7 @@
-import React, { Suspense, lazy } from 'react'
-import { googleDocToPreviewEmbedUrl } from '../lib/googleDocsEmbed'
+import React from 'react'
 import { fetchLegiscanBillsByFilters, fetchLegiscanBillDetailById } from '../lib/legiscan'
-import LegislatureBillTextPane from './LegislatureBillTextPane'
-
-const PDFViewer = lazy(() => import('./PDFViewer'))
+import SpanResearchBillDetail from './SpanResearchBillDetail'
+import LegislatureResearchBillDetail from './LegislatureResearchBillDetail'
 
 /** US states + DC for LegiScan lookup (two-letter codes). */
 const US_STATE_OPTIONS = [
@@ -101,6 +99,12 @@ function compactBillId(s) {
   return String(s || '').replace(/\s/g, '').toLowerCase()
 }
 
+/** Stable string id for bill rows and <select> values (API may use number or UUID string). */
+function normBillId(id) {
+  if (id == null || id === '') return ''
+  return String(id)
+}
+
 /** Match SPAN bill.state against free text or a 2-letter code (also checks full state name). */
 function spanBillMatchesState(billState, filterRaw) {
   const t = (filterRaw || '').trim().toLowerCase()
@@ -147,9 +151,25 @@ export default function BillResearchPanel({
   const [legDetail, setLegDetail] = React.useState(null)
   const [legTextIndex, setLegTextIndex] = React.useState(0)
 
+  /** Compare tab: SPAN bill + separate LegiScan search state */
+  const [compareSpanBillId, setCompareSpanBillId] = React.useState('')
+  const [cmpLegState, setCmpLegState] = React.useState('GA')
+  const [cmpLegBillNumber, setCmpLegBillNumber] = React.useState('')
+  const [cmpLegKeywords, setCmpLegKeywords] = React.useState('')
+  const [cmpLegResults, setCmpLegResults] = React.useState([])
+  const [cmpLegSelectedBillId, setCmpLegSelectedBillId] = React.useState(null)
+  const [cmpLegLoading, setCmpLegLoading] = React.useState(false)
+  const [cmpLegError, setCmpLegError] = React.useState('')
+  const [cmpLegDetail, setCmpLegDetail] = React.useState(null)
+  const [cmpLegTextIndex, setCmpLegTextIndex] = React.useState(0)
+
   React.useEffect(() => {
     setLegTextIndex(0)
   }, [legDetail?.legiscanBillId])
+
+  React.useEffect(() => {
+    setCmpLegTextIndex(0)
+  }, [cmpLegDetail?.legiscanBillId])
 
   const sortedLegTexts = React.useMemo(() => {
     if (!legDetail?.texts?.length) return []
@@ -163,6 +183,20 @@ export default function BillResearchPanel({
   const selectedLegText =
     sortedLegTexts.length > 0
       ? sortedLegTexts[Math.min(legTextIndex, sortedLegTexts.length - 1)]
+      : null
+
+  const sortedCmpLegTexts = React.useMemo(() => {
+    if (!cmpLegDetail?.texts?.length) return []
+    return [...cmpLegDetail.texts].sort((a, b) => {
+      if (!a.date) return 1
+      if (!b.date) return -1
+      return String(b.date).localeCompare(String(a.date))
+    })
+  }, [cmpLegDetail?.texts])
+
+  const selectedCmpLegText =
+    sortedCmpLegTexts.length > 0
+      ? sortedCmpLegTexts[Math.min(cmpLegTextIndex, sortedCmpLegTexts.length - 1)]
       : null
 
   const loadLegislatureDetail = React.useCallback(async (billId) => {
@@ -216,6 +250,59 @@ export default function BillResearchPanel({
       }
     },
     [legState, legBillNumber, legKeywords]
+  )
+
+  const loadCompareLegDetail = React.useCallback(async (billId) => {
+    if (!billId) return
+    setCmpLegError('')
+    setCmpLegLoading(true)
+    try {
+      const detailRes = await fetchLegiscanBillDetailById(billId)
+      if (!detailRes.ok) {
+        setCmpLegError(detailRes.message)
+        return
+      }
+      setCmpLegDetail(detailRes.detail)
+    } finally {
+      setCmpLegLoading(false)
+    }
+  }, [])
+
+  const handleCompareLegislatureLookup = React.useCallback(
+    async (e) => {
+      e?.preventDefault()
+      setCmpLegError('')
+      setCmpLegDetail(null)
+      setCmpLegResults([])
+      setCmpLegSelectedBillId(null)
+      setCmpLegLoading(true)
+      try {
+        const res = await fetchLegiscanBillsByFilters({
+          state: cmpLegState,
+          billNumber: cmpLegBillNumber,
+          keywords: cmpLegKeywords,
+        })
+        if (!res.ok) {
+          setCmpLegError(res.message)
+          return
+        }
+        const rows = res.results || []
+        setCmpLegResults(rows)
+        if (rows.length > 0) {
+          const firstId = rows[0].billId
+          setCmpLegSelectedBillId(firstId)
+          const detailRes = await fetchLegiscanBillDetailById(firstId)
+          if (!detailRes.ok) {
+            setCmpLegError(detailRes.message)
+            return
+          }
+          setCmpLegDetail(detailRes.detail)
+        }
+      } finally {
+        setCmpLegLoading(false)
+      }
+    },
+    [cmpLegState, cmpLegBillNumber, cmpLegKeywords]
   )
 
   const filtered = React.useMemo(() => {
@@ -279,95 +366,41 @@ export default function BillResearchPanel({
     return { sortedStates: sorted, byState: by }
   }, [filtered])
 
+  const flatFilteredBills = React.useMemo(
+    () => sortedStates.flatMap((state) => byState[state] || []),
+    [sortedStates, byState]
+  )
+
+  React.useEffect(() => {
+    if (researchSource !== 'compare') return
+    setCompareSpanBillId((prev) => {
+      const prevKey = normBillId(prev)
+      if (prevKey && flatFilteredBills.some((b) => normBillId(b.bill_id) === prevKey)) return prevKey
+      return normBillId(flatFilteredBills[0]?.bill_id)
+    })
+  }, [researchSource, flatFilteredBills])
+
+  const compareSpanBill = React.useMemo(() => {
+    const key = normBillId(compareSpanBillId)
+    if (!key) return null
+    return flatFilteredBills.find((b) => normBillId(b.bill_id) === key) || null
+  }, [flatFilteredBills, compareSpanBillId])
+
   const submitterName = (memberId) => {
     if (!memberId) return null
     const m = allMembers.find((x) => x.member_id === memberId)
     return m ? `${m.first_name || ''} ${m.last_name || ''}`.trim() || null : null
   }
 
-  const renderProposalColumn = (bill) => {
-    const pdfUrl = getBillPdfUrl(bill)
-    const showPdf = !!(bill.pdfExists && pdfUrl)
-    const embedUrl = googleDocToPreviewEmbedUrl(bill.google_doc_link || '')
-
-    if (showPdf) {
-      return (
-        <div className="mb-2">
-          <strong>Proposal PDF</strong>
-          {bill.google_doc_link && (
-            <p className="small text-muted mt-1 mb-2">
-              <a href={bill.google_doc_link} target="_blank" rel="noopener noreferrer">
-                Open Google Doc instead
-              </a>
-            </p>
-          )}
-          <div className="border rounded mt-1 bg-secondary bg-opacity-10">
-            <Suspense
-              fallback={
-                <div className="text-center py-5">
-                  <div className="spinner-border spinner-border-sm text-primary" role="status" />
-                </div>
-              }
-            >
-              <PDFViewer url={pdfUrl} embedded />
-            </Suspense>
-          </div>
-        </div>
-      )
-    }
-
-    if (embedUrl) {
-      return (
-        <div className="mb-3">
-          <div className="d-flex justify-content-between align-items-center mb-1">
-            <strong>Proposal (Google Doc)</strong>
-            {bill.google_doc_link && (
-              <a href={bill.google_doc_link} target="_blank" rel="noopener noreferrer" className="small">
-                Open in new tab
-              </a>
-            )}
-          </div>
-          <div
-            className="border rounded overflow-hidden bg-light"
-            style={{ minHeight: '320px', height: 'min(45vh, 420px)' }}
-          >
-            <iframe
-              title={`Google Doc ${bill.bill_id}`}
-              src={embedUrl}
-              className="w-100 h-100 border-0"
-              style={{ minHeight: '320px', height: 'min(45vh, 420px)' }}
-              allow="clipboard-read; clipboard-write"
-            />
-          </div>
-          <p className="small text-muted mt-1 mb-0">
-            If the embed is blank, the doc may be restricted — use &quot;Open in new tab&quot; (you must be signed into
-            Google with access).
-          </p>
-        </div>
-      )
-    }
-
-    if (bill.google_doc_link) {
-      return (
-        <div className="mb-3">
-          <strong>Proposal link</strong>
-          <p className="mb-1">
-            <a href={bill.google_doc_link} target="_blank" rel="noopener noreferrer">
-              {bill.google_doc_link}
-            </a>
-          </p>
-          <p className="small text-muted mb-0">
-            This link is not a standard Google Doc URL we can embed here. No PDF found in storage.
-          </p>
-        </div>
-      )
-    }
-
-    return <p className="text-muted small mb-0">No linked proposal document or PDF in storage for this row.</p>
-  }
-
   const scrollBoxStyle = {
     maxHeight: 'min(72vh, 820px)',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    padding: '0.75rem',
+  }
+
+  const comparePaneStyle = {
+    maxHeight: 'min(78vh, 880px)',
     overflowY: 'auto',
     overflowX: 'hidden',
     padding: '0.75rem',
@@ -390,14 +423,30 @@ export default function BillResearchPanel({
         >
           Legislature (LegiScan)
         </button>
+        <button
+          type="button"
+          className={`btn btn-sm ${researchSource === 'compare' ? 'btn-dark' : 'btn-outline-dark'}`}
+          onClick={() => setResearchSource('compare')}
+        >
+          Compare
+        </button>
       </div>
 
-      {researchSource === 'span' && (
+      {(researchSource === 'span' || researchSource === 'compare') && (
         <>
           <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
             <p className="text-muted small mb-0">
-              Browse every SPAN proposal in the database (all statuses). Internal review notes are not shown here. Filter
-              by state, bill number, and keywords (all optional). Bills are grouped by state.
+              {researchSource === 'compare' ? (
+                <>
+                  Use the left pane to filter and pick a SPAN proposal; use the right pane for LegiScan (separate from the
+                  Legislature tab).
+                </>
+              ) : (
+                <>
+                  Browse every SPAN proposal in the database (all statuses). Internal review notes are not shown here.
+                  Filter by state, bill number, and keywords (all optional). Bills are grouped by state.
+                </>
+              )}
             </p>
             {typeof onRefresh === 'function' && (
               <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => onRefresh()}>
@@ -421,66 +470,285 @@ export default function BillResearchPanel({
             </div>
           ) : !loadError ? (
             <>
-              <div className="row g-3 mb-3">
-                <div className="col-md-4">
-                  <label className="form-label small mb-1">Bill state</label>
-                  <input
-                    type="search"
-                    className="form-control form-control-sm"
-                    placeholder="e.g. AK, Alaska"
-                    value={spanSearchState}
-                    onChange={(e) => onSpanSearchStateChange?.(e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label small mb-1">Bill number</label>
-                  <input
-                    type="search"
-                    className="form-control form-control-sm"
-                    placeholder="e.g. HB970, SB12"
-                    value={spanSearchBillNumber}
-                    onChange={(e) => onSpanSearchBillNumberChange?.(e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label small mb-1">Keywords</label>
-                  <input
-                    type="search"
-                    className="form-control form-control-sm"
-                    placeholder="Title, description, collaborators…"
-                    value={spanSearchKeywords}
-                    onChange={(e) => onSpanSearchKeywordsChange?.(e.target.value)}
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="col-12">
-                  <label className="form-label small mb-1 d-block">Status</label>
-                  <div className="btn-group flex-wrap" role="group">
-                    {['all', 'under_review', 'approved', 'modified', 'rejected'].map((key) => {
-                      const count =
-                        key === 'all'
-                          ? bills.length
-                          : key === 'approved'
-                            ? bills.filter((b) => !b.status || b.status === 'approved').length
-                            : bills.filter((b) => b.status === key).length
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          className={`btn btn-sm ${statusFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
-                          onClick={() => onStatusFilterChange(key)}
-                        >
-                          {key === 'all' ? `All (${count})` : `${researchFilterChipLabel(key)} (${count})`}
-                        </button>
-                      )
-                    })}
+              {researchSource === 'span' && (
+                <div className="row g-3 mb-3">
+                  <div className="col-md-4">
+                    <label className="form-label small mb-1">Bill state</label>
+                    <input
+                      type="search"
+                      className="form-control form-control-sm"
+                      placeholder="e.g. AK, Alaska"
+                      value={spanSearchState}
+                      onChange={(e) => onSpanSearchStateChange?.(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label small mb-1">Bill number</label>
+                    <input
+                      type="search"
+                      className="form-control form-control-sm"
+                      placeholder="e.g. HB970, SB12"
+                      value={spanSearchBillNumber}
+                      onChange={(e) => onSpanSearchBillNumberChange?.(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label small mb-1">Keywords</label>
+                    <input
+                      type="search"
+                      className="form-control form-control-sm"
+                      placeholder="Title, description, collaborators…"
+                      value={spanSearchKeywords}
+                      onChange={(e) => onSpanSearchKeywordsChange?.(e.target.value)}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label small mb-1 d-block">Status</label>
+                    <div className="btn-group flex-wrap" role="group">
+                      {['all', 'under_review', 'approved', 'modified', 'rejected'].map((key) => {
+                        const count =
+                          key === 'all'
+                            ? bills.length
+                            : key === 'approved'
+                              ? bills.filter((b) => !b.status || b.status === 'approved').length
+                              : bills.filter((b) => b.status === key).length
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            className={`btn btn-sm ${statusFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
+                            onClick={() => onStatusFilterChange(key)}
+                          >
+                            {key === 'all' ? `All (${count})` : `${researchFilterChipLabel(key)} (${count})`}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {filtered.length === 0 ? (
+              {researchSource === 'compare' ? (
+                <div className="row g-3">
+                  <div className="col-lg-6">
+                    <div className="border rounded bg-white" style={comparePaneStyle}>
+                      <p className="small text-muted mb-2">
+                        SPAN corpus filters for this pane. Same data as the proposals tab; changing filters here updates your
+                        proposal list below.
+                      </p>
+                      <div className="row g-2 mb-2">
+                        <div className="col-sm-6 col-md-4">
+                          <label className="form-label small mb-1">Bill state</label>
+                          <input
+                            type="search"
+                            className="form-control form-control-sm"
+                            placeholder="e.g. AK, Alaska"
+                            value={spanSearchState}
+                            onChange={(e) => onSpanSearchStateChange?.(e.target.value)}
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="col-sm-6 col-md-4">
+                          <label className="form-label small mb-1">Bill number</label>
+                          <input
+                            type="search"
+                            className="form-control form-control-sm"
+                            placeholder="e.g. HB970, SB12"
+                            value={spanSearchBillNumber}
+                            onChange={(e) => onSpanSearchBillNumberChange?.(e.target.value)}
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="col-12 col-md-8">
+                          <label className="form-label small mb-1">Keywords</label>
+                          <input
+                            type="search"
+                            className="form-control form-control-sm"
+                            placeholder="Title, description, collaborators…"
+                            value={spanSearchKeywords}
+                            onChange={(e) => onSpanSearchKeywordsChange?.(e.target.value)}
+                            autoComplete="off"
+                          />
+                        </div>
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label small mb-1 d-block">Status</label>
+                        <div className="btn-group flex-wrap" role="group">
+                          {['all', 'under_review', 'approved', 'modified', 'rejected'].map((key) => {
+                            const count =
+                              key === 'all'
+                                ? bills.length
+                                : key === 'approved'
+                                  ? bills.filter((b) => !b.status || b.status === 'approved').length
+                                  : bills.filter((b) => b.status === key).length
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                className={`btn btn-sm ${statusFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
+                                onClick={() => onStatusFilterChange(key)}
+                              >
+                                {key === 'all' ? `All (${count})` : `${researchFilterChipLabel(key)} (${count})`}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      <label className="form-label small mb-1" htmlFor="compareSpanBillSelect">
+                        SPAN proposal
+                      </label>
+                      <select
+                        id="compareSpanBillSelect"
+                        className="form-select form-select-sm mb-3"
+                        value={normBillId(compareSpanBillId)}
+                        onChange={(e) => setCompareSpanBillId(e.target.value)}
+                        disabled={flatFilteredBills.length === 0}
+                      >
+                        {flatFilteredBills.length === 0 ? (
+                          <option value="">No matching proposals</option>
+                        ) : (
+                          flatFilteredBills.map((b) => (
+                            <option key={normBillId(b.bill_id)} value={normBillId(b.bill_id)}>
+                              {b.state ? `${b.state} · ` : ''}
+                              {b.name || b.bill_id}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      {flatFilteredBills.length === 0 ? (
+                        <p className="text-muted small mb-0">No bills match your filters. Adjust the fields above.</p>
+                      ) : compareSpanBill ? (
+                        <SpanResearchBillDetail
+                          bill={compareSpanBill}
+                          submitterName={submitterName}
+                          getBillPdfUrl={getBillPdfUrl}
+                          layout="stacked"
+                        />
+                      ) : (
+                        <p className="text-muted small mb-0">Select a proposal.</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="col-lg-6">
+                    <div className="border rounded bg-white" style={comparePaneStyle}>
+                      <p className="small text-muted mb-2">
+                        LegiScan lookup for this pane only. Results and bill text stay here when you switch back to the
+                        Legislature tab.
+                      </p>
+                      <form className="row g-2 align-items-end mb-3" onSubmit={handleCompareLegislatureLookup}>
+                        <div className="col-sm-6 col-md-4">
+                          <label className="form-label small mb-1">State</label>
+                          <select
+                            className="form-select form-select-sm"
+                            value={cmpLegState}
+                            onChange={(e) => setCmpLegState(e.target.value)}
+                          >
+                            <option value="">— Any / national —</option>
+                            {US_STATE_OPTIONS.map(({ code, name }) => (
+                              <option key={code} value={code}>
+                                {code} — {name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-sm-6 col-md-4">
+                          <label className="form-label small mb-1">Bill number</label>
+                          <input
+                            type="text"
+                            className="form-control form-control-sm"
+                            placeholder="e.g. HB970"
+                            value={cmpLegBillNumber}
+                            onChange={(e) => setCmpLegBillNumber(e.target.value)}
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="col-md-8">
+                          <label className="form-label small mb-1">Keywords</label>
+                          <input
+                            type="search"
+                            className="form-control form-control-sm"
+                            placeholder="e.g. medicaid, mental health"
+                            value={cmpLegKeywords}
+                            onChange={(e) => setCmpLegKeywords(e.target.value)}
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="col-md-4">
+                          <button type="submit" className="btn btn-dark btn-sm w-100" disabled={cmpLegLoading}>
+                            {cmpLegLoading ? (
+                              <>
+                                <span className="spinner-border spinner-border-sm me-1" role="status" />
+                                Looking up…
+                              </>
+                            ) : (
+                              <>
+                                <i className="bi bi-search me-1"></i>
+                                Look up
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </form>
+
+                      {cmpLegError && <div className="alert alert-warning py-2 small mb-2">{cmpLegError}</div>}
+
+                      {cmpLegResults.length > 0 && (
+                        <div className="border rounded bg-light mb-3">
+                          <div className="px-2 py-1 border-bottom small text-muted">Results ({cmpLegResults.length})</div>
+                          <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                            <div className="list-group list-group-flush">
+                              {cmpLegResults.map((r) => (
+                                <button
+                                  key={r.billId}
+                                  type="button"
+                                  className={`list-group-item list-group-item-action py-2 ${
+                                    cmpLegSelectedBillId === r.billId ? 'active' : ''
+                                  }`}
+                                  onClick={() => {
+                                    setCmpLegSelectedBillId(r.billId)
+                                    loadCompareLegDetail(r.billId)
+                                  }}
+                                >
+                                  <div className="d-flex justify-content-between align-items-start gap-2">
+                                    <div className="text-start">
+                                      <div className="fw-semibold small">
+                                        {r.state} {r.billNumber || '—'}
+                                      </div>
+                                      <div
+                                        className={`small ${cmpLegSelectedBillId === r.billId ? '' : 'text-muted'}`}
+                                      >
+                                        {r.title || 'Untitled bill'}
+                                      </div>
+                                    </div>
+                                    <div className="small text-nowrap">{r.statusDate || ''}</div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <LegislatureResearchBillDetail
+                        detail={cmpLegDetail}
+                        sortedLegTexts={sortedCmpLegTexts}
+                        legTextIndex={cmpLegTextIndex}
+                        onLegTextIndexChange={setCmpLegTextIndex}
+                        selectedLegText={selectedCmpLegText}
+                        idSuffix="compare"
+                      />
+
+                      {!cmpLegDetail && !cmpLegLoading && cmpLegResults.length === 0 && (
+                        <p className="text-muted small mb-0">Run a LegiScan search to show official bill detail here.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : filtered.length === 0 ? (
                 <div className="text-center py-5 text-muted">
                   <i className="bi bi-search display-4 d-block mb-3"></i>
                   <p>No bills match your filters.</p>
@@ -527,11 +795,6 @@ export default function BillResearchPanel({
                     <div className="accordion accordion-flush" id={innerAccordionId}>
                       {stateBills.map((bill) => {
                         const cid = `researchBill${bill.bill_id}`
-                        const collaborators = Array.isArray(bill.bill_collaborators)
-                          ? bill.bill_collaborators
-                          : typeof bill.bill_collaborators === 'string'
-                            ? [bill.bill_collaborators]
-                            : []
 
                         return (
                           <div key={bill.bill_id} className="accordion-item mb-2 border rounded">
@@ -560,46 +823,12 @@ export default function BillResearchPanel({
                             </h2>
                             <div id={cid} className="accordion-collapse collapse" data-bs-parent={`#${innerAccordionId}`}>
                               <div className="accordion-body">
-                                <div className="row g-3">
-                                  <div className="col-lg-5">
-                                    <div className="mb-2">
-                                      <strong>SPAN position</strong>
-                                      <p className="mb-0 mt-1">{bill.position || '—'}</p>
-                                    </div>
-                                    {collaborators.length > 0 && (
-                                      <div className="mb-2">
-                                        <strong>Collaborators</strong>
-                                        <p className="mb-0 mt-1">{collaborators.join(', ')}</p>
-                                      </div>
-                                    )}
-                                    {submitterName(bill.submitted_by) && (
-                                      <div className="mb-2">
-                                        <strong>Submitted by</strong>
-                                        <p className="mb-0 mt-1">{submitterName(bill.submitted_by)}</p>
-                                      </div>
-                                    )}
-                                    <div className="mb-2">
-                                      <strong>Description</strong>
-                                      <p className="mb-0 mt-1" style={{ whiteSpace: 'pre-wrap' }}>
-                                        {bill.description || '—'}
-                                      </p>
-                                    </div>
-                                    {bill.legiscan_link && (
-                                      <div className="mb-2">
-                                        <a
-                                          href={bill.legiscan_link}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="btn btn-sm btn-outline-secondary"
-                                        >
-                                          <i className="bi bi-box-arrow-up-right me-1"></i>
-                                          Open LegiScan / legislature link
-                                        </a>
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="col-lg-7">{renderProposalColumn(bill)}</div>
-                                </div>
+                                <SpanResearchBillDetail
+                                  bill={bill}
+                                  submitterName={submitterName}
+                                  getBillPdfUrl={getBillPdfUrl}
+                                  layout="two-column"
+                                />
                               </div>
                             </div>
                           </div>
@@ -721,145 +950,13 @@ export default function BillResearchPanel({
 
           {legDetail && (
             <div className="bill-research-scroll border rounded bg-white" style={scrollBoxStyle}>
-              <div className="mb-3 pb-3 border-bottom">
-                <div className="d-flex flex-wrap justify-content-between align-items-start gap-2">
-                  <div>
-                    <h4 className="h6 mb-1">
-                      {legDetail.state} {legDetail.billNumber}
-                    </h4>
-                    <p className="mb-0 fw-semibold">{legDetail.title || '—'}</p>
-                    {legDetail.sessionName && (
-                      <p className="small text-muted mb-0 mt-1">Session: {legDetail.sessionName}</p>
-                    )}
-                  </div>
-                  <div className="text-end">
-                    {legDetail.status && <span className="badge bg-primary">{legDetail.status}</span>}
-                    {legDetail.chamber && (
-                      <div className="small text-muted mt-1">{legDetail.chamber}</div>
-                    )}
-                  </div>
-                </div>
-                {legDetail.url && (
-                  <a
-                    href={legDetail.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-sm btn-outline-primary mt-2"
-                  >
-                    <i className="bi bi-box-arrow-up-right me-1"></i>
-                    Open on LegiScan
-                  </a>
-                )}
-              </div>
-
-              <div className="row g-3 align-items-start">
-                <div className="col-lg-5">
-                  {legDetail.description && (
-                    <div className="mb-3">
-                      <strong>Summary / description</strong>
-                      <p className="small mb-0 mt-1" style={{ whiteSpace: 'pre-wrap' }}>
-                        {legDetail.description}
-                      </p>
-                    </div>
-                  )}
-
-                  {(legDetail.statusDate || legDetail.lastAction) && (
-                    <div className="small text-muted mb-3">
-                      {legDetail.statusDate && <div>Status date: {legDetail.statusDate}</div>}
-                      {legDetail.lastAction && <div className="mt-1">Latest action: {legDetail.lastAction}</div>}
-                    </div>
-                  )}
-
-                  {legDetail.sponsors.length > 0 && (
-                    <div className="mb-3">
-                      <strong>Sponsors</strong>
-                      <div className="row row-cols-1 row-cols-sm-2 row-cols-xl-3 g-1 small mt-1">
-                        {legDetail.sponsors.map((s, i) => (
-                          <div key={`${s.name}-${i}`} className="col text-break">
-                            <span className="d-block">{s.name}</span>
-                            {(s.party || s.role) && (
-                              <span className="text-muted">
-                                {s.party ? `(${s.party})` : ''}
-                                {s.party && s.role ? ' ' : ''}
-                                {s.role || ''}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {sortedLegTexts.length > 0 && (
-                    <div className="mb-3">
-                      <label className="form-label small mb-1" htmlFor="legBillTextVersion">
-                        Bill text version
-                      </label>
-                      <select
-                        id="legBillTextVersion"
-                        className="form-select form-select-sm"
-                        value={Math.min(legTextIndex, sortedLegTexts.length - 1)}
-                        onChange={(e) => setLegTextIndex(Number(e.target.value))}
-                      >
-                        {sortedLegTexts.map((t, i) => (
-                          <option key={t.docId != null ? `d-${t.docId}` : `i-${i}`} value={i}>
-                            {t.type}
-                            {t.date ? ` (${t.date})` : ''}
-                            {t.mime ? ` — ${t.mime}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      {selectedLegText?.url && (
-                        <a
-                          href={selectedLegText.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="small d-inline-block mt-1"
-                        >
-                          Open selected version in new tab
-                        </a>
-                      )}
-                      {!selectedLegText?.url && selectedLegText?.docId != null && (
-                        <p className="small text-muted mb-0 mt-1">
-                          Text loads from LegiScan when no state URL is listed (may take a moment).
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {legDetail.history.length > 0 && (
-                    <div className="mb-1">
-                      <strong>Recent history</strong>
-                      <div
-                        className="table-responsive border rounded mt-2"
-                        style={{ maxHeight: 'min(45vh, 420px)', overflowY: 'auto' }}
-                      >
-                        <table className="table table-sm table-striped mb-0 small">
-                          <thead className="table-light sticky-top">
-                            <tr>
-                              <th style={{ width: '7rem' }}>Date</th>
-                              <th>Action</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {legDetail.history.map((h, idx) => (
-                              <tr key={idx}>
-                                <td className="text-nowrap">{h.date || '—'}</td>
-                                <td>{h.action || h.title || h.description || h.action_desc || '—'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="col-lg-7">
-                  <strong className="d-block mb-2">Bill text</strong>
-                  <LegislatureBillTextPane textEntry={selectedLegText} />
-                </div>
-              </div>
+              <LegislatureResearchBillDetail
+                detail={legDetail}
+                sortedLegTexts={sortedLegTexts}
+                legTextIndex={legTextIndex}
+                onLegTextIndexChange={setLegTextIndex}
+                selectedLegText={selectedLegText}
+              />
             </div>
           )}
         </>

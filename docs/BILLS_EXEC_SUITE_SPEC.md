@@ -1,6 +1,6 @@
 # Bills “all-in-one” dashboard — exec decisions (spec)
 
-**Status:** **Assignments (slice 1)** implemented (`bill_assignments` + dashboard **Assigned work** / **Assigned to me**). **Research** and **Outreach** tabs still planned. This doc records exec decisions from the call (Joel’s replies + original vision).
+**Status:** **Assignments (slice 1)** implemented (`bill_assignments` + **Assigned work** / **Assigned to me**). **Research** tab: **SPAN** corpus (`get_bills_research()` RPC, doc/PDF embeds, by state), **Legislature (LegiScan)** lookup, and **Compare** (v1: two-pane SPAN + LegiScan with separate compare-side LegiScan state). **Outreach** still planned. This doc records exec decisions from the call (Joel’s replies + original vision).
 
 ---
 

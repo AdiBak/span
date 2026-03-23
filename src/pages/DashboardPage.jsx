@@ -47,6 +47,32 @@ function isApplicationPipelineStatus(status) {
   return ['pending', 'invited', 'met_with', 'onboard'].includes(status)
 }
 
+/** Forward-only pipeline before terminal accepted/rejected (no going back to earlier stages). */
+const APPLICATION_PIPELINE_ORDER = ['pending', 'invited', 'met_with', 'onboard']
+
+function applicationPipelineRank(status) {
+  const i = APPLICATION_PIPELINE_ORDER.indexOf(status)
+  return i >= 0 ? i : -1
+}
+
+/**
+ * Whether an exec may move an application from `fromStatus` to `toStatus`.
+ * Pipeline moves must strictly advance (skipping stages is OK). Reject only from pipeline stages.
+ * Reset to `pending` is handled separately (accepted/rejected only).
+ */
+function isAllowedApplicationStatusTransition(fromStatus, toStatus) {
+  if (toStatus === 'rejected') {
+    return APPLICATION_PIPELINE_ORDER.includes(fromStatus)
+  }
+  if (toStatus === 'accepted') {
+    return applicationPipelineRank(fromStatus) >= 0
+  }
+  const fromR = applicationPipelineRank(fromStatus)
+  const toR = applicationPipelineRank(toStatus)
+  if (fromR < 0 || toR < 0) return false
+  return toR > fromR
+}
+
 const BILL_ASSIGNMENT_STATUS_LABELS = {
   not_started: 'Not started',
   in_progress: 'In progress',
@@ -205,6 +231,11 @@ function DashboardPage() {
   const [showRejectConfirmModal, setShowRejectConfirmModal] = useState(false)
   const [sendRejectionEmail, setSendRejectionEmail] = useState(true)
   const [rejectionEmailSending, setRejectionEmailSending] = useState(false)
+  /** Preview + send interview invitation (pending → invited) via Resend */
+  const [showInviteEmailModal, setShowInviteEmailModal] = useState(false)
+  const [inviteEmailPreviewLoading, setInviteEmailPreviewLoading] = useState(false)
+  const [inviteEmailPreview, setInviteEmailPreview] = useState(null)
+  const [inviteEmailSending, setInviteEmailSending] = useState(false)
   const [hrReports, setHrReports] = useState([])
   const [hrReportFilter, setHrReportFilter] = useState('pending') // exec HR Reports default to Pending; 'all', 'pending', 'reviewed', 'resolved', 'dismissed'
   const [showHrReportModal, setShowHrReportModal] = useState(false)
@@ -2751,10 +2782,152 @@ function DashboardPage() {
     setSelectedApplication(null)
     setApplicationNotes('')
     setApplicationNumericGrade('')
+    setShowInviteEmailModal(false)
+    setInviteEmailPreview(null)
+    setInviteEmailPreviewLoading(false)
+  }
+
+  const openInviteEmailPreviewModal = async () => {
+    if (!selectedApplication) return
+    const email = (selectedApplication.email || '').trim()
+    if (!email) {
+      alert('This application has no email address. Add an email before sending an invitation.')
+      return
+    }
+    setShowInviteEmailModal(true)
+    setInviteEmailPreview(null)
+    setInviteEmailPreviewLoading(true)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in.')
+        setShowInviteEmailModal(false)
+        return
+      }
+      const base = import.meta.env.VITE_SUPABASE_URL
+      const resp = await fetch(`${base}/functions/v1/send-invitation-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          dry_run: true,
+          applicant_name: selectedApplication.full_name,
+          applicant_email: email,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(
+          typeof data.error === 'string' ? data.error : data.details || 'Could not load email preview'
+        )
+      }
+      setInviteEmailPreview(data)
+    } catch (err) {
+      console.error('Invitation preview error:', err)
+      alert(err.message || 'Could not load email preview.')
+      setShowInviteEmailModal(false)
+    } finally {
+      setInviteEmailPreviewLoading(false)
+    }
+  }
+
+  const handleSendInvitationEmailAndMarkInvited = async () => {
+    if (!selectedApplication) return
+    const email = (selectedApplication.email || '').trim()
+    if (!email) {
+      alert('This application has no email address.')
+      return
+    }
+    const from = selectedApplication.status
+    if (!isAllowedApplicationStatusTransition(from, 'invited')) {
+      alert('This application can no longer be moved to Invited from its current stage.')
+      setShowInviteEmailModal(false)
+      return
+    }
+
+    setInviteEmailSending(true)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in.')
+        return
+      }
+      const base = import.meta.env.VITE_SUPABASE_URL
+      const resp = await fetch(`${base}/functions/v1/send-invitation-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          dry_run: false,
+          applicant_name: selectedApplication.full_name,
+          applicant_email: email,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(
+          typeof data.error === 'string' ? data.error : data.details || 'Failed to send invitation email'
+        )
+      }
+
+      const { error } = await supabase
+        .from('applications')
+        .update({
+          status: 'invited',
+          reviewed_by: member.member_id,
+          reviewed_at: new Date().toISOString(),
+          notes: applicationNotes.trim() || null,
+        })
+        .eq('application_id', selectedApplication.application_id)
+
+      if (error) {
+        console.error('Error marking invited after email:', error)
+        alert(
+          'The invitation email was sent, but updating the application status failed: ' +
+            error.message +
+            '\n\nPlease set the status to Invited manually if needed.'
+        )
+        setShowInviteEmailModal(false)
+        setInviteEmailPreview(null)
+        await loadApplications()
+        return
+      }
+
+      await loadApplications()
+      setShowInviteEmailModal(false)
+      setInviteEmailPreview(null)
+      closeApplicationModal()
+    } catch (err) {
+      console.error('Send invitation error:', err)
+      alert(err.message || 'Failed to send invitation email. The application was not marked as invited.')
+    } finally {
+      setInviteEmailSending(false)
+    }
   }
 
   const handleUpdateApplicationStatus = async (status) => {
     if (!selectedApplication) return
+
+    const from = selectedApplication.status
+    if (status === 'pending') {
+      if (from !== 'accepted' && from !== 'rejected') {
+        alert('Only accepted or rejected applications can be reset to pending.')
+        return
+      }
+    } else if (!isAllowedApplicationStatusTransition(from, status)) {
+      alert(
+        'That status change is not allowed. Applications can only move forward in the pipeline (or be rejected), not back to an earlier stage.'
+      )
+      return
+    }
 
     try {
       const { error } = await supabase
@@ -2783,6 +2956,13 @@ function DashboardPage() {
 
   const handleAcceptApplication = async () => {
     if (!selectedApplication) return
+
+    if (!isAllowedApplicationStatusTransition(selectedApplication.status, 'accepted')) {
+      alert(
+        'This application cannot be accepted from its current status. Only pipeline stages (pending through onboard) can be accepted.'
+      )
+      return
+    }
 
     try {
       const { error } = await supabase
@@ -2820,6 +3000,11 @@ function DashboardPage() {
 
   const handleRejectApplication = async () => {
     if (!selectedApplication) return
+
+    if (!isAllowedApplicationStatusTransition(selectedApplication.status, 'rejected')) {
+      alert('Only applications in the review pipeline (pending through onboard) can be rejected from this flow.')
+      return
+    }
 
     try {
       // Update status to rejected
@@ -7849,7 +8034,9 @@ function DashboardPage() {
                   {isApplicationPipelineStatus(selectedApplication.status) && (
                     <div className="alert alert-info">
                       <i className="bi bi-info-circle me-2"></i>
-                      You can update the status to track your progress with this application. Add notes and a review score for your records.
+                      You can move this application <strong>forward</strong> in the pipeline (skipping stages is OK) or reject
+                      it. Earlier stages (e.g. back to Pending or Invited) are not available once you&apos;ve moved ahead.
+                      Add notes and a review score for your records.
                     </div>
                   )}
                 </div>
@@ -7864,48 +8051,62 @@ function DashboardPage() {
                   <div className="d-flex gap-2 flex-wrap">
                     {isApplicationPipelineStatus(selectedApplication.status) && (
                       <>
-                        <button
-                          type="button"
-                          className="btn btn-info"
-                          onClick={() => handleUpdateApplicationStatus('invited')}
-                        >
-                          <i className="bi bi-envelope me-1"></i>Mark Invited
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          onClick={() => handleUpdateApplicationStatus('met_with')}
-                        >
-                          <i className="bi bi-people me-1"></i>Mark Met with
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          onClick={() => handleUpdateApplicationStatus('onboard')}
-                        >
-                          <i className="bi bi-person-check me-1"></i>Mark Onboard
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-success"
-                          onClick={() => {
-                            if (window.confirm(`Accept ${selectedApplication.full_name}'s application?\n\nYou'll be able to add them as a member next.`)) {
-                              handleAcceptApplication()
-                            }
-                          }}
-                        >
-                          <i className="bi bi-check-circle me-1"></i>Accept & Add Member
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-danger"
-                          onClick={() => {
-                            setSendRejectionEmail(true)
-                            setShowRejectConfirmModal(true)
-                          }}
-                        >
-                          <i className="bi bi-x-circle me-1"></i>Reject
-                        </button>
+                        {isAllowedApplicationStatusTransition(selectedApplication.status, 'invited') && (
+                          <button
+                            type="button"
+                            className="btn btn-info"
+                            onClick={() => openInviteEmailPreviewModal()}
+                          >
+                            <i className="bi bi-envelope me-1"></i>Mark Invited (email)
+                          </button>
+                        )}
+                        {isAllowedApplicationStatusTransition(selectedApplication.status, 'met_with') && (
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => handleUpdateApplicationStatus('met_with')}
+                          >
+                            <i className="bi bi-people me-1"></i>Mark Met with
+                          </button>
+                        )}
+                        {isAllowedApplicationStatusTransition(selectedApplication.status, 'onboard') && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={() => handleUpdateApplicationStatus('onboard')}
+                          >
+                            <i className="bi bi-person-check me-1"></i>Mark Onboard
+                          </button>
+                        )}
+                        {isAllowedApplicationStatusTransition(selectedApplication.status, 'accepted') && (
+                          <button
+                            type="button"
+                            className="btn btn-success"
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `Accept ${selectedApplication.full_name}'s application?\n\nYou'll be able to add them as a member next.`
+                                )
+                              ) {
+                                handleAcceptApplication()
+                              }
+                            }}
+                          >
+                            <i className="bi bi-check-circle me-1"></i>Accept & Add Member
+                          </button>
+                        )}
+                        {isAllowedApplicationStatusTransition(selectedApplication.status, 'rejected') && (
+                          <button
+                            type="button"
+                            className="btn btn-danger"
+                            onClick={() => {
+                              setSendRejectionEmail(true)
+                              setShowRejectConfirmModal(true)
+                            }}
+                          >
+                            <i className="bi bi-x-circle me-1"></i>Reject
+                          </button>
+                        )}
                       </>
                     )}
                     {(selectedApplication.status === 'accepted' || selectedApplication.status === 'rejected') && (
@@ -8359,6 +8560,111 @@ function DashboardPage() {
             </div>
           </div>
           <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
+        </>
+      )}
+
+      {/* Interview invitation: preview + confirm send (Resend); then mark invited */}
+      {showInviteEmailModal && selectedApplication && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1075 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show') && !inviteEmailSending && !inviteEmailPreviewLoading) {
+                setShowInviteEmailModal(false)
+                setInviteEmailPreview(null)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    <i className="bi bi-envelope-check me-2"></i>
+                    Send interview invitation
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => {
+                      if (!inviteEmailSending && !inviteEmailPreviewLoading) {
+                        setShowInviteEmailModal(false)
+                        setInviteEmailPreview(null)
+                      }
+                    }}
+                    disabled={inviteEmailSending || inviteEmailPreviewLoading}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <p className="text-muted small">
+                    Review the message below. When you confirm, the email is sent via Resend and the application is set
+                    to <strong>Invited</strong>.
+                  </p>
+                  {inviteEmailPreviewLoading && (
+                    <div className="text-center py-5 text-muted">
+                      <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Loading preview…</span>
+                      </div>
+                    </div>
+                  )}
+                  {!inviteEmailPreviewLoading && inviteEmailPreview && (
+                    <>
+                      <dl className="row small mb-3">
+                        <dt className="col-sm-2">From</dt>
+                        <dd className="col-sm-10 text-break">{inviteEmailPreview.from}</dd>
+                        <dt className="col-sm-2">To</dt>
+                        <dd className="col-sm-10 text-break">{inviteEmailPreview.to?.join(', ')}</dd>
+                        <dt className="col-sm-2">Cc</dt>
+                        <dd className="col-sm-10 text-break">{inviteEmailPreview.cc?.join(', ') || '—'}</dd>
+                        <dt className="col-sm-2">Subject</dt>
+                        <dd className="col-sm-10 text-break">{inviteEmailPreview.subject}</dd>
+                      </dl>
+                      <label className="form-label small text-muted">Preview</label>
+                      <div
+                        className="border rounded bg-light overflow-auto"
+                        style={{ maxHeight: 'min(50vh, 420px)' }}
+                        dangerouslySetInnerHTML={{ __html: inviteEmailPreview.html }}
+                      />
+                    </>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => {
+                      if (!inviteEmailSending) {
+                        setShowInviteEmailModal(false)
+                        setInviteEmailPreview(null)
+                      }
+                    }}
+                    disabled={inviteEmailSending || inviteEmailPreviewLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-info"
+                    onClick={() => handleSendInvitationEmailAndMarkInvited()}
+                    disabled={inviteEmailSending || inviteEmailPreviewLoading || !inviteEmailPreview}
+                  >
+                    {inviteEmailSending ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Sending…
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-send me-1"></i>
+                        Send email &amp; mark Invited
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1070 }}></div>
         </>
       )}
 

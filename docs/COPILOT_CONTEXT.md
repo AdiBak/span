@@ -71,7 +71,7 @@ Project Overview
 **Backend (`supabase/`):**
 
 - `migrations/` \- SQL migration files (run in order, all RLS policies and functions are here)  
-- `functions/` \- Edge Functions (Deno/TypeScript): `members-provision/` (member onboarding), `password-reset/` (password reset emails), `dashboard-view/` (source; deployed as `view-member-dashboard`), `send-rejection-email/` (sends application rejection email via Resend), `send-volunteer-verification/` (sends volunteer hours verification PDF via Resend)
+- `functions/` \- Edge Functions (Deno/TypeScript): `members-provision/` (member onboarding), `password-reset/` (password reset emails), `dashboard-view/` (source; deployed as `view-member-dashboard`), `send-rejection-email/` (application rejection via Resend), `send-invitation-email/` (interview invitation when marking invited; Resend, preview via `dry_run`), `send-volunteer-verification/` (volunteer hours verification PDF via Resend)
 
 **Exec (executive director):**
 
@@ -85,6 +85,7 @@ Project Overview
 - **Onboarding email** \- Sent automatically by `members-provision` Edge Function when a new member is created. Includes welcome message, temporary password, onboarding steps, and login link. HTML template inlined in the function.  
 - **Password reset email** \- Sent by `password-reset` Edge Function. Includes temporary password and login instructions. HTML template inlined in the function.  
 - **Send rejection email API:** `POST /functions/v1/send-rejection-email` with `Authorization: Bearer <session JWT>` and body `{ applicant_name, applicant_email }`. Caller must be an exec; otherwise 403\.  
+- **Send application invitation email API:** `POST /functions/v1/send-invitation-email` with `Authorization: Bearer <session JWT>` and body `{ applicant_name, applicant_email, dry_run?: boolean }`. If `dry_run: true`, returns `{ from, to, cc, subject, html }` for UI preview (no send). If omitted/false, sends via Resend and returns `{ ok, email_id }`. Default **from** `Joel Blessan <joel.blessan@spanationwide.org>`, **cc** `vishank.panchbhavi@spanationwide.org` (override with secrets `INVITATION_FROM`, `INVITATION_CC`).  
 - **Send volunteer verification API:** `POST /functions/v1/send-volunteer-verification` with `Authorization: Bearer <session JWT>` and body `{ member_name, member_email, pdf_base64 }`. Caller must be an exec; otherwise 403\.
 
 **PDF generation (client-side):**

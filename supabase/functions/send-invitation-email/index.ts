@@ -14,7 +14,15 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? ""
 /** Verified sender on spanationwide.org (Resend). Override via secret if needed. */
 const FROM_ADDRESS =
   Deno.env.get("INVITATION_FROM") ?? "Joel Blessan <joel.blessan@spanationwide.org>"
-const CC_ADDRESS = Deno.env.get("INVITATION_CC") ?? "vishank.panchbhavi@spanationwide.org"
+
+/** Comma-separated. Default includes Joel’s Gmail so he gets a copy (inbox); mail is sent via Resend, not Gmail Sent. */
+const DEFAULT_INVITATION_CC =
+  "vishank.panchbhavi@spanationwide.org,joelvblessan@gmail.com"
+
+function invitationCcList(): string[] {
+  const raw = Deno.env.get("INVITATION_CC")?.trim() || DEFAULT_INVITATION_CC
+  return raw.split(",").map((s) => s.trim()).filter(Boolean)
+}
 
 const INVITATION_SUBJECT = "You're invited to interview with SPAN"
 
@@ -140,11 +148,12 @@ serve(async (req) => {
     }
 
     const html = buildInvitationEmailHtml(String(applicant_name))
+    const cc = invitationCcList()
     const previewPayload = {
       dry_run: true,
       from: FROM_ADDRESS,
       to: [String(applicant_email).trim()],
-      cc: [CC_ADDRESS],
+      cc,
       subject: INVITATION_SUBJECT,
       html,
     }
@@ -173,7 +182,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: FROM_ADDRESS,
         to: [String(applicant_email).trim()],
-        cc: [CC_ADDRESS],
+        cc: invitationCcList(),
         subject: INVITATION_SUBJECT,
         html,
       }),

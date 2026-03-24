@@ -620,6 +620,46 @@ export async function fetchLegiscanBillTextDoc(docId) {
   }
 }
 
+/**
+ * Stable key for persisting sponsor rows (name|party|role, normalized).
+ * @param {{ name?: string, party?: string, role?: string }} sponsor
+ */
+export function legiscanSponsorStorageKey(sponsor) {
+  if (!sponsor || typeof sponsor !== 'object') return ''
+  const name = String(sponsor.name || '').trim()
+  const party = String(sponsor.party || '').trim()
+  const role = String(sponsor.role || '').trim()
+  return [name, party, role].join('|').toLowerCase().replace(/\s+/g, ' ')
+}
+
+/**
+ * Outreach: load sponsors from LegiScan using `legiscan_link` or state + compact bill name.
+ * @param {{ legiscan_link?: string, state?: string, name?: string }} bill
+ * @returns {Promise<{ ok: true, sponsors: object[], detail: object } | { ok: false, code?: string, message: string }>}
+ */
+export async function fetchLegiscanSponsorsForSpanBill(bill) {
+  if (!bill) {
+    return { ok: false, code: 'input', message: 'No bill.' }
+  }
+  let state = bill.state
+  let billNumber = (bill.name || '').replace(/\s/g, '')
+  const fromUrl = parseLegiscanUrl(bill.legiscan_link)
+  if (fromUrl) {
+    state = fromUrl.state
+    billNumber = fromUrl.billNumber
+  }
+  if (!state || !billNumber) {
+    return {
+      ok: false,
+      code: 'input',
+      message: 'Add a LegiScan link or ensure state and bill number are set.',
+    }
+  }
+  const result = await fetchLegiscanBillBySearch(state, billNumber)
+  if (!result.ok) return result
+  return { ok: true, sponsors: result.detail.sponsors || [], detail: result.detail }
+}
+
 export async function fetchLegiscanBillBySearch(state, billNumber) {
   const num = (billNumber || '').replace(/\s/g, '')
   if (!state || !num) {

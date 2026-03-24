@@ -4,6 +4,12 @@ Updates to the documentation and onboarding guide (repo `docs/` and the Google D
 
 ---
 
+## 2026-01-23
+
+- **Bills exec suite spec (Outreach)** — `BILLS_EXEC_SUITE_SPEC.md`: outreach scoped to **approved bills only** (Joel); **LegiScan `getBill`** (sponsors, history) as primary target-list source; implementation notes for v1.
+
+---
+
 ## 2026-01-24
 
 - **Application interview invitation email** — Pending → **Invited** uses **`send-invitation-email`** Edge Function (Resend): from **`joel.blessan@spanationwide.org`**, **Cc** **`vishank.panchbhavi@spanationwide.org`** (overridable with Supabase secrets `INVITATION_FROM`, `INVITATION_CC`). Dashboard opens a **preview modal** (`dry_run: true`), then **Send email & mark Invited** sends and updates `applications.status`. Deploy the new function alongside existing Resend functions.

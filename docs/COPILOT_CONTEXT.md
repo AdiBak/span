@@ -262,7 +262,7 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 - **Auth provisioning docs:** `docs/auth-provisioning.md`  
 - **Ideas & suggestions:** `docs/SUGGESTIONS.md`  
 - **LegiScan timeline (bill status UI, reference):** `docs/LEGISCAN_TIMELINE_SPEC.md`
-- **Bills exec suite (phased):** `docs/BILLS_EXEC_SUITE_SPEC.md` — **Assigned work** and **Research** (SPAN + LegiScan + Compare v1) are implemented; **Outreach** is later.  
+- **Bills exec suite (phased):** `docs/BILLS_EXEC_SUITE_SPEC.md` — **Assigned work** and **Research** (SPAN + LegiScan + Compare v1) are implemented; **Outreach** (planned: **approved bills only**, target data from **LegiScan `getBill`** sponsors/history) is not built yet.  
 - **Docs changelog:** `docs/DOCS_CHANGELOG.md` — updates to the guide and docs  
 - **Supabase client:** `src/lib/supabase.js`  
 - **Main app router:** `src/App.jsx`  

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import QRCode from 'qrcode'
 import RegistrationForm from '../components/RegistrationForm'
 import BillResearchPanel from '../components/BillResearchPanel'
+import BillOutreachPanel from '../components/BillOutreachPanel'
 import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import './DashboardPage.css'
 
@@ -3626,6 +3627,12 @@ function DashboardPage() {
     : effectiveVolunteerEntries.filter(e => e.approved === approvedToFilter())
 
   const effectiveBills = viewAsData ? (viewAsData.bills ?? []) : (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? allBills : mySubmittedBills)
+  /** Approved (or legacy unset) bills with LegiScan URL — Bill Management → Outreach. */
+  const execOutreachBills = effectiveBills.filter(
+    (b) =>
+      (b.status === 'approved' || b.status == null || b.status === '') &&
+      String(b.legiscan_link || '').trim()
+  )
   const effectiveRequests = viewAsData ? (viewAsData.leave_requests ?? []) : (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? filteredMemberRequests : myRequests)
   const effectiveApplications = viewAsData ? (viewAsData.applications ?? []) : applications
   const filteredEffectiveApplications = applicationFilter === 'all' ? effectiveApplications : effectiveApplications.filter(app => app.status === applicationFilter)
@@ -4468,8 +4475,19 @@ function DashboardPage() {
                 >
                   Research
                 </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${execBillSectionTab === 'outreach' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setExecBillSectionTab('outreach')}
+                >
+                  Outreach
+                </button>
               </div>
             </div>
+
+            {execBillSectionTab === 'outreach' && (
+              <BillOutreachPanel bills={execOutreachBills} member={member} />
+            )}
 
             {execBillSectionTab === 'research' && (
               <BillResearchPanel

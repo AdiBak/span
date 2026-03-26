@@ -75,6 +75,7 @@ function isAllowedApplicationStatusTransition(fromStatus, toStatus) {
 }
 
 const BILL_ASSIGNMENT_STATUS_LABELS = {
+  available: 'Open',
   not_started: 'Not started',
   in_progress: 'In progress',
   completed: 'Completed',
@@ -88,6 +89,8 @@ function billAssignmentStatusLabel(status) {
 
 function billAssignmentStatusBadgeClass(status) {
   switch (status) {
+    case 'available':
+      return 'bg-info text-dark'
     case 'not_started':
       return 'bg-secondary'
     case 'in_progress':
@@ -167,6 +170,8 @@ function DashboardPage() {
     additionalInfo: '',
     assigneeMemberId: '',
     dueDate: '',
+    /** true = open pool; anyone with Bill permission can claim */
+    poolOpen: false,
   })
   const [assignBillError, setAssignBillError] = useState('')
   const [assignBillSaving, setAssignBillSaving] = useState(false)
@@ -435,7 +440,7 @@ function DashboardPage() {
         // Members with bills permission see only their submitted bills
         loadMySubmittedBills()
       }
-      if (hasPermission('bills') && !viewAsData) {
+      if (hasPermission('bills')) {
         loadBillAssignments()
         loadResearchBills()
       }
@@ -515,11 +520,12 @@ function DashboardPage() {
 
   // Draft inputs for assignee deliverable fields (preserve typing when list refreshes)
   useEffect(() => {
-    if (!member?.member_id || viewAsData) return
+    const assigneeId = viewAsData?.member?.member_id ?? member?.member_id
+    if (!assigneeId) return
     setMemberDeliverableInputs((prev) => {
       const next = {}
       for (const a of billAssignments) {
-        if (a.assignee_member_id !== member.member_id) continue
+        if (a.assignee_member_id !== assigneeId) continue
         const existing = prev[a.assignment_id]
         if (existing) {
           next[a.assignment_id] = existing
@@ -532,7 +538,7 @@ function DashboardPage() {
       }
       return next
     })
-  }, [billAssignments, member?.member_id, viewAsData])
+  }, [billAssignments, member?.member_id, viewAsData?.member?.member_id])
 
   // Load all members for collaborator selection
   const loadAllMembers = async () => {
@@ -1996,6 +2002,7 @@ function DashboardPage() {
   }
 
   const resolveBillAssignmentMemberName = (memberId) => {
+    if (memberId == null) return 'Open — anyone can claim'
     const m =
       allMembersForManagement.find((x) => x.member_id === memberId) ||
       allMembers.find((x) => x.member_id === memberId)
@@ -2010,35 +2017,53 @@ function DashboardPage() {
       additionalInfo: '',
       assigneeMemberId: '',
       dueDate: '',
+      poolOpen: false,
     })
     setShowAssignBillModal(true)
   }
 
   const handleCreateBillAssignment = async () => {
     setAssignBillError('')
-    if (!assignBillForm.title?.trim() || !assignBillForm.goal?.trim() || !assignBillForm.assigneeMemberId) {
-      setAssignBillError('Topic / concept, goal, and assignee are required.')
+    if (!assignBillForm.title?.trim() || !assignBillForm.goal?.trim()) {
+      setAssignBillError('Topic / concept and goal are required.')
       return
     }
-    const assigneeRow = allMembersForManagement.find((m) => m.member_id === assignBillForm.assigneeMemberId)
-    if (
-      !assigneeRow ||
-      (assigneeRow.bills !== true && assigneeRow.bills !== 'true')
-    ) {
-      setAssignBillError('Assignee must be a member with Bill permission.')
-      return
+    if (!assignBillForm.poolOpen) {
+      if (!assignBillForm.assigneeMemberId) {
+        setAssignBillError('Choose an assignee, or post as an open task for anyone to claim.')
+        return
+      }
+      const assigneeRow = allMembersForManagement.find((m) => m.member_id === assignBillForm.assigneeMemberId)
+      if (
+        !assigneeRow ||
+        (assigneeRow.bills !== true && assigneeRow.bills !== 'true')
+      ) {
+        setAssignBillError('Assignee must be a member with Bill permission.')
+        return
+      }
     }
     if (!member?.member_id) return
     setAssignBillSaving(true)
-    const { error } = await supabase.from('bill_assignments').insert({
-      title: assignBillForm.title.trim(),
-      goal: assignBillForm.goal.trim(),
-      additional_info: assignBillForm.additionalInfo?.trim() || null,
-      assignee_member_id: assignBillForm.assigneeMemberId,
-      assigned_by_member_id: member.member_id,
-      due_date: assignBillForm.dueDate?.trim() || null,
-      status: 'not_started',
-    })
+    const row = assignBillForm.poolOpen
+      ? {
+          title: assignBillForm.title.trim(),
+          goal: assignBillForm.goal.trim(),
+          additional_info: assignBillForm.additionalInfo?.trim() || null,
+          assignee_member_id: null,
+          assigned_by_member_id: member.member_id,
+          due_date: assignBillForm.dueDate?.trim() || null,
+          status: 'available',
+        }
+      : {
+          title: assignBillForm.title.trim(),
+          goal: assignBillForm.goal.trim(),
+          additional_info: assignBillForm.additionalInfo?.trim() || null,
+          assignee_member_id: assignBillForm.assigneeMemberId,
+          assigned_by_member_id: member.member_id,
+          due_date: assignBillForm.dueDate?.trim() || null,
+          status: 'not_started',
+        }
+    const { error } = await supabase.from('bill_assignments').insert(row)
     setAssignBillSaving(false)
     if (error) {
       setAssignBillError(error.message || 'Could not create assignment.')
@@ -2051,7 +2076,29 @@ function DashboardPage() {
       additionalInfo: '',
       assigneeMemberId: '',
       dueDate: '',
+      poolOpen: false,
     })
+    await loadBillAssignments()
+  }
+
+  const handleClaimBillAssignment = async (assignmentId) => {
+    if (viewAsData || !member?.member_id) return
+    const { data, error } = await supabase
+      .from('bill_assignments')
+      .update({ assignee_member_id: member.member_id, status: 'not_started' })
+      .eq('assignment_id', assignmentId)
+      .eq('status', 'available')
+      .is('assignee_member_id', null)
+      .select('assignment_id')
+    if (error) {
+      alert(error.message || 'Could not claim task.')
+      return
+    }
+    if (!data?.length) {
+      alert('This task is no longer available — someone else may have claimed it. Refresh and try again.')
+      await loadBillAssignments()
+      return
+    }
     await loadBillAssignments()
   }
 
@@ -2068,6 +2115,7 @@ function DashboardPage() {
   }
 
   const handleSaveAssignmentDeliverable = async (assignmentId) => {
+    if (viewAsData) return
     const draft = memberDeliverableInputs[assignmentId]
     if (!draft) return
     const { error } = await supabase
@@ -2085,6 +2133,7 @@ function DashboardPage() {
   }
 
   const handleAssigneeAssignmentStatus = async (assignmentId, status) => {
+    if (viewAsData) return
     const draft = memberDeliverableInputs[assignmentId] || {}
     const doc = draft.doc?.trim() || ''
     const pdf = draft.pdf?.trim() || ''
@@ -3794,6 +3843,9 @@ function DashboardPage() {
   const effectiveApplications = viewAsData ? (viewAsData.applications ?? []) : applications
   const filteredEffectiveApplications = applicationFilter === 'all' ? effectiveApplications : effectiveApplications.filter(app => app.status === applicationFilter)
 
+  /** View-as: only show Assigned to me in Bill Submission; members keep tab state. */
+  const billSubmissionViewTab = viewAsData ? 'assigned_to_me' : memberBillSectionTab
+
   // Group volunteer entries by member_id (use filtered list)
   const groupedEntries = {}
   filteredVolunteerEntries.forEach(entry => {
@@ -4987,7 +5039,7 @@ function DashboardPage() {
               <>
                 <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                   <div className="btn-group flex-wrap" role="group">
-                    {['all', 'not_started', 'in_progress', 'completed', 'in_review', 'approved'].map((key) => (
+                    {['all', 'available', 'not_started', 'in_progress', 'completed', 'in_review', 'approved'].map((key) => (
                       <button
                         key={key}
                         type="button"
@@ -5134,7 +5186,7 @@ function DashboardPage() {
           </section>
         )}
 
-        {/* Bill Submission Section - For Members with Bills Permission (but not execs) */}
+        {/* Bill Submission Section - Members with Bills (non-exec); execs see this when viewing-as such a member */}
         {(() => {
           const hasBills = hasPermission('bills')
           const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
@@ -5142,7 +5194,14 @@ function DashboardPage() {
         })() && (
           <section className="mt-5" style={{ order: dashboardOrder.billSubmission }}>
             <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-              <h3 className="mb-0">Bill Submission</h3>
+              <div>
+                <h3 className="mb-0">{viewAsData ? 'Assigned to me' : 'Bill Submission'}</h3>
+                {viewAsData && (
+                  <p className="small text-muted mb-0 mt-1">
+                    {effectiveMember?.first_name} {effectiveMember?.last_name} (read-only)
+                  </p>
+                )}
+              </div>
               {!viewAsData && memberBillSectionTab === 'my_bills' && (
                 <button className="btn btn-dark" onClick={handleAddBill}>
                   <i className="bi bi-plus-circle me-2"></i>Submit Bill for Review
@@ -5167,6 +5226,13 @@ function DashboardPage() {
                 </button>
                 <button
                   type="button"
+                  className={`btn btn-sm ${memberBillSectionTab === 'open_tasks' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setMemberBillSectionTab('open_tasks')}
+                >
+                  Open tasks
+                </button>
+                <button
+                  type="button"
                   className={`btn btn-sm ${memberBillSectionTab === 'research' ? 'btn-dark' : 'btn-outline-dark'}`}
                   onClick={() => setMemberBillSectionTab('research')}
                 >
@@ -5175,7 +5241,7 @@ function DashboardPage() {
               </div>
             )}
 
-            {!viewAsData && memberBillSectionTab === 'research' ? (
+            {billSubmissionViewTab === 'research' ? (
               <BillResearchPanel
                 bills={researchBills}
                 loading={researchBillsLoading}
@@ -5194,14 +5260,98 @@ function DashboardPage() {
                 onRefresh={loadResearchBills}
                 getStateFileName={getStateFileName}
               />
-            ) : !viewAsData && memberBillSectionTab === 'assigned_to_me' ? (
+            ) : billSubmissionViewTab === 'open_tasks' ? (
               <>
+                <p className="text-muted small mb-3">
+                  Work posted for anyone with Bill permission. Claim a task to assign it to yourself; it then appears under <strong>Assigned to me</strong>.
+                </p>
+                {(() => {
+                  const pool = billAssignments.filter((a) => a.status === 'available')
+                  if (pool.length === 0) {
+                    return (
+                      <div className="text-center py-5 text-muted">
+                        <i className="bi bi-inbox display-4 d-block mb-3"></i>
+                        <p>No open tasks right now.</p>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div className="accordion mb-4" id="memberOpenTasksAccordion" style={{ maxHeight: '600px', overflowY: 'auto' }}>
+                      {pool.map((a) => {
+                        const cid = `collapseOpenTask${String(a.assignment_id).replace(/-/g, '')}`
+                        return (
+                          <div key={a.assignment_id} className="accordion-item mb-2 shadow-sm border rounded">
+                            <h2 className="accordion-header">
+                              <button
+                                className="accordion-button collapsed bg-white text-dark"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target={`#${cid}`}
+                                aria-expanded="false"
+                              >
+                                <div className="d-flex w-100 justify-content-between align-items-center flex-wrap gap-2 pe-2">
+                                  <span className="fw-bold text-start">{a.title}</span>
+                                  <span className={`badge ${billAssignmentStatusBadgeClass(a.status)}`}>
+                                    {billAssignmentStatusLabel(a.status)}
+                                  </span>
+                                  {a.due_date && <span className="text-muted small">Due {formatDate(a.due_date)}</span>}
+                                </div>
+                              </button>
+                            </h2>
+                            <div id={cid} className="accordion-collapse collapse" data-bs-parent="#memberOpenTasksAccordion">
+                              <div className="accordion-body">
+                                <div className="mb-2">
+                                  <strong>Goal</strong>
+                                  <p className="mb-0 mt-1">{a.goal}</p>
+                                </div>
+                                {a.additional_info && (
+                                  <div className="mb-3">
+                                    <strong>Additional info</strong>
+                                    <p className="mb-0 mt-1">{a.additional_info}</p>
+                                  </div>
+                                )}
+                                <div className="mb-2 small text-muted">
+                                  Posted by {resolveBillAssignmentMemberName(a.assigned_by_member_id)}
+                                </div>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary"
+                                  onClick={() => handleClaimBillAssignment(a.assignment_id)}
+                                >
+                                  <i className="bi bi-hand-index-thumb me-1"></i>Claim this task
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </>
+            ) : billSubmissionViewTab === 'assigned_to_me' ? (
+              <>
+                {viewAsData && billAssignments.some((a) => a.status === 'available') && (
+                  <div className="mb-4 p-3 border rounded bg-light">
+                    <h4 className="h6 text-muted mb-2">Open tasks (pool)</h4>
+                    <ul className="list-unstyled mb-0 small">
+                      {billAssignments
+                        .filter((a) => a.status === 'available')
+                        .map((a) => (
+                          <li key={a.assignment_id} className="mb-2">
+                            <strong>{a.title}</strong>
+                            {a.due_date ? ` · due ${formatDate(a.due_date)}` : ''}
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
                 <p className="text-muted small mb-3">
                   Work items assigned by the exec team. Add your Google Doc and/or PDF link, then mark complete when ready for review.
                 </p>
                 <div className="btn-group flex-wrap mb-3" role="group">
                   {['all', 'not_started', 'in_progress', 'completed', 'in_review', 'approved'].map((key) => {
-                    const mine = billAssignments.filter((x) => x.assignee_member_id === member?.member_id)
+                    const mine = billAssignments.filter((x) => x.assignee_member_id === effectiveMember?.member_id)
                     return (
                       <button
                         key={key}
@@ -5217,7 +5367,7 @@ function DashboardPage() {
                   })}
                 </div>
                 {(() => {
-                  const mine = billAssignments.filter((x) => x.assignee_member_id === member?.member_id)
+                  const mine = billAssignments.filter((x) => x.assignee_member_id === effectiveMember?.member_id)
                   const filtered =
                     memberAssignmentFilter === 'all'
                       ? mine
@@ -5234,7 +5384,10 @@ function DashboardPage() {
                     <div className="accordion mb-4" id="memberBillAssignmentsAccordion" style={{ maxHeight: '600px', overflowY: 'auto' }}>
                       {filtered.map((a) => {
                         const cid = `collapseMemberAssign${String(a.assignment_id).replace(/-/g, '')}`
-                        const draft = memberDeliverableInputs[a.assignment_id] || { doc: '', pdf: '' }
+                        const draft = memberDeliverableInputs[a.assignment_id] || {
+                          doc: a.deliverable_doc_link || '',
+                          pdf: a.deliverable_pdf_url || '',
+                        }
                         return (
                           <div key={a.assignment_id} className="accordion-item mb-2 shadow-sm border rounded">
                             <h2 className="accordion-header">
@@ -5275,7 +5428,7 @@ function DashboardPage() {
                                     className="form-control form-control-sm"
                                     placeholder="https://docs.google.com/..."
                                     value={draft.doc}
-                                    disabled={a.status === 'approved'}
+                                    disabled={a.status === 'approved' || viewAsData}
                                     onChange={(e) =>
                                       setMemberDeliverableInputs((prev) => ({
                                         ...prev,
@@ -5291,7 +5444,7 @@ function DashboardPage() {
                                     className="form-control form-control-sm"
                                     placeholder="https://..."
                                     value={draft.pdf}
-                                    disabled={a.status === 'approved'}
+                                    disabled={a.status === 'approved' || viewAsData}
                                     onChange={(e) =>
                                       setMemberDeliverableInputs((prev) => ({
                                         ...prev,
@@ -5301,7 +5454,7 @@ function DashboardPage() {
                                   />
                                 </div>
                                 <div className="d-flex flex-wrap gap-2">
-                                  {a.status !== 'approved' && (
+                                  {a.status !== 'approved' && !viewAsData && (
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-outline-secondary"
@@ -5310,7 +5463,7 @@ function DashboardPage() {
                                       Save deliverables
                                     </button>
                                   )}
-                                  {a.status === 'not_started' && (
+                                  {a.status === 'not_started' && !viewAsData && (
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-primary"
@@ -5319,7 +5472,7 @@ function DashboardPage() {
                                       Start work
                                     </button>
                                   )}
-                                  {(a.status === 'in_progress' || a.status === 'not_started') && (
+                                  {(a.status === 'in_progress' || a.status === 'not_started') && !viewAsData && (
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-success"
@@ -5467,7 +5620,7 @@ function DashboardPage() {
             ) : (
               <div className="text-center py-5 text-muted">
                 <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
-                <p>No submitted bills yet. Submit your first bill for review.</p>
+                <p>{viewAsData ? 'No submitted bills for this member.' : 'No submitted bills yet. Submit your first bill for review.'}</p>
               </div>
             )}
           </section>
@@ -7606,29 +7759,60 @@ function DashboardPage() {
                     />
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Assignee</label>
-                    <p className="form-text small text-muted mb-2">
-                      Only members with <strong>Bill</strong> permission can receive assignments (they use Bill Submission → Assigned to me).
-                    </p>
-                    {assigneePickerMembers.length === 0 ? (
-                      <div className="alert alert-warning small mb-0 py-2">
-                        No members have Bill permission yet. Enable it in Member Management for at least one member.
-                      </div>
-                    ) : (
-                      <select
-                        className="form-select"
-                        value={assignBillForm.assigneeMemberId}
-                        onChange={(e) => setAssignBillForm({ ...assignBillForm, assigneeMemberId: e.target.value })}
-                      >
-                        <option value="">Select member</option>
-                        {assigneePickerMembers.map((m) => (
-                          <option key={m.member_id} value={m.member_id}>
-                            {m.first_name} {m.last_name}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                    <label className="form-label">Who is this for?</label>
+                    <div className="form-check mb-2">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="assignBillMode"
+                        id="assignBillDirect"
+                        checked={!assignBillForm.poolOpen}
+                        onChange={() => setAssignBillForm((f) => ({ ...f, poolOpen: false }))}
+                      />
+                      <label className="form-check-label" htmlFor="assignBillDirect">
+                        Assign to a specific member
+                      </label>
+                    </div>
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="radio"
+                        name="assignBillMode"
+                        id="assignBillPool"
+                        checked={assignBillForm.poolOpen}
+                        onChange={() => setAssignBillForm((f) => ({ ...f, poolOpen: true }))}
+                      />
+                      <label className="form-check-label" htmlFor="assignBillPool">
+                        Post as an <strong>open task</strong> — anyone with Bill permission can claim it from Bill Submission → Open tasks
+                      </label>
+                    </div>
                   </div>
+                  {!assignBillForm.poolOpen && (
+                    <div className="mb-3">
+                      <label className="form-label">Assignee</label>
+                      <p className="form-text small text-muted mb-2">
+                        Only members with <strong>Bill</strong> permission can receive assignments (they use Bill Submission → Assigned to me).
+                      </p>
+                      {assigneePickerMembers.length === 0 ? (
+                        <div className="alert alert-warning small mb-0 py-2">
+                          No members have Bill permission yet. Enable it in Member Management for at least one member, or choose an open task instead.
+                        </div>
+                      ) : (
+                        <select
+                          className="form-select"
+                          value={assignBillForm.assigneeMemberId}
+                          onChange={(e) => setAssignBillForm({ ...assignBillForm, assigneeMemberId: e.target.value })}
+                        >
+                          <option value="">Select member</option>
+                          {assigneePickerMembers.map((m) => (
+                            <option key={m.member_id} value={m.member_id}>
+                              {m.first_name} {m.last_name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
                   <div className="mb-3">
                     <label className="form-label">Due date (optional)</label>
                     <input
@@ -7647,7 +7831,10 @@ function DashboardPage() {
                   <button
                     type="button"
                     className="btn btn-dark"
-                    disabled={assignBillSaving || assigneePickerMembers.length === 0}
+                    disabled={
+                      assignBillSaving ||
+                      (!assignBillForm.poolOpen && assigneePickerMembers.length === 0)
+                    }
                     onClick={handleCreateBillAssignment}
                   >
                     {assignBillSaving ? 'Saving…' : 'Create assignment'}

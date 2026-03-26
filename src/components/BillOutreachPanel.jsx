@@ -77,23 +77,56 @@ export default function BillOutreachPanel({ bills, member }) {
         return
       }
       const sponsors = res.sponsors || []
+      const meta = res.meta || null
       if (!sponsors.length) {
         setRefreshMessage('LegiScan returned no sponsors for this bill.')
         return
       }
+
+      const existingRes = await supabase
+        .from('bill_outreach_targets')
+        .select('sponsor_key,status,notes,contact_phone,contact_webmail_url')
+        .eq('bill_id', selectedBill.bill_id)
+
+      if (existingRes.error) throw existingRes.error
+
+      const existingByKey = new Map(
+        (existingRes.data || []).map((r) => [r.sponsor_key, r])
+      )
+
       const seen = new Set()
       const rows = []
       for (const s of sponsors) {
         const sponsorKey = legiscanSponsorStorageKey(s)
         if (!sponsorKey || seen.has(sponsorKey)) continue
         seen.add(sponsorKey)
+
+        const phone = (s.phone || '').trim() || null
+        const webmailUrl = (s.webmailUrl || '').trim() || null
+
+        const existing = existingByKey.get(sponsorKey)
+
+        // Preserve manual edits: only fill contact fields if existing is empty.
+        const nextContactPhone =
+          existing?.contact_phone != null && String(existing.contact_phone).trim()
+            ? existing.contact_phone
+            : phone
+        const nextContactWebmailUrl =
+          existing?.contact_webmail_url != null && String(existing.contact_webmail_url).trim()
+            ? existing.contact_webmail_url
+            : webmailUrl
+
         rows.push({
           bill_id: selectedBill.bill_id,
           sponsor_key: sponsorKey,
           display_name: s.name,
           party: s.party || null,
           sponsor_role: s.role || null,
-          status: 'pending',
+          contact_phone: nextContactPhone,
+          contact_webmail_url: nextContactWebmailUrl,
+          status: existing?.status || 'pending',
+          notes: existing?.notes || null,
+          updated_by_member_id: member?.member_id || null,
         })
       }
       if (!rows.length) {
@@ -102,12 +135,28 @@ export default function BillOutreachPanel({ bills, member }) {
       }
       const { error } = await supabase.from('bill_outreach_targets').upsert(rows, {
         onConflict: 'bill_id,sponsor_key',
-        ignoreDuplicates: true,
       })
       if (error) throw error
-      setRefreshMessage(
-        `Synced ${rows.length} sponsor(s) from LegiScan (existing rows kept their status and notes).`
-      )
+
+      const filledCount = rows.filter(
+        (r) =>
+          (r.contact_phone && String(r.contact_phone).trim()) ||
+          (r.contact_webmail_url && String(r.contact_webmail_url).trim())
+      ).length
+
+      if (meta && meta.personLookupAttempted > 0) {
+        setRefreshMessage(
+          `Synced ${rows.length} sponsor(s). Contact lookup populated for ${meta.personLookupPopulated} / ${meta.personLookupAttempted} person(s) (failed: ${meta.personLookupFailed}). Auto-filled contact for ${filledCount} row(s).`
+        )
+      } else if (meta && meta.peopleIdCount === 0) {
+        setRefreshMessage(
+          `Synced ${rows.length} sponsor(s). LegiScan bill sponsors did not include a people_id, so contact auto-fill is not possible for this bill.`
+        )
+      } else {
+        setRefreshMessage(
+          `Synced ${rows.length} sponsor(s) from LegiScan. Auto-filled contact for ${filledCount} row(s).`
+        )
+      }
       await loadTargets()
     } catch (e) {
       setLoadError(e.message || 'Failed to sync sponsors.')
@@ -146,8 +195,9 @@ export default function BillOutreachPanel({ bills, member }) {
     <div className="card border-0 shadow-sm">
       <div className="card-body">
         <p className="text-muted small mb-3">
-          Pull sponsors from LegiScan, then record who has been contacted. Refresh adds new sponsors without
-          changing existing rows.
+          Pull sponsors from LegiScan, then use the <strong>Webmail</strong> link and <strong>phone</strong> to
+          contact each legislator. Refresh keeps your status and notes.
+          Refresh adds new sponsors without changing existing rows&apos; status or notes.
         </p>
 
         <div className="row g-2 align-items-end flex-wrap mb-3">
@@ -226,6 +276,8 @@ export default function BillOutreachPanel({ bills, member }) {
                   <th scope="col">Name</th>
                   <th scope="col">Party</th>
                   <th scope="col">Role</th>
+                  <th scope="col">Webmail</th>
+                  <th scope="col">Phone</th>
                   <th scope="col">Status</th>
                   <th scope="col">Notes</th>
                 </tr>
@@ -236,6 +288,36 @@ export default function BillOutreachPanel({ bills, member }) {
                     <td>{t.display_name}</td>
                     <td className="text-muted small">{t.party || '—'}</td>
                     <td className="text-muted small">{t.sponsor_role || '—'}</td>
+                    <td style={{ minWidth: '160px' }}>
+                      {(t.contact_webmail_url || '').trim() ? (
+                        <a
+                          href={t.contact_webmail_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="small"
+                        >
+                          Webmail
+                        </a>
+                      ) : (
+                        <span className="text-muted small">—</span>
+                      )}
+                    </td>
+                    <td style={{ minWidth: '140px' }}>
+                      <input
+                        type="tel"
+                        className="form-control form-control-sm"
+                        placeholder="Phone"
+                        aria-label={`Phone for ${t.display_name}`}
+                        defaultValue={t.contact_phone || ''}
+                        key={`${t.target_id}-ph-${t.contact_phone ?? ''}`}
+                        onBlur={(e) => {
+                          const next = e.target.value.trim()
+                          const prev = (t.contact_phone || '').trim()
+                          if (next === prev) return
+                          patchTarget(t.target_id, { contact_phone: next || null })
+                        }}
+                      />
+                    </td>
                     <td style={{ minWidth: '140px' }}>
                       <select
                         className="form-select form-select-sm"

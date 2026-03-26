@@ -103,6 +103,15 @@ function billAssignmentStatusBadgeClass(status) {
   }
 }
 
+/** Headers for fetch() to Supabase Edge Functions (apikey is required by the gateway). */
+function supabaseInvokeHeaders(accessToken) {
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${accessToken}`,
+    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
+  }
+}
+
 function DashboardPage() {
   console.log('DashboardPage component rendering...')
   const [member, setMember] = useState(null)
@@ -230,8 +239,13 @@ function DashboardPage() {
   const [applicationNumericGrade, setApplicationNumericGrade] = useState('')
   const [showDeleteApplicationModal, setShowDeleteApplicationModal] = useState(false)
   const [showRejectConfirmModal, setShowRejectConfirmModal] = useState(false)
+  const [showMetWithDateModal, setShowMetWithDateModal] = useState(false)
+  const [metWithDateInput, setMetWithDateInput] = useState('')
   const [sendRejectionEmail, setSendRejectionEmail] = useState(true)
   const [rejectionEmailSending, setRejectionEmailSending] = useState(false)
+  const [rejectionEmailPreview, setRejectionEmailPreview] = useState(null)
+  const [rejectionEmailPreviewLoading, setRejectionEmailPreviewLoading] = useState(false)
+  const [rejectionEmailReason, setRejectionEmailReason] = useState('')
   /** Preview + send interview invitation (pending → invited) via Resend */
   const [showInviteEmailModal, setShowInviteEmailModal] = useState(false)
   const [inviteEmailPreviewLoading, setInviteEmailPreviewLoading] = useState(false)
@@ -2575,6 +2589,82 @@ function DashboardPage() {
     }
   }, [showMemberModal, editingMemberId])
 
+  // Rejection modal: load Resend email preview when “send email” is checked (matches invitation flow).
+  useEffect(() => {
+    if (!showRejectConfirmModal || !selectedApplication) {
+      return
+    }
+    const email = (selectedApplication.email || '').trim()
+    if (!sendRejectionEmail || !email) {
+      setRejectionEmailPreview(null)
+      setRejectionEmailPreviewLoading(false)
+      return
+    }
+    let cancelled = false
+    setRejectionEmailPreviewLoading(true)
+    setRejectionEmailPreview(null)
+
+    const timeoutId = window.setTimeout(() => {
+      ;(async () => {
+        try {
+          const {
+            data: { session },
+          } = await supabase.auth.getSession()
+          if (!session?.access_token) {
+            if (!cancelled) setRejectionEmailPreviewLoading(false)
+            return
+          }
+          const base = import.meta.env.VITE_SUPABASE_URL
+          const resp = await fetch(`${base}/functions/v1/send-rejection-email`, {
+            method: 'POST',
+            headers: supabaseInvokeHeaders(session.access_token),
+            body: JSON.stringify({
+              dry_run: true,
+              applicant_name: selectedApplication.full_name,
+              applicant_email: email,
+              rejection_reason: rejectionEmailReason.trim() || null,
+            }),
+          })
+          const data = await resp.json().catch(() => ({}))
+          if (!resp.ok) {
+            throw new Error(
+              typeof data.error === 'string' ? data.error : data.details || 'Could not load email preview'
+            )
+          }
+          if (typeof data.html !== 'string' || !String(data.html).trim()) {
+            throw new Error(
+              'Preview is empty: the deployed send-rejection-email function may be an older version (ignores dry_run). Redeploy it from the repo, then try again.'
+            )
+          }
+          if (!cancelled) setRejectionEmailPreview(data)
+        } catch (err) {
+          console.error('Rejection email preview error:', err)
+          if (!cancelled) {
+            alert(
+              err.message ||
+                'Could not load rejection email preview. Uncheck “send email” to reject without notifying, or try again.'
+            )
+            setRejectionEmailPreview(null)
+          }
+        } finally {
+          if (!cancelled) setRejectionEmailPreviewLoading(false)
+        }
+      })()
+    }, 400)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeoutId)
+    }
+  }, [
+    showRejectConfirmModal,
+    sendRejectionEmail,
+    selectedApplication?.application_id,
+    selectedApplication?.email,
+    selectedApplication?.full_name,
+    rejectionEmailReason,
+  ])
+
   const handleEditMember = (memberToEdit) => {
     setEditingMemberId(memberToEdit.member_id)
     setMemberForm({
@@ -2810,10 +2900,7 @@ function DashboardPage() {
       const base = import.meta.env.VITE_SUPABASE_URL
       const resp = await fetch(`${base}/functions/v1/send-invitation-email`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: supabaseInvokeHeaders(session.access_token),
         body: JSON.stringify({
           dry_run: true,
           applicant_name: selectedApplication.full_name,
@@ -2862,10 +2949,7 @@ function DashboardPage() {
       const base = import.meta.env.VITE_SUPABASE_URL
       const resp = await fetch(`${base}/functions/v1/send-invitation-email`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: supabaseInvokeHeaders(session.access_token),
         body: JSON.stringify({
           dry_run: false,
           applicant_name: selectedApplication.full_name,
@@ -2914,7 +2998,7 @@ function DashboardPage() {
     }
   }
 
-  const handleUpdateApplicationStatus = async (status) => {
+  const handleUpdateApplicationStatus = async (status, options = {}) => {
     if (!selectedApplication) return
 
     const from = selectedApplication.status
@@ -2931,14 +3015,26 @@ function DashboardPage() {
     }
 
     try {
+      const nowIso = new Date().toISOString()
+      const patch = {
+        status: status,
+        reviewed_by: member.member_id,
+        reviewed_at: nowIso,
+        notes: applicationNotes.trim() || null,
+      }
+
+      // Capture met-with timestamp when moving into met_with.
+      if (status === 'met_with') {
+        if (options.met_with_at) {
+          patch.met_with_at = options.met_with_at
+        } else {
+          patch.met_with_at = nowIso
+        }
+      }
+
       const { error } = await supabase
         .from('applications')
-        .update({
-          status: status,
-          reviewed_by: member.member_id,
-          reviewed_at: new Date().toISOString(),
-          notes: applicationNotes.trim() || null
-        })
+        .update(patch)
         .eq('application_id', selectedApplication.application_id)
 
       if (error) {
@@ -2953,6 +3049,62 @@ function DashboardPage() {
       console.error('Error updating application:', err)
       alert('Failed to update application status.')
     }
+  }
+
+  const handleSetMetWithAt = async (applicationId, dateStr) => {
+    if (!applicationId) return
+    try {
+      let metWithAt = null
+      if (dateStr && String(dateStr).trim()) {
+        // Store at local noon to avoid DST edge cases.
+        metWithAt = new Date(`${dateStr}T12:00:00`).toISOString()
+      }
+      const { error } = await supabase
+        .from('applications')
+        .update({
+          met_with_at: metWithAt,
+          reviewed_by: member.member_id,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('application_id', applicationId)
+
+      if (error) {
+        console.error('Error saving met_with_at:', error)
+        alert('Failed to save met with date: ' + error.message)
+        return
+      }
+
+      setApplications((prev) =>
+        prev.map((a) => (a.application_id === applicationId ? { ...a, met_with_at: metWithAt } : a))
+      )
+      setSelectedApplication((prev) =>
+        prev && prev.application_id === applicationId ? { ...prev, met_with_at: metWithAt } : prev
+      )
+    } catch (err) {
+      console.error('Error saving met_with_at:', err)
+      alert('Failed to save met with date.')
+    }
+  }
+
+  const openMetWithDateModal = () => {
+    if (!selectedApplication) return
+    const existing = selectedApplication.met_with_at
+      ? String(selectedApplication.met_with_at).slice(0, 10)
+      : ''
+    const today = new Date().toISOString().slice(0, 10)
+    setMetWithDateInput(existing || today)
+    setShowMetWithDateModal(true)
+  }
+
+  const confirmMetWithDate = async () => {
+    if (!metWithDateInput) {
+      alert('Choose a date.')
+      return
+    }
+    // Store as an ISO timestamp at local noon to avoid DST edge cases.
+    const iso = new Date(`${metWithDateInput}T12:00:00`).toISOString()
+    setShowMetWithDateModal(false)
+    await handleUpdateApplicationStatus('met_with', { met_with_at: iso })
   }
 
   const handleAcceptApplication = async () => {
@@ -3030,24 +3182,26 @@ function DashboardPage() {
         setRejectionEmailSending(true)
         try {
           const { data: { session } } = await supabase.auth.getSession()
-          const resp = await fetch(
-            'https://qujzohvrbfsouakzocps.supabase.co/functions/v1/send-rejection-email',
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${session?.access_token}`,
-              },
-              body: JSON.stringify({
-                applicant_name: selectedApplication.full_name,
-                applicant_email: selectedApplication.email,
-              }),
-            }
-          )
+          const base = import.meta.env.VITE_SUPABASE_URL
+          const token = session?.access_token
+          if (!token) {
+            alert('Application was rejected, but you are not signed in; rejection email was not sent.')
+          } else {
+          const resp = await fetch(`${base}/functions/v1/send-rejection-email`, {
+            method: 'POST',
+            headers: supabaseInvokeHeaders(token),
+            body: JSON.stringify({
+              dry_run: false,
+              applicant_name: selectedApplication.full_name,
+              applicant_email: selectedApplication.email,
+              rejection_reason: rejectionEmailReason.trim() || null,
+            }),
+          })
           if (!resp.ok) {
             const errData = await resp.json().catch(() => ({}))
             console.error('Rejection email failed:', errData)
             alert('Application was rejected, but the rejection email failed to send. You may need to notify the applicant manually.')
+          }
           }
         } catch (emailErr) {
           console.error('Error sending rejection email:', emailErr)
@@ -3059,6 +3213,9 @@ function DashboardPage() {
 
       setShowRejectConfirmModal(false)
       setSendRejectionEmail(true)
+      setRejectionEmailPreview(null)
+      setRejectionEmailPreviewLoading(false)
+      setRejectionEmailReason('')
       await loadApplications()
       closeApplicationModal()
     } catch (err) {
@@ -5989,6 +6146,7 @@ function DashboardPage() {
                       <th>Review score</th>
                       <th>State</th>
                       <th>Submitted</th>
+                      {applicationFilter === 'met_with' && <th>Met with</th>}
                       <th>Status</th>
                       <th></th>
                     </tr>
@@ -6004,6 +6162,22 @@ function DashboardPage() {
                         <td>{app.numeric_grade != null && app.numeric_grade !== '' ? app.numeric_grade : '—'}</td>
                         <td>{app.state}</td>
                         <td>{formatDateLong(app.submitted_at)}</td>
+                        {applicationFilter === 'met_with' && (
+                          <td style={{ minWidth: '150px' }}>
+                            <input
+                              type="date"
+                              className="form-control form-control-sm"
+                              defaultValue={app.met_with_at ? String(app.met_with_at).slice(0, 10) : ''}
+                              key={`${app.application_id}-met-${app.met_with_at ?? ''}`}
+                              onBlur={(e) => {
+                                const next = e.target.value || ''
+                                const prev = app.met_with_at ? String(app.met_with_at).slice(0, 10) : ''
+                                if (next === prev) return
+                                handleSetMetWithAt(app.application_id, next)
+                              }}
+                            />
+                          </td>
+                        )}
                         <td>
                           <span className={`badge ${applicationStatusBadgeClass(app.status)}`}>
                             {applicationStatusLabel(app.status)}
@@ -8082,7 +8256,7 @@ function DashboardPage() {
                           <button
                             type="button"
                             className="btn btn-primary"
-                            onClick={() => handleUpdateApplicationStatus('met_with')}
+                            onClick={() => openMetWithDateModal()}
                           >
                             <i className="bi bi-people me-1"></i>Mark Met with
                           </button>
@@ -8119,6 +8293,7 @@ function DashboardPage() {
                             className="btn btn-danger"
                             onClick={() => {
                               setSendRejectionEmail(true)
+                              setRejectionEmailReason(applicationNotes)
                               setShowRejectConfirmModal(true)
                             }}
                           >
@@ -8695,22 +8870,35 @@ function DashboardPage() {
             onClick={(e) => {
               if (e.target.className.includes('modal fade show') && !rejectionEmailSending) {
                 setShowRejectConfirmModal(false)
+                setRejectionEmailPreview(null)
+                setRejectionEmailPreviewLoading(false)
+                setRejectionEmailReason('')
               }
             }}
           >
-            <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title text-danger">Reject Application</h5>
                   <button
                     type="button"
                     className="btn-close"
-                    onClick={() => setShowRejectConfirmModal(false)}
+                    onClick={() => {
+                      if (!rejectionEmailSending) {
+                        setShowRejectConfirmModal(false)
+                        setRejectionEmailPreview(null)
+                        setRejectionEmailPreviewLoading(false)
+                        setRejectionEmailReason('')
+                      }
+                    }}
                     disabled={rejectionEmailSending}
                   ></button>
                 </div>
                 <div className="modal-body">
-                  <p>Are you sure you want to reject the application from <strong>{selectedApplication.full_name}</strong>?</p>
+                  <p>
+                    Are you sure you want to reject the application from{' '}
+                    <strong>{selectedApplication.full_name}</strong>?
+                  </p>
                   <div className="form-check mt-3">
                     <input
                       className="form-check-input"
@@ -8721,15 +8909,74 @@ function DashboardPage() {
                       disabled={rejectionEmailSending}
                     />
                     <label className="form-check-label" htmlFor="sendRejectionEmailCheck">
-                      Send rejection email to <strong>{selectedApplication.email}</strong>
+                      Send rejection email to{' '}
+                      <strong>{selectedApplication.email || '—'}</strong>
                     </label>
                   </div>
+                  {sendRejectionEmail && (
+                    <div className="mt-3">
+                      <label className="form-label small text-muted" htmlFor="rejectionEmailReasonInput">
+                        Rejection reason (optional, included in email)
+                      </label>
+                      <textarea
+                        id="rejectionEmailReasonInput"
+                        className="form-control"
+                        rows="3"
+                        value={rejectionEmailReason}
+                        onChange={(e) => setRejectionEmailReason(e.target.value)}
+                        placeholder="Add a short reason the applicant can understand (optional)..."
+                        disabled={rejectionEmailSending}
+                      />
+                    </div>
+                  )}
+                  {sendRejectionEmail && (selectedApplication.email || '').trim() && (
+                    <div className="mt-3">
+                      <p className="text-muted small mb-2">
+                        Preview the message below. When you confirm, the application is marked{' '}
+                        <strong>Rejected</strong> and this email is sent via Resend.
+                      </p>
+                      {rejectionEmailPreviewLoading && (
+                        <div className="text-center py-4 text-muted">
+                          <div className="spinner-border text-primary" role="status">
+                            <span className="visually-hidden">Loading preview…</span>
+                          </div>
+                        </div>
+                      )}
+                      {!rejectionEmailPreviewLoading && rejectionEmailPreview && (
+                        <>
+                          <dl className="row small mb-3">
+                            <dt className="col-sm-2">From</dt>
+                            <dd className="col-sm-10 text-break">{rejectionEmailPreview.from}</dd>
+                            <dt className="col-sm-2">To</dt>
+                            <dd className="col-sm-10 text-break">{rejectionEmailPreview.to?.join(', ')}</dd>
+                            <dt className="col-sm-2">Cc</dt>
+                            <dd className="col-sm-10 text-break">{rejectionEmailPreview.cc?.join(', ') || '—'}</dd>
+                            <dt className="col-sm-2">Subject</dt>
+                            <dd className="col-sm-10 text-break">{rejectionEmailPreview.subject}</dd>
+                          </dl>
+                          <label className="form-label small text-muted">Preview</label>
+                          <div
+                            className="border rounded bg-light overflow-auto"
+                            style={{ maxHeight: 'min(50vh, 420px)' }}
+                            dangerouslySetInnerHTML={{ __html: rejectionEmailPreview.html }}
+                          />
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="modal-footer">
                   <button
                     type="button"
                     className="btn btn-outline-dark"
-                    onClick={() => setShowRejectConfirmModal(false)}
+                    onClick={() => {
+                      if (!rejectionEmailSending) {
+                        setShowRejectConfirmModal(false)
+                        setRejectionEmailPreview(null)
+                        setRejectionEmailPreviewLoading(false)
+                        setRejectionEmailReason('')
+                      }
+                    }}
                     disabled={rejectionEmailSending}
                   >
                     Cancel
@@ -8738,7 +8985,12 @@ function DashboardPage() {
                     type="button"
                     className="btn btn-danger"
                     onClick={() => handleRejectApplication()}
-                    disabled={rejectionEmailSending}
+                    disabled={
+                      rejectionEmailSending ||
+                      (sendRejectionEmail &&
+                        !!(selectedApplication.email || '').trim() &&
+                        (rejectionEmailPreviewLoading || !rejectionEmailPreview))
+                    }
                   >
                     {rejectionEmailSending ? (
                       <>
@@ -8748,6 +9000,58 @@ function DashboardPage() {
                     ) : (
                       <>Reject{sendRejectionEmail ? ' & Send Email' : ''}</>
                     )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1060 }}></div>
+        </>
+      )}
+
+      {/* Met With Date Modal */}
+      {showMetWithDateModal && selectedApplication && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1065 }}
+            onClick={(e) => {
+              if (e.target.className.includes('modal fade show') && !rejectionEmailSending) {
+                setShowMetWithDateModal(false)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Met with date</h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowMetWithDateModal(false)}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <p className="text-muted small mb-3">
+                    Choose the date this applicant was met with. This will set the status to <strong>Met with</strong>.
+                  </p>
+                  <label className="form-label" htmlFor="metWithDateInput">
+                    Date
+                  </label>
+                  <input
+                    id="metWithDateInput"
+                    type="date"
+                    className="form-control"
+                    value={metWithDateInput}
+                    onChange={(e) => setMetWithDateInput(e.target.value)}
+                  />
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-outline-dark" onClick={() => setShowMetWithDateModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="button" className="btn btn-primary" onClick={() => confirmMetWithDate()}>
+                    Save &amp; mark Met with
                   </button>
                 </div>
               </div>

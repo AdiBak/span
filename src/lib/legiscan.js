@@ -9,9 +9,83 @@
  * Free tier: 30,000 queries/month. Docs: https://legiscan.com/legiscan
  */
 
+import { supabase } from './supabase'
+
 const LEGISCAN_API_BASE = 'https://api.legiscan.com/'
 const CACHE_PREFIX = 'legiscan_bill_'
 const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
+const PERSON_CACHE_PREFIX = 'legiscan_person_'
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
+
+async function fetchLegiscanPersonContactViaEdge(peopleId) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token || !SUPABASE_URL) {
+    return {
+      ok: false,
+      contact: { email: '', phone: '', webmailUrl: '' },
+      error: 'missing_session',
+    }
+  }
+
+  const resp = await fetch(`${SUPABASE_URL}/functions/v1/fetch-legiscan-person-contact`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ people_id: String(peopleId) }),
+  })
+
+  const data = await resp.json().catch(() => ({}))
+  if (!resp.ok) {
+    return {
+      ok: false,
+      contact: { email: '', phone: '', webmailUrl: '' },
+      error: data?.error || 'edge_error',
+    }
+  }
+
+  const contact = data?.contact || {}
+  const normalizedContact = {
+    email: String(contact?.email || '').trim(),
+    phone: String(contact?.phone || '').replace(/\s+/g, ' ').trim(),
+    webmailUrl: String(contact?.webmailUrl || contact?.webmail_url || '').trim(),
+  }
+  return {
+    ok: Boolean(normalizedContact.email || normalizedContact.phone || normalizedContact.webmailUrl),
+    contact: normalizedContact,
+    error: null,
+  }
+}
+
+function getCachedLegiscanPersonContact(cacheKey) {
+  try {
+    const cached = sessionStorage.getItem(`${PERSON_CACHE_PREFIX}${cacheKey}`)
+    if (!cached) return null
+    const { data, timestamp } = JSON.parse(cached)
+    if (Date.now() - timestamp > CACHE_DURATION) {
+      sessionStorage.removeItem(`${PERSON_CACHE_PREFIX}${cacheKey}`)
+      return null
+    }
+    return data
+  } catch {
+    return null
+  }
+}
+
+function cacheLegiscanPersonContact(cacheKey, data) {
+  try {
+    sessionStorage.setItem(
+      `${PERSON_CACHE_PREFIX}${cacheKey}`,
+      JSON.stringify({ data, timestamp: Date.now() })
+    )
+  } catch {
+    // Ignore storage errors (quota exceeded, etc.)
+  }
+}
 
 /**
  * Call LegiScan API directly (GET with query params).
@@ -491,6 +565,64 @@ function normalizeBillTexts(texts) {
 }
 
 /**
+ * Best-effort contact fields from LegiScan sponsor / person payload (often empty on bill sponsors).
+ */
+function sponsorContactFromLegiscan(p) {
+  if (!p || typeof p !== 'object') return { email: '', phone: '', webmailUrl: '' }
+  // LegiScan `getBill` sponsors often include contact info nested under `bio.social`.
+  const bioSocial = p?.bio?.social || {}
+
+  const emailRaw =
+    p.email ||
+    p.contact_email ||
+    p.office_email ||
+    p.work_email ||
+    p.public_email ||
+    bioSocial.email ||
+    ''
+  const phoneRaw =
+    p.phone ||
+    p.phone_number ||
+    p.office_phone ||
+    p.capitol_phone ||
+    p.contact_phone ||
+    bioSocial.capitol_phone ||
+    bioSocial.district_phone ||
+    bioSocial.phone ||
+    ''
+  const webmailRaw =
+    p.webmail ||
+    p.web_mail ||
+    p.webmail_url ||
+    p.web_mail_url ||
+    p.contact_url ||
+    p.contact_form_url ||
+    p.contact_form ||
+    bioSocial.webmail ||
+    bioSocial.website ||
+    ''
+  const email = String(emailRaw).trim()
+  const phone = String(phoneRaw).replace(/\s+/g, ' ').trim()
+  const webmailUrl = String(webmailRaw).trim()
+  return { email, phone, webmailUrl }
+}
+
+function sponsorPersonIdFromLegiscan(p) {
+  if (!p || typeof p !== 'object') return null
+  return (
+    p.people_id ??
+    p.person_id ??
+    p.legiscan_people_id ??
+    p.legiscanPersonId ??
+    p.peopleId ??
+    p.personId ??
+    p.legislator_id ??
+    p.legislatorId ??
+    null
+  )
+}
+
+/**
  * Flatten sponsors object/array from getBill payload.
  */
 function normalizeBillSponsors(sponsors) {
@@ -505,14 +637,98 @@ function normalizeBillSponsors(sponsors) {
       p.committee_name ||
       ''
     if (name) {
+      const { email, phone, webmailUrl } = sponsorContactFromLegiscan(p)
+      const peopleId = sponsorPersonIdFromLegiscan(p)
       out.push({
         name,
         party: p.party || p.party_name || '',
         role: p.role || p.role_name || p.sponsor_type || '',
+        email,
+        phone,
+        webmailUrl,
+        peopleId,
       })
     }
   }
   return out
+}
+
+function extractContactFromLegiscanPerson(person) {
+  const p = person || {}
+  const email =
+    p.email ||
+    p.contact_email ||
+    p.office_email ||
+    p.work_email ||
+    p.public_email ||
+    ''
+  const phone =
+    p.phone ||
+    p.phone_number ||
+    p.office_phone ||
+    p.capitol_phone ||
+    p.contact_phone ||
+    ''
+  const webmailUrl =
+    p.webmail ||
+    p.web_mail ||
+    p.webmail_url ||
+    p.web_mail_url ||
+    p.contact_url ||
+    p.contact_form_url ||
+    p.contact_form ||
+    ''
+  return {
+    email: String(email || '').trim(),
+    phone: String(phone || '').replace(/\s+/g, ' ').trim(),
+    webmailUrl: String(webmailUrl || '').trim(),
+  }
+}
+
+async function fetchLegiscanPersonContact(peopleId) {
+  if (!peopleId) {
+    return { ok: false, contact: { email: '', phone: '', webmailUrl: '' }, error: 'missing_people_id' }
+  }
+  const cacheKey = String(peopleId)
+  const cached = getCachedLegiscanPersonContact(cacheKey)
+  if (cached) return { ok: Boolean(cached?.email || cached?.phone), contact: cached, error: null }
+
+  // Avoid browser CORS noise: use Edge proxy first.
+  try {
+    const edgeRes = await fetchLegiscanPersonContactViaEdge(peopleId)
+    if (edgeRes?.ok && (edgeRes.contact?.email || edgeRes.contact?.phone || edgeRes.contact?.webmailUrl)) {
+      cacheLegiscanPersonContact(cacheKey, edgeRes.contact)
+      return edgeRes
+    }
+    // If edge isn't configured (missing session/secret/deploy), fall back to direct API (may CORS).
+    if (edgeRes?.error && edgeRes.error !== 'missing_session') {
+      // keep going to browser attempt
+    } else if (edgeRes?.error === 'missing_session') {
+      // keep going to browser attempt
+    } else {
+      // edge returned ok:false but no explicit error; keep going
+    }
+  } catch (edgeErr) {
+    console.error('fetchLegiscanPersonContact edge error:', edgeErr)
+  }
+
+  try {
+    const data = await callLegiscanApi('getPerson', { people_id: String(peopleId) })
+    if (data?.status !== 'OK' && data?.status !== undefined) {
+      if (data?.status !== 'OK') throw new Error(`getPerson failed: ${data?.status}`)
+    }
+    const person = data?.person || data?.data?.person || data?.people || data?.person_data || data
+    const contact = extractContactFromLegiscanPerson(person)
+    cacheLegiscanPersonContact(cacheKey, contact)
+    return { ok: Boolean(contact.email || contact.phone || contact.webmailUrl), contact, error: null }
+  } catch (err) {
+    console.error('fetchLegiscanPersonContact browser error:', err)
+    return {
+      ok: false,
+      contact: { email: '', phone: '', webmailUrl: '' },
+      error: err?.message || 'getPerson_failed',
+    }
+  }
 }
 
 function rawBillStatusLabel(bill) {
@@ -657,7 +873,36 @@ export async function fetchLegiscanSponsorsForSpanBill(bill) {
   }
   const result = await fetchLegiscanBillBySearch(state, billNumber)
   if (!result.ok) return result
-  return { ok: true, sponsors: result.detail.sponsors || [], detail: result.detail }
+  const sponsors = result.detail.sponsors || []
+
+  // Best-effort: if LegiScan bill sponsor payload lacks email/phone, try getPerson().
+  const candidates = sponsors
+    .filter((s) => !(s.email || s.phone) && s.peopleId)
+    .slice(0, 20)
+
+  const meta = {
+    sponsorCount: sponsors.length,
+    peopleIdCount: sponsors.filter((s) => s.peopleId).length,
+    personLookupAttempted: 0,
+    personLookupPopulated: 0,
+    personLookupFailed: 0,
+  }
+
+  if (candidates.length > 0) {
+    for (const s of candidates) {
+      meta.personLookupAttempted++
+      const res = await fetchLegiscanPersonContact(s.peopleId)
+      if (!res?.ok) {
+        meta.personLookupFailed++
+        continue
+      }
+      if (res.contact?.email || res.contact?.phone) meta.personLookupPopulated++
+      if (res.contact?.email) s.email = res.contact.email
+      if (res.contact?.phone) s.phone = res.contact.phone
+    }
+  }
+
+  return { ok: true, sponsors, detail: result.detail, meta }
 }
 
 export async function fetchLegiscanBillBySearch(state, billNumber) {

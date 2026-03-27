@@ -273,9 +273,12 @@ function BillsPage() {
     const hasNewPdf = !!editBillPdfFile
     const hadPdf = !!(selectedBill && selectedBill.pdfExists)
     const hasDocLink = !!(googleDocLink && googleDocLink.trim())
-    const hadDocLink = !!(selectedBill && selectedBill.google_doc_link)
-    if (!hasNewPdf && !hadPdf && !hasDocLink && !hadDocLink) {
-      setBillError('Please provide either a proposal PDF or a link to an editable document (e.g. Google Doc).')
+    if (!hasDocLink) {
+      setBillError('Please provide a link to the proposal document (e.g. Google Doc).')
+      return
+    }
+    if (!hasNewPdf && !hadPdf) {
+      setBillError('Please upload a proposal PDF (or ensure one is already stored for this bill).')
       return
     }
     if (!collaborators || collaborators.length === 0) {
@@ -743,7 +746,9 @@ function BillsPage() {
                     />
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Proposal link (Google Doc or similar)</label>
+                    <label className="form-label">
+                      Proposal link (Google Doc or similar) <span className="text-danger">*</span>
+                    </label>
                     <input
                       type="url"
                       className="form-control"
@@ -751,10 +756,12 @@ function BillsPage() {
                       value={editBillForm.googleDocLink}
                       onChange={(e) => setEditBillForm({ ...editBillForm, googleDocLink: e.target.value })}
                     />
-                    <small className="text-muted">Either this or a PDF is required.</small>
+                    <small className="text-muted">Provide a link to the proposal doc so it can be edited.</small>
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Proposal PDF (New)</label>
+                    <label className="form-label">
+                      Proposal PDF <span className="text-danger">*</span>
+                    </label>
                     <input
                       type="file"
                       className="form-control"
@@ -770,7 +777,9 @@ function BillsPage() {
                         }
                       }}
                     />
-                    <small className="text-muted">Optional: Upload a new PDF to replace the existing one</small>
+                    <small className="text-muted">
+                      A PDF must be on file—upload if missing, or upload a new file to replace the existing one.
+                    </small>
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Collaborators <span className="text-danger">*</span></label>

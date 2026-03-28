@@ -6449,6 +6449,7 @@ function DashboardPage() {
                     <tr>
                       <th>Name</th>
                       <th>Email</th>
+                      <th>Age</th>
                       <th>School grade</th>
                       <th>Review score</th>
                       <th>State</th>
@@ -6465,6 +6466,7 @@ function DashboardPage() {
                         <td>
                           <a href={`mailto:${app.email}`}>{app.email}</a>
                         </td>
+                        <td>{app.age != null && app.age !== '' ? app.age : '—'}</td>
                         <td>{app.grade}</td>
                         <td>{app.numeric_grade != null && app.numeric_grade !== '' ? app.numeric_grade : '—'}</td>
                         <td>{app.state}</td>
@@ -8535,7 +8537,7 @@ function DashboardPage() {
                     </div>
                     <div className="col-md-6">
                       <strong>Age:</strong>
-                      <p>{selectedApplication.age || 'Not provided'}</p>
+                      <p>{selectedApplication.age != null && selectedApplication.age !== '' ? selectedApplication.age : 'Not provided'}</p>
                     </div>
                     <div className="col-md-6">
                       <strong>School grade:</strong>

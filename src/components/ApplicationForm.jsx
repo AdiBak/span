@@ -17,6 +17,7 @@ function ApplicationForm() {
     email: '',
     phoneNumber: '',
     fullName: '',
+    age: '',
     grade: '',
     gradeOther: '',
     school: '',
@@ -52,9 +53,16 @@ function ApplicationForm() {
     const referralValue = formData.referralSource === 'Other' ? formData.referralSourceOther : formData.referralSource
 
     // Validation
-    if (!formData.email || !formData.phoneNumber || !formData.fullName || !formData.grade || 
-        !formData.school || !formData.state || !formData.hoursPerWeek || !formData.referralSource) {
+    if (!formData.email || !formData.phoneNumber || !formData.fullName || !formData.age ||
+        !formData.grade || !formData.school || !formData.state || !formData.hoursPerWeek || !formData.referralSource) {
       setSubmitError('Please fill in all required fields.')
+      setSubmitting(false)
+      return
+    }
+
+    const ageNum = parseInt(String(formData.age).trim(), 10)
+    if (Number.isNaN(ageNum) || ageNum < 13 || ageNum > 120) {
+      setSubmitError('Please enter a valid age (13–120).')
       setSubmitting(false)
       return
     }
@@ -111,6 +119,7 @@ function ApplicationForm() {
           email: formData.email.trim().toLowerCase(),
           phone_number: formData.phoneNumber.trim(),
           full_name: formData.fullName.trim(),
+          age: ageNum,
           grade: gradeValue.trim(),
           school: formData.school.trim(),
           state: formData.state.trim(),
@@ -138,6 +147,7 @@ function ApplicationForm() {
         email: '',
         phoneNumber: '',
         fullName: '',
+        age: '',
         grade: '',
         gradeOther: '',
         school: '',
@@ -250,6 +260,26 @@ function ApplicationForm() {
                 id="fullName"
                 name="fullName"
                 value={formData.fullName}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            {/* Age */}
+            <div>
+              <label htmlFor="age" className="form-label">
+                Age <span className="text-danger">*</span>
+              </label>
+              <input
+                type="number"
+                className="form-control"
+                id="age"
+                name="age"
+                min={13}
+                max={120}
+                inputMode="numeric"
+                placeholder="e.g., 16"
+                value={formData.age}
                 onChange={handleChange}
                 required
               />

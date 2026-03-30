@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { canonicalUSStateName } from '../lib/usStateCanonical'
 import BillCard from '../components/BillCard'
 import Pagination from '../components/Pagination'
 import CollaboratorModal from '../components/CollaboratorModal'
@@ -286,11 +287,13 @@ function BillsPage() {
       return
     }
 
+    const stateStored = canonicalUSStateName(state) || state.trim()
+
     try {
       // 1. Upload new PDF if provided
       if (editBillPdfFile) {
         const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_')
-        const sanitizedState = state.replace(/[^a-zA-Z0-9]/g, '_')
+        const sanitizedState = stateStored.replace(/[^a-zA-Z0-9]/g, '_')
         const pdfPath = `${sanitizedState}/${sanitizedName}.pdf`
         
         const { error: uploadError } = await supabase.storage
@@ -309,7 +312,7 @@ function BillsPage() {
       // 2. Update bill in database
       console.log('Attempting to update bill:', selectedBill.bill_id)
       console.log('Update data:', {
-        state: state.trim(),
+        state: stateStored,
         name: name.trim(),
         position: position,
         description: description.trim(),
@@ -321,7 +324,7 @@ function BillsPage() {
       const { data, error: updateError } = await supabase
         .from('bills')
         .update({
-          state: state.trim(),
+          state: stateStored,
           name: name.trim(),
           position: position,
           description: description.trim(),
@@ -342,7 +345,7 @@ function BillsPage() {
 
       console.log('Bill updated successfully:', data)
 
-      setBillSuccess(`Bill "${state} ${name}" updated successfully!`)
+      setBillSuccess(`Bill "${stateStored} ${name}" updated successfully!`)
       await fetchData() // Refresh bills
       
       setTimeout(() => {

@@ -5,6 +5,7 @@ import RegistrationForm from '../components/RegistrationForm'
 import BillResearchPanel from '../components/BillResearchPanel'
 import BillOutreachPanel from '../components/BillOutreachPanel'
 import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
+import { billStateGroupKey, canonicalUSStateName } from '../lib/usStateCanonical'
 import './DashboardPage.css'
 
 const PDFViewer = lazy(() => import('../components/PDFViewer'))
@@ -113,6 +114,13 @@ function billAssignmentAssigneeIds(assignment) {
   return rows.map((r) => r.member_id).filter(Boolean)
 }
 
+const BILL_FORM_POSITION_VALUES = ['Support', 'Oppose', 'Support If Amended', 'Propose']
+
+function normalizeBillFormPosition(value) {
+  const v = typeof value === 'string' ? value.trim() : ''
+  return BILL_FORM_POSITION_VALUES.includes(v) ? v : 'Support'
+}
+
 /** Headers for fetch() to Supabase Edge Functions (apikey is required by the gateway). */
 function supabaseInvokeHeaders(accessToken) {
   return {
@@ -152,6 +160,8 @@ function DashboardPage() {
   const [qrPasswordError, setQrPasswordError] = useState('')
   const [verifiedPassword, setVerifiedPassword] = useState('')
   const [showBillModal, setShowBillModal] = useState(false)
+  /** When set, saving the bill links this assignment via resulting_bill_id. */
+  const [billModalSourceAssignmentId, setBillModalSourceAssignmentId] = useState(null)
   const [billForm, setBillForm] = useState({
     state: '',
     name: '',
@@ -178,6 +188,9 @@ function DashboardPage() {
     title: '',
     goal: '',
     additionalInfo: '',
+    prefillState: '',
+    prefillBillName: '',
+    prefillPosition: 'Support',
     assigneeMemberIds: [],
     dueDate: '',
     /** true = open pool; anyone with Bill permission can claim */
@@ -605,23 +618,32 @@ function DashboardPage() {
   async function checkBillPdfExists(state, name) {
     if (!state || !name) return { exists: false, url: null }
     const sanitizedName = (name || '').replace(/[^a-zA-Z0-9]/g, '_')
-    const sanitizedState = (state || '').replace(/[^a-zA-Z0-9]/g, '_')
-    const sanitizedPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
-    try {
-      const r = await fetch(sanitizedPath, { method: 'HEAD' })
-      if (r.ok) return { exists: true, url: sanitizedPath }
-    } catch {}
-    const originalPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${encodeURIComponent(state)}/${encodeURIComponent(name)}.pdf`
-    try {
-      const r = await fetch(originalPath, { method: 'HEAD' })
-      return { exists: r.ok, url: r.ok ? originalPath : null }
-    } catch {
-      return { exists: false, url: null }
+    const raw = String(state).trim()
+    const canon = canonicalUSStateName(raw)
+    const stateVariants = [...new Set([raw, canon].filter(Boolean))]
+
+    for (const s of stateVariants) {
+      const sanitizedState = s.replace(/[^a-zA-Z0-9]/g, '_')
+      const sanitizedPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
+      try {
+        const r = await fetch(sanitizedPath, { method: 'HEAD' })
+        if (r.ok) return { exists: true, url: sanitizedPath }
+      } catch {}
+      const originalPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${encodeURIComponent(s)}/${encodeURIComponent(name)}.pdf`
+      try {
+        const r = await fetch(originalPath, { method: 'HEAD' })
+        if (r.ok) return { exists: true, url: originalPath }
+      } catch {}
     }
+    return { exists: false, url: null }
   }
 
   function getBillPdfUrl(bill) {
-    return bill?.pdfUrl || (bill ? `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${(bill.state || '').replace(/[^a-zA-Z0-9]/g, '_')}/${(bill.name || '').replace(/[^a-zA-Z0-9]/g, '_')}.pdf` : null)
+    if (!bill) return null
+    if (bill.pdfUrl) return bill.pdfUrl
+    const st = canonicalUSStateName(bill.state) || bill.state || ''
+    const nm = bill.name || ''
+    return `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${st.replace(/[^a-zA-Z0-9]/g, '_')}/${nm.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
   }
 
 
@@ -2101,6 +2123,9 @@ function DashboardPage() {
       title: '',
       goal: '',
       additionalInfo: '',
+      prefillState: '',
+      prefillBillName: '',
+      prefillPosition: 'Support',
       assigneeMemberIds: [],
       dueDate: '',
       poolOpen: false,
@@ -2125,6 +2150,9 @@ function DashboardPage() {
       title: a.title || '',
       goal: a.goal || '',
       additionalInfo: a.additional_info || '',
+      prefillState: a.prefill_state || '',
+      prefillBillName: a.prefill_bill_name || '',
+      prefillPosition: normalizeBillFormPosition(a.prefill_position),
       assigneeMemberIds: billAssignmentAssigneeIds(a),
       dueDate: a.due_date ? String(a.due_date).slice(0, 10) : '',
       poolOpen: a.status === 'available',
@@ -2165,6 +2193,9 @@ function DashboardPage() {
         goal: assignBillForm.goal.trim(),
         additional_info: assignBillForm.additionalInfo?.trim() || null,
         due_date: assignBillForm.dueDate?.trim() || null,
+        prefill_state: canonicalUSStateName(assignBillForm.prefillState) || assignBillForm.prefillState?.trim() || null,
+        prefill_bill_name: assignBillForm.prefillBillName?.trim() || null,
+        prefill_position: normalizeBillFormPosition(assignBillForm.prefillPosition),
       }
       try {
         let payload
@@ -2203,6 +2234,11 @@ function DashboardPage() {
       return
     }
 
+    const prefill = {
+      prefill_state: canonicalUSStateName(assignBillForm.prefillState) || assignBillForm.prefillState?.trim() || null,
+      prefill_bill_name: assignBillForm.prefillBillName?.trim() || null,
+      prefill_position: normalizeBillFormPosition(assignBillForm.prefillPosition),
+    }
     const row = assignBillForm.poolOpen
       ? {
           title: assignBillForm.title.trim(),
@@ -2211,6 +2247,7 @@ function DashboardPage() {
           assigned_by_member_id: member.member_id,
           due_date: assignBillForm.dueDate?.trim() || null,
           status: 'available',
+          ...prefill,
         }
       : {
           title: assignBillForm.title.trim(),
@@ -2219,6 +2256,7 @@ function DashboardPage() {
           assigned_by_member_id: member.member_id,
           due_date: assignBillForm.dueDate?.trim() || null,
           status: 'not_started',
+          ...prefill,
         }
     try {
       const { data: inserted, error } = await supabase.from('bill_assignments').insert(row).select('assignment_id').single()
@@ -2276,15 +2314,77 @@ function DashboardPage() {
     await loadBillAssignments()
   }
 
+  /** Prefill and open bill upload modal; links row via billModalSourceAssignmentId on save. */
+  const openPublishBillModalFromAssignment = (a) => {
+    if (viewAsData) return
+    const ids = billAssignmentAssigneeIds(a)
+    const collaboratorNames = ids
+      .map((id) => resolveBillAssignmentMemberName(id))
+      .filter((n) => n && n !== 'Open — anyone can claim')
+
+    const descParts = [a.goal, a.additional_info].filter(Boolean)
+    const description = descParts.join('\n\n') || a.title || ''
+
+    const today = new Date().toISOString().slice(0, 10)
+    const position = normalizeBillFormPosition(a.prefill_position)
+
+    setBillModalSourceAssignmentId(a.assignment_id)
+    setBillError('')
+    setBillSuccess('')
+    setBillPdfFile(null)
+    setBillForm({
+      state: canonicalUSStateName(a.prefill_state) || (a.prefill_state || '').trim(),
+      name: ((a.prefill_bill_name || a.title) || '').trim(),
+      position,
+      description,
+      billDate: today,
+      legiscanLink: '',
+      googleDocLink: (a.deliverable_doc_link || '').trim(),
+      collaborators: collaboratorNames.length ? collaboratorNames : [],
+    })
+    setShowBillModal(true)
+  }
+
+  /** Approve assigned work and open bill upload prefilled for execs (bill is auto-approved on save). */
+  const handleExecApproveAssignment = async (a) => {
+    if (viewAsData) return
+    const { error } = await supabase
+      .from('bill_assignments')
+      .update({ status: 'approved' })
+      .eq('assignment_id', a.assignment_id)
+    if (error) {
+      alert(error.message || 'Update failed.')
+      return
+    }
+    await loadBillAssignments()
+    openPublishBillModalFromAssignment(a)
+  }
+
+  /** Approved task but publish modal was closed without saving — reopen same prefilled form. */
+  const handleReopenPublishBillFromAssignment = (a) => {
+    if (viewAsData) return
+    if (a.resulting_bill_id != null) {
+      alert('This assignment already has a linked bill. Edit the bill from Bill Management if needed.')
+      return
+    }
+    openPublishBillModalFromAssignment(a)
+  }
+
   const handleSaveAssignmentDeliverable = async (assignmentId) => {
     if (viewAsData) return
     const draft = memberDeliverableInputs[assignmentId]
     if (!draft) return
+    const doc = (draft.doc || '').trim()
+    const pdf = (draft.pdf || '').trim()
+    if (!doc || !pdf) {
+      alert('Add both a proposal doc link and a proposal PDF URL before saving.')
+      return
+    }
     const { error } = await supabase
       .from('bill_assignments')
       .update({
-        deliverable_doc_link: draft.doc?.trim() || null,
-        deliverable_pdf_url: draft.pdf?.trim() || null,
+        deliverable_doc_link: doc,
+        deliverable_pdf_url: pdf,
       })
       .eq('assignment_id', assignmentId)
     if (error) {
@@ -2299,8 +2399,8 @@ function DashboardPage() {
     const draft = memberDeliverableInputs[assignmentId] || {}
     const doc = draft.doc?.trim() || ''
     const pdf = draft.pdf?.trim() || ''
-    if (status === 'completed' && !doc && !pdf) {
-      alert('Add at least a Google Doc link or PDF URL before marking complete.')
+    if (status === 'completed' && (!doc || !pdf)) {
+      alert('Add both a proposal doc link and a proposal PDF URL before marking complete.')
       return
     }
     const payload = { status }
@@ -2339,8 +2439,14 @@ function DashboardPage() {
     await loadBillAssignments()
   }
 
+  const closeBillUploadModal = () => {
+    setShowBillModal(false)
+    setBillModalSourceAssignmentId(null)
+  }
+
   // Bill upload management
   const handleAddBill = () => {
+    setBillModalSourceAssignmentId(null)
     setBillForm({
       state: '',
       name: '',
@@ -2402,12 +2508,14 @@ function DashboardPage() {
       return
     }
 
+    const stateStored = canonicalUSStateName(state) || state.trim()
+
     try {
       // 1. Upload PDF if provided
       let pdfUploaded = true
       if (billPdfFile) {
         const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_')
-        const sanitizedState = state.replace(/[^a-zA-Z0-9]/g, '_')
+        const sanitizedState = stateStored.replace(/[^a-zA-Z0-9]/g, '_')
         const pdfPath = `${sanitizedState}/${sanitizedName}.pdf`
         
         const { error: uploadError } = await supabase.storage
@@ -2435,7 +2543,7 @@ function DashboardPage() {
       const { data: billData, error: insertError } = await supabase
         .from('bills')
         .insert([{
-          state: state.trim(),
+          state: stateStored,
           name: name.trim(),
           position: position,
           description: description.trim(),
@@ -2456,10 +2564,23 @@ function DashboardPage() {
         return
       }
 
+      const linkAssignmentId = billModalSourceAssignmentId
+      if (linkAssignmentId && billData?.bill_id) {
+        const { error: linkErr } = await supabase
+          .from('bill_assignments')
+          .update({ resulting_bill_id: billData.bill_id })
+          .eq('assignment_id', linkAssignmentId)
+        if (linkErr) {
+          console.error('Could not link assignment to bill:', linkErr)
+        }
+        setBillModalSourceAssignmentId(null)
+        await loadBillAssignments()
+      }
+
       if (billStatus === 'approved') {
-        setBillSuccess(`Bill "${state} ${name}" uploaded and approved successfully!`)
+        setBillSuccess(`Bill "${stateStored} ${name}" uploaded and approved successfully!`)
       } else {
-        setBillSuccess(`Bill "${state} ${name}" submitted for review. It will appear on the site once approved.`)
+        setBillSuccess(`Bill "${stateStored} ${name}" submitted for review. It will appear on the site once approved.`)
       }
       setBillForm({
         state: '',
@@ -2476,7 +2597,7 @@ function DashboardPage() {
       
       // Close modal after 2 seconds
       setTimeout(() => {
-        setShowBillModal(false)
+        closeBillUploadModal()
         setBillSuccess('')
       }, 2000)
     } catch (err) {
@@ -2511,11 +2632,13 @@ function DashboardPage() {
       return
     }
 
+    const stateStoredEdit = canonicalUSStateName(state) || state.trim()
+
     try {
       // 1. Upload new PDF if provided
       if (editBillPdfFile) {
         const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_')
-        const sanitizedState = state.replace(/[^a-zA-Z0-9]/g, '_')
+        const sanitizedState = stateStoredEdit.replace(/[^a-zA-Z0-9]/g, '_')
         const pdfPath = `${sanitizedState}/${sanitizedName}.pdf`
         
         const { error: uploadError } = await supabase.storage
@@ -2534,7 +2657,7 @@ function DashboardPage() {
       // 2. Update bill in database
       console.log('Attempting to update bill:', selectedBillForEdit.bill_id)
       console.log('Update data:', {
-        state: state.trim(),
+        state: stateStoredEdit,
         name: name.trim(),
         position: position,
         description: description.trim(),
@@ -2546,7 +2669,7 @@ function DashboardPage() {
       const { data, error: updateError } = await supabase
         .from('bills')
         .update({
-          state: state.trim(),
+          state: stateStoredEdit,
           name: name.trim(),
           position: position,
           description: description.trim(),
@@ -2567,7 +2690,7 @@ function DashboardPage() {
 
       console.log('Bill updated successfully:', data)
 
-      setBillSuccess(`Bill "${state} ${name}" updated successfully!`)
+      setBillSuccess(`Bill "${stateStoredEdit} ${name}" updated successfully!`)
       await loadAllBills()
       
       // If this was a review edit, approve it as modified
@@ -3972,38 +4095,12 @@ function DashboardPage() {
   const effectiveMember = viewAsData?.member ?? member
   const fullName = `${effectiveMember.first_name || ''} ${effectiveMember.last_name || ''}`.trim()
 
-  // Helper function to get state file name for icons
+  // SVG filenames under /images/states/ — align with canonical state names
   const getStateFileName = (state) => {
     if (!state) return 'United States'
-    
-    const stateMap = {
-      'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
-      'CA': 'California', 'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
-      'DC': 'District of Columbia', 'FL': 'Florida', 'GA': 'Georgia', 'HI': 'Hawaii',
-      'ID': 'Idaho', 'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa',
-      'KS': 'Kansas', 'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine',
-      'MD': 'Maryland', 'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota',
-      'MS': 'Mississippi', 'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska',
-      'NV': 'Nevada', 'NH': 'New Hampshire', 'NJ': 'New Jersey', 'NM': 'New Mexico',
-      'NY': 'New York', 'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio',
-      'OK': 'Oklahoma', 'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island',
-      'SC': 'South Carolina', 'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas',
-      'UT': 'Utah', 'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington',
-      'WV': 'West Virginia', 'WI': 'Wisconsin', 'WY': 'Wyoming', 'US': 'United States'
-    }
-    
-    const stateUpper = state.toUpperCase()
-    if (stateMap[stateUpper]) {
-      return stateMap[stateUpper]
-    }
-    
-    const fullStateNames = Object.values(stateMap)
-    const matched = fullStateNames.find(name => name.toLowerCase() === state.toLowerCase())
-    if (matched) {
-      return matched
-    }
-    
-    return state
+    const c = canonicalUSStateName(state)
+    if (c) return c
+    return String(state).trim() || 'United States'
   }
 
   const effectiveVolunteerEntries = viewAsData ? (viewAsData.volunteer_entries ?? []) : volunteerEntries
@@ -4035,10 +4132,10 @@ function DashboardPage() {
     groupedEntries[entry.member_id].push(entry)
   })
 
-  // Group bills by state
+  // Group bills by state (CA / California / california → one bucket)
   const billsByState = {}
   effectiveBills.forEach(bill => {
-    const state = bill.state || 'Unknown'
+    const state = billStateGroupKey(bill.state)
     if (!billsByState[state]) {
       billsByState[state] = []
     }
@@ -4958,10 +5055,10 @@ function DashboardPage() {
                     return bill.status === billFilter
                   })
               
-              // Group by state
+              // Group by state (canonical so abbreviations match full names)
               const billsByStateFiltered = {}
               filteredBills.forEach(bill => {
-                const state = bill.state || 'Unknown'
+                const state = billStateGroupKey(bill.state)
                 if (!billsByStateFiltered[state]) {
                   billsByStateFiltered[state] = []
                 }
@@ -5270,6 +5367,12 @@ function DashboardPage() {
                                   <span className={`badge ${billAssignmentStatusBadgeClass(a.status)}`}>
                                     {billAssignmentStatusLabel(a.status)}
                                   </span>
+                                  {a.status === 'approved' && a.resulting_bill_id != null && (
+                                    <span className="badge bg-dark text-nowrap">
+                                      <i className="bi bi-check2-circle me-1" aria-hidden="true" />
+                                      Published
+                                    </span>
+                                  )}
                                   <span className="text-muted small">
                                     {billAssignmentAssigneeIds(a).length
                                       ? resolveBillAssignmentMemberNames(billAssignmentAssigneeIds(a))
@@ -5294,6 +5397,26 @@ function DashboardPage() {
                                 <div className="mb-2 small text-muted">
                                   Assigned by {resolveBillAssignmentMemberName(a.assigned_by_member_id)}
                                 </div>
+                                {(a.prefill_state || a.prefill_bill_name || a.prefill_position) && (
+                                  <div className="mb-2 small">
+                                    <strong>Bill prefill</strong>
+                                    <span className="text-muted ms-1">
+                                      {[a.prefill_state, a.prefill_bill_name, a.prefill_position].filter(Boolean).join(' · ') ||
+                                        '—'}
+                                    </span>
+                                  </div>
+                                )}
+                                {a.resulting_bill_id != null && (
+                                  <p className="small text-success mb-2">
+                                    Linked published bill #{a.resulting_bill_id}
+                                  </p>
+                                )}
+                                {a.status === 'approved' && a.resulting_bill_id == null && (
+                                  <p className="small text-warning mb-2 mb-md-0">
+                                    No bill linked yet. If you closed the publish window without saving, use{' '}
+                                    <strong>Publish bill…</strong> below to open it again with the same prefilled info.
+                                  </p>
+                                )}
                                 {(a.deliverable_doc_link || a.deliverable_pdf_url) && (
                                   <div className="mb-3">
                                     <strong>Deliverables</strong>
@@ -5326,9 +5449,9 @@ function DashboardPage() {
                                       <button
                                         type="button"
                                         className="btn btn-sm btn-success"
-                                        onClick={() => handleExecBillAssignmentStatus(a.assignment_id, 'approved')}
+                                        onClick={() => handleExecApproveAssignment(a)}
                                       >
-                                        Approve
+                                        Approve &amp; publish bill…
                                       </button>
                                     </>
                                   )}
@@ -5336,9 +5459,18 @@ function DashboardPage() {
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-success"
-                                      onClick={() => handleExecBillAssignmentStatus(a.assignment_id, 'approved')}
+                                      onClick={() => handleExecApproveAssignment(a)}
                                     >
-                                      Approve
+                                      Approve &amp; publish bill…
+                                    </button>
+                                  )}
+                                  {a.status === 'approved' && a.resulting_bill_id == null && !viewAsData && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-dark"
+                                      onClick={() => handleReopenPublishBillFromAssignment(a)}
+                                    >
+                                      <i className="bi bi-file-earmark-plus me-1"></i>Publish bill…
                                     </button>
                                   )}
                                   {!viewAsData && (
@@ -5543,7 +5675,7 @@ function DashboardPage() {
                   </div>
                 )}
                 <p className="text-muted small mb-3">
-                  Work items assigned by the exec team. A task may be shared with several members—everyone sees the same deliverables and status. Add your Google Doc and/or PDF link, then mark complete when ready for review.
+                  Work items assigned by the exec team. A task may be shared with several members—everyone sees the same deliverables and status. Add both a proposal doc link and a proposal PDF URL, save, then mark complete when ready for review.
                 </p>
                 <div className="btn-group flex-wrap mb-3" role="group">
                   {['all', 'not_started', 'in_progress', 'completed', 'in_review', 'approved'].map((key) => {
@@ -5622,7 +5754,9 @@ function DashboardPage() {
                                   </div>
                                 )}
                                 <div className="mb-2">
-                                  <label className="form-label small mb-0">Deliverable — Google Doc or other link</label>
+                                  <label className="form-label small mb-0">
+                                    Proposal doc link <span className="text-danger">*</span>
+                                  </label>
                                   <input
                                     type="url"
                                     className="form-control form-control-sm"
@@ -5636,13 +5770,16 @@ function DashboardPage() {
                                       }))
                                     }
                                   />
+                                  <small className="text-muted">Provide a link to the proposal doc so it can be edited.</small>
                                 </div>
                                 <div className="mb-3">
-                                  <label className="form-label small mb-0">Deliverable — PDF URL (optional)</label>
+                                  <label className="form-label small mb-0">
+                                    Proposal PDF URL <span className="text-danger">*</span>
+                                  </label>
                                   <input
                                     type="url"
                                     className="form-control form-control-sm"
-                                    placeholder="https://..."
+                                    placeholder="https://drive.google.com/... or direct PDF link"
                                     value={draft.pdf}
                                     disabled={a.status === 'approved' || viewAsData}
                                     onChange={(e) =>
@@ -5652,6 +5789,7 @@ function DashboardPage() {
                                       }))
                                     }
                                   />
+                                  <small className="text-muted">Link to the PDF (e.g. shared Drive file).</small>
                                 </div>
                                 <div className="d-flex flex-wrap gap-2">
                                   {a.status !== 'approved' && !viewAsData && (
@@ -7555,21 +7693,30 @@ function DashboardPage() {
             style={{ display: 'block', zIndex: 1055 }}
             onClick={(e) => {
               if (e.target.className.includes('modal fade show')) {
-                setShowBillModal(false)
+                closeBillUploadModal()
               }
             }}
           >
             <div className="modal-dialog modal-dialog-centered modal-lg">
               <div className="modal-content">
                 <div className="modal-header">
-                  <h5 className="modal-title">Upload New Bill</h5>
+                  <h5 className="modal-title">
+                    {billModalSourceAssignmentId ? 'Publish bill (approved assignment)' : 'Upload New Bill'}
+                  </h5>
                   <button
                     type="button"
                     className="btn-close"
-                    onClick={() => setShowBillModal(false)}
+                    onClick={() => closeBillUploadModal()}
                   ></button>
                 </div>
                 <div className="modal-body">
+                  {billModalSourceAssignmentId && (
+                    <div className="alert alert-info small py-2 mb-3">
+                      This task is marked approved. Finish this form to create an <strong>approved</strong> bill (visible on the
+                      public Bills page). Assignees are pre-selected as collaborators; the doc link is prefilled from the task
+                      when available. Upload the proposal PDF file below for the site (required).
+                    </div>
+                  )}
                   <div className="mb-3">
                     <label className="form-label">State <span className="text-danger">*</span></label>
                     <input
@@ -7707,7 +7854,7 @@ function DashboardPage() {
                   <button
                     type="button"
                     className="btn btn-outline-dark"
-                    onClick={() => setShowBillModal(false)}
+                    onClick={() => closeBillUploadModal()}
                   >
                     Cancel
                   </button>
@@ -7716,7 +7863,7 @@ function DashboardPage() {
                     className="btn btn-dark"
                     onClick={handleSaveBill}
                   >
-                    Upload Bill
+                    {billModalSourceAssignmentId ? 'Save & publish bill' : 'Upload Bill'}
                   </button>
                 </div>
               </div>
@@ -8020,6 +8167,50 @@ function DashboardPage() {
                       value={assignBillForm.additionalInfo}
                       onChange={(e) => setAssignBillForm({ ...assignBillForm, additionalInfo: e.target.value })}
                     />
+                  </div>
+                  <div className="border rounded p-3 mb-3 bg-light">
+                    <label className="form-label fw-semibold">Bill prefill (optional)</label>
+                    <p className="small text-muted mb-2">
+                      When you approve this task, the bill form opens with these fields filled; assignees become collaborators.
+                    </p>
+                    <div className="row g-2">
+                      <div className="col-md-4">
+                        <label className="form-label small mb-0">State</label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="e.g. OH or Ohio"
+                          value={assignBillForm.prefillState}
+                          onChange={(e) => setAssignBillForm({ ...assignBillForm, prefillState: e.target.value })}
+                        />
+                        <span className="text-muted" style={{ fontSize: '0.7rem' }}>
+                          Saved as full name (CA → California) for grouping.
+                        </span>
+                      </div>
+                      <div className="col-md-4">
+                        <label className="form-label small mb-0">Bill name / number</label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="e.g. HB 123"
+                          value={assignBillForm.prefillBillName}
+                          onChange={(e) => setAssignBillForm({ ...assignBillForm, prefillBillName: e.target.value })}
+                        />
+                      </div>
+                      <div className="col-md-4">
+                        <label className="form-label small mb-0">SPAN position</label>
+                        <select
+                          className="form-select form-select-sm"
+                          value={assignBillForm.prefillPosition}
+                          onChange={(e) => setAssignBillForm({ ...assignBillForm, prefillPosition: e.target.value })}
+                        >
+                          <option value="Support">Support</option>
+                          <option value="Oppose">Oppose</option>
+                          <option value="Support If Amended">Support If Amended</option>
+                          <option value="Propose">Propose</option>
+                        </select>
+                      </div>
+                    </div>
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Who is this for?</label>

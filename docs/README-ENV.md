@@ -54,10 +54,7 @@ React components use `import.meta.env` to access environment variables:
 
 ### Vanilla JavaScript
 
-Vanilla JS files (login, dashboard) read from `window.__ENV__` which is injected by Vite:
-- Files: `assets/scripts/script.js`, `assets/scripts/auth.js`
-- Uses: `window.__ENV__.VITE_SUPABASE_URL` and `window.__ENV__.VITE_SUPABASE_ANON_KEY`
-- Falls back to hardcoded values if env vars are not set (for backwards compatibility)
+Some legacy scripts read `window.__ENV__` when injected at build time. Prefer always supplying real `VITE_*` values in `.env.local` (or the build environment) so the client does not rely on baked-in defaults.
 
 ## Production Deployment
 
@@ -73,10 +70,9 @@ For production (GitHub Pages, etc.):
        VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
      ```
 
-2. **Option B: Public environment variables**
-   - Since these are public anon keys (safe to expose in client-side code)
-   - You can keep the fallback values in the code for backwards compatibility
-   - Note: The anon key is already public and safe to expose in client code
+2. **Public anon key**
+   - The Supabase anon key is designed to be public; protection is via RLS
+   - Still set it via env at build time rather than duplicating it in source when possible
 
 ## Security Notes
 

@@ -71,7 +71,7 @@ Project Overview
 **Backend (`supabase/`):**
 
 - `migrations/` \- SQL migration files (run in order, all RLS policies and functions are here)  
-- `functions/` \- Edge Functions (Deno/TypeScript): `members-provision/` (member onboarding), `password-reset/` (password reset emails), `dashboard-view/` (source; deployed as `view-member-dashboard`), `send-rejection-email/` (application rejection via Resend), `send-invitation-email/` (interview invitation when marking invited; Resend, preview via `dry_run`), `send-volunteer-verification/` (volunteer hours verification PDF via Resend)
+- `functions/` \- Edge Functions (Deno/TypeScript): `members-provision/` (member onboarding), `password-reset/` (password reset emails), `dashboard-view/` (deployed as `view-member-dashboard`), `send-rejection-email/`, `send-invitation-email/` (interview invite; Resend, `dry_run` preview), `send-onboarding-schedule-email/` (onboarding call scheduling; Resend, `dry_run` preview), `send-volunteer-verification/`, `medium-otp-arm/` (Medium OTP forwarding for blog editors), plus LegiScan contact fetch where used
 
 **Exec (executive director):**
 
@@ -86,6 +86,7 @@ Project Overview
 - **Password reset email** \- Sent by `password-reset` Edge Function. Includes temporary password and login instructions. HTML template inlined in the function.  
 - **Send rejection email API:** `POST /functions/v1/send-rejection-email` with `Authorization: Bearer <session JWT>` and body `{ applicant_name, applicant_email }`. Caller must be an exec; otherwise 403\.  
 - **Send application invitation email API:** `POST /functions/v1/send-invitation-email` with `Authorization: Bearer <session JWT>` and body `{ applicant_name, applicant_email, dry_run?: boolean }`. If `dry_run: true`, returns `{ from, to, cc, subject, html }` for UI preview (no send). If omitted/false, sends via Resend and returns `{ ok, email_id }`. Default **from** `Joel Blessan <joel.blessan@spanationwide.org>`, **cc** `vishank.panchbhavi@spanationwide.org` (override with secrets `INVITATION_FROM`, `INVITATION_CC`).  
+- **Send onboarding scheduling email API:** `POST /functions/v1/send-onboarding-schedule-email` — same pattern (`dry_run` preview); used when marking an application **Onboard** (congrats + ask for two weeks’ availability for the onboarding call). Optional secrets `ONBOARDING_SCHEDULE_FROM` / `ONBOARDING_SCHEDULE_CC`; falls back to invitation from/cc.  
 - **Send volunteer verification API:** `POST /functions/v1/send-volunteer-verification` with `Authorization: Bearer <session JWT>` and body `{ member_name, member_email, pdf_base64 }`. Caller must be an exec; otherwise 403\.
 
 **PDF generation (client-side):**
@@ -248,7 +249,7 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 
 - **Never commit `.env.local`** \- it's in `.gitignore`  
 - **All SQL migrations are in `supabase/migrations/`** \- reference these for current schema/RLS  
-- **Role-based permissions replaced tiering system** \- use `volunteer`, `applications`, `bills`, `registration` booleans, not `is_executive_director` or `tier`  
+- **Role-based permissions replaced tiering system** \- use `volunteer`, `applications`, `bills`, `registration`, and **`blog`** booleans, not `is_executive_director` or `tier`  
 - **Bill position values:** 'Support', 'Oppose', 'Support If Amended', 'Propose' (not 'Proposed')  
 - **Profile images:** Stored as `{member_id}.{ext}` in `members-images` bucket  
 - **Bill PDFs:** Stored as `{state}/{bill_name}.pdf` in `proposals` bucket (sanitized filenames)
@@ -259,10 +260,13 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 
 - **Database schema:** `supabase/migrations/full_db_schema_for_ref.sql` (reference only, not meant to run)  
 - **Setup guide:** `docs/SETUP.md`  
-- **Auth provisioning docs:** `docs/auth-provisioning.md`  
-- **Ideas & suggestions:** `docs/SUGGESTIONS.md`  
-- **LegiScan timeline (bill status UI, reference):** `docs/LEGISCAN_TIMELINE_SPEC.md`
-- **Bills exec suite (phased):** `docs/BILLS_EXEC_SUITE_SPEC.md` — **Assigned work** and **Research** (SPAN + LegiScan + Compare v1) are implemented; **Outreach** (planned: **approved bills only**, target data from **LegiScan `getBill`** sponsors/history) is not built yet.  
+- **React / Vite dev:** `docs/README-REACT.md`, env vars for frontend: `docs/README-ENV.md`  
+- **Deployment (Pages + functions):** `docs/DEPLOYMENT.md`  
+- **Email HTML references (not runtime):** `docs/email-templates/`  
+- **Member onboarding / provisioning (high level):** `docs/ADDING_A_NEW_MEMBER.md`, `docs/FIRST_LOGIN_AND_REGISTRATION.md`, Edge Function `supabase/functions/members-provision/`; secrets and CLI in `docs/SETUP.md`  
+- **Ideas & suggestions:** `docs/DASHBOARD_FUNCTIONS.md`  
+- **LegiScan bill status timeline (UI):** `src/components/BillStatusTimeline.jsx` and timeline fields from `src/lib/legiscan.js` (used on public bill cards)
+- **Bills exec suite (phased):** `docs/BILLS_EXEC_SUITE_SPEC.md` — **Assigned work**, **Research** (SPAN + LegiScan + Compare), and **Outreach** (exec tab + `bill_outreach_targets`) are implemented; see spec for nuances.  
 - **Docs changelog:** `docs/DOCS_CHANGELOG.md` — updates to the guide and docs  
 - **Supabase client:** `src/lib/supabase.js`  
 - **Main app router:** `src/App.jsx`  

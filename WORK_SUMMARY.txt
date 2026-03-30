@@ -1,0 +1,777 @@
+================================================================================
+                    SPAN WEBSITE DEVELOPMENT - WORK SUMMARY
+                    Complete Overview of All Work Completed
+================================================================================
+
+This document provides a comprehensive overview of all development work completed
+for the SPAN (Students for Patient Advocacy Nationwide) website from the beginning
+of the project to the current state.
+
+================================================================================
+                            TABLE OF CONTENTS
+================================================================================
+
+0. Current Product Overview (2026) — what is live now
+1. Project Overview & Initial Setup
+2. React Migration & Modernization
+3. Bills Page Enhancements
+4. Blog Page Implementation
+5. Application Management System
+6. Member Management System
+7. Dashboard Improvements
+8. HR Reports System
+9. Role-Based Permissions Refactor
+10. UI/UX Improvements & Bug Fixes
+11. Database Migrations & Security
+12. Technical Infrastructure
+
+================================================================================
+          0. CURRENT PRODUCT OVERVIEW (2026) — WHAT IS LIVE NOW
+================================================================================
+
+This section is the up-to-date feature rundown. Older sections below are
+historical narrative; if anything conflicts, prefer this section.
+
+ORGANIZATION NAME: SPAN = Students for Patient Advocacy Nationwide.
+
+DASHBOARD & PERMISSIONS
+- Five permission flags on members: volunteer, applications, bills, registration,
+  and blog (content / Medium workflow). Execs effectively have all five.
+- Dashboard layout and section order are permission-driven (see docs/DASHBOARD_FUNCTIONS.md).
+
+BILLS — PUBLIC SITE (BillsPage)
+- Public bills list with filters, search, pagination, collaborators, LegiScan links.
+- Proposal viewing: PDF and/or Google Doc–style links as configured per bill.
+- Optional “hidden” approved bills: live in admin/submitter views but not on the public list.
+- Bill cards can show LegiScan-derived status timeline (including House/Senate rows when data allows).
+
+BILLS — DASHBOARD (EXEC & BILL MEMBERS)
+- Bill Management (execs) and Bill Submission (members with bills permission).
+- Assigned work: execs create assignments for members who have bills access; assignees
+  see “Assigned to me,” update status (e.g. in progress / completed), and submit deliverables
+  (Google Doc link and PDF URL as required by the workflow).
+- Open pool: members can claim unassigned tasks from a shared pool where enabled.
+- After exec approval, workflow supports publishing to the public bills side with prefilled
+  bill fields (PDF upload still required where applicable). US state values are normalized
+  for consistency.
+- Research (SPAN): browse internal proposal corpus with filters (state, number, keywords,
+  status), expand for detail, doc/PDF preview, collaborators.
+- Research (Legislature): search LegiScan bills; detail includes metadata, sponsors, history,
+  and readable bill text when available.
+- Compare: side-by-side SPAN proposal + LegiScan bill in one view.
+- Outreach (exec): tab for legislator/outreach tracking tied to approved bills and
+  bill_outreach_targets (refresh from LegiScan, status updates).
+
+APPLICATIONS
+- Native application form on the site (anonymous submit). Required fields include age.
+- Referral source; if “friend/classmate,” optional structured field for the friend’s name
+  (stored on the application row).
+- Pipeline statuses: pending, invited, met_with, onboard, accepted, rejected; internal
+  numeric review score optional.
+- Interview invitation: moving to Invited uses send-invitation-email (Resend), with an in-app
+  preview (dry_run) before send; from/cc configurable via Supabase secrets.
+- Onboarding scheduling: moving to Onboard uses send-onboarding-schedule-email — congrats
+  message and request for ~two weeks of availability to schedule the onboarding call
+  (detailed welcome is intended for the live call).
+- Rejection flow can send email via send-rejection-email; met_with date captured in UI.
+- Import from application into Add Member prefills member fields.
+
+VOLUNTEER HOURS
+- Members submit hours; volunteer-permission users can approve/deny and comment.
+- Database stores reviewed_by and reviewed_at; UI shows “Reviewed by” + date (and view-as
+  exec dashboard enriches reviewer names via view-member-dashboard function).
+
+MEMBERS & AUTH
+- Member create/update via dashboard; members-provision Edge Function ties Auth user,
+  email, welcome messaging (Resend in current setup — see function and docs/SETUP.md).
+- Registration form on first login; start_date can be set when registration completes.
+- Password reset and related flows via dedicated Edge Functions where applicable.
+
+MEDIUM / BLOG
+- blog permission gates a Medium OTP section on the dashboard; medium-otp-arm Edge Function
+  and optional Google Apps Script for forwarding login codes to the member’s SPAN email.
+
+EDGE FUNCTIONS (DEPLOY ALL THAT YOU USE)
+- members-provision, password-reset, dashboard-view (as view-member-dashboard),
+  send-rejection-email, send-invitation-email, send-onboarding-schedule-email,
+  send-volunteer-verification, medium-otp-arm, fetch-legiscan-person-contact (as deployed).
+
+DATABASE
+- All schema/RLS changes live under supabase/migrations/. Recent examples: volunteers
+  reviewed_by/reviewed_at; applications referral_friend_name; bill assignment and
+  outreach tables — run migrations on Supabase before relying on new columns.
+
+DOCUMENTATION IN REPO
+- docs/README.md — index of all guides; docs/README-REACT.md, docs/README-ENV.md, docs/DEPLOYMENT.md.
+- docs/SETUP.md, docs/DEVELOPMENT.md, docs/DATABASE_ARCHITECTURE.md, docs/CODEBASE_ARCHITECTURE.md,
+  docs/DASHBOARD_FUNCTIONS.md, docs/APPLYING_AND_APPLICATION_REVIEW.md, docs/DOCS_CHANGELOG.md,
+  docs/COPILOT_CONTEXT.md, and topic-specific notes (e.g. leave-and-extension-requests).
+- docs/email-templates/ — reference HTML only; production email bodies live in Edge Functions.
+- This file (WORK_SUMMARY.txt): long-form project narrative + section 0 as current snapshot.
+
+================================================================================
+                    1. PROJECT OVERVIEW & INITIAL SETUP
+================================================================================
+
+PROJECT: SPAN Website Redesign & Feature Development
+TECHNOLOGY STACK:
+- Frontend: React (Vite), HTML, CSS, JavaScript
+- Backend: Supabase (PostgreSQL, Authentication, Storage)
+- Deployment: GitHub Pages
+- Build Tool: Vite
+
+INITIAL STATE:
+- Legacy vanilla JavaScript website
+- Basic bills tracking functionality
+- Manual member management
+- Google Forms for applications
+- Limited dashboard functionality
+
+================================================================================
+                2. REACT MIGRATION & MODERNIZATION
+================================================================================
+
+OBJECTIVE: Modernize the codebase by migrating from vanilla JavaScript to React
+for better maintainability, performance, and developer experience.
+
+COMPLETED WORK:
+
+2.1 React Project Setup
+- Created Vite-based React project structure
+- Configured build system for GitHub Pages deployment
+- Set up component architecture for code reusability
+- Implemented lazy loading for performance optimization
+- Created proper routing system with App.jsx
+
+2.2 Pages Migrated to React
+- ✅ Bills Page (BillsPage.jsx)
+- ✅ Blog Page (BlogPage.jsx)
+- ✅ Directory Page (DirectoryPage.jsx)
+- ✅ Our Story Page (OurStoryPage.jsx)
+- ✅ Home Page (HomePage.jsx)
+- ✅ Login Page (LoginPage.jsx)
+- ✅ Dashboard Page (DashboardPage.jsx)
+
+2.3 Component Architecture
+Created reusable components:
+- BillCard.jsx - Individual bill display card
+- BlogCard.jsx - Blog post cards with featured article support
+- PDFViewer.jsx - Inline PDF viewer with text extraction
+- Pagination.jsx - Reusable pagination component
+- CollaboratorAvatars.jsx - Member avatar display
+- CollaboratorModal.jsx - Collaborator details modal
+- ApplicationForm.jsx - Native application form
+- RegistrationForm.jsx - Member registration form
+- Footer.jsx - Site footer component
+- Navbar.jsx - Navigation bar component
+- ImpactMap.jsx - Interactive state map
+- SchoolsCarousel.jsx - School carousel display
+- TeamSection.jsx - Team member display
+- BillsPreview.jsx - Bills preview component
+- BillsStats.jsx - Bills statistics component
+
+2.4 Build Configuration
+- Configured Vite for production builds
+- Set up proper asset handling
+- Implemented code splitting
+- Created development and production environments
+
+================================================================================
+                    3. BILLS PAGE ENHANCEMENTS
+================================================================================
+
+OBJECTIVE: Improve bills tracking functionality with better UX and new features.
+
+COMPLETED WORK:
+
+3.1 Core Functionality Maintained
+- Filtering by position (Support, Oppose, Monitor, etc.)
+- Search functionality across bill names, states, descriptions
+- Pagination (6 bills per page - optimized from 9)
+- Collaborator avatars and details
+- State flag display
+- LegiScan links integration
+
+3.2 New Features Added
+
+3.2.1 PDF Viewer Integration
+- Integrated inline PDF viewer using react-pdf library
+- Users can click "View Proposal" to see PDFs without leaving the page
+- Full-page navigation controls (previous/next page)
+- Download button for PDFs
+- Loading states and error handling
+- Supports both old (URL-encoded) and new (sanitized) file naming formats
+
+3.2.2 Keyword Extraction System
+- Automatic PDF text extraction from all pages
+- Identifies top 10 most frequent meaningful words
+- Keywords are searchable in the search bar
+- Improves discoverability of bills by content
+- Keywords cached per bill for performance
+
+3.2.3 Collaborator Search
+- Enhanced search to include collaborator names
+- Clickable collaborator avatars
+- Modal showing collaborator details and contact info
+
+3.2.4 Bill Management (Executive Directors)
+- Edit bills directly from bills page
+- Delete bills with confirmation
+- Update bill details, PDFs, and collaborators
+- State-organized bill display in dashboard
+
+3.3 UI/UX Improvements
+- Equal vertical and horizontal spacing between bill cards
+- Responsive filter buttons redesigned for mobile
+- Removed "Oppose Unless Amended" position option
+- Standardized state icon sizes
+- Improved card layout and typography
+- Better mobile responsiveness
+
+3.4 Data Improvements
+- Bills grouped by state in collapsible accordions (dashboard)
+- State flags/icons for visual organization
+- Nested accordions for individual bills
+- Federal legislation (United States) excluded from "states targeted" stat
+
+================================================================================
+                     4. BLOG PAGE IMPLEMENTATION
+================================================================================
+
+OBJECTIVE: Replace external blog integration with native React implementation.
+
+COMPLETED WORK:
+
+4.1 Medium RSS Integration
+- Fetches blog posts via RSS → JSON API
+- Proper loading and error states
+- Placeholder imagery for posts without images
+- Error handling for failed API calls
+
+4.2 Layout Features
+- Featured article prominently displayed on page 1
+- Paginated layout (5 posts per page)
+- Reuses Pagination component from Bills page
+- Clean, modern card-based design
+
+4.3 Author Integration
+- Automatically links recognized authors to SPAN directory profiles
+- Author badges with profile links
+- Writing team section rendered via React
+
+4.4 Code Quality
+- Shared pagination component
+- Reusable data model for easy updates
+- Proper error boundaries
+
+================================================================================
+                5. APPLICATION MANAGEMENT SYSTEM
+================================================================================
+
+OBJECTIVE: Replace Google Forms with native application system and provide
+executive directors with application review capabilities.
+
+COMPLETED WORK:
+
+5.1 Native Application Form
+- Replaced Google Forms with React form on homepage
+- All original fields maintained:
+  * Email, phone, name
+  * Grade, school, state
+  * Hours/week availability
+  * Referral source
+  * Additional information (later changed to essay prompt)
+- Form validation and error handling
+- Success message after submission
+- Scrollable form container
+- Single-column layout for better readability
+
+5.2 Application Form Updates
+- Removed "Age" question (redundant with grade)
+- Changed "Is there anything else..." to essay prompt:
+  "Tell us about any experience you have in policy, healthcare, advocacy, or 
+   related areas. Why are you interested in joining SPAN, and how do you see 
+   yourself contributing to our mission? Feel free to include any skills, 
+   strengths, or additional information that would help us get to know you 
+   better."
+
+5.3 Application Management Dashboard
+- View all applications with filtering:
+  * All applications
+  * Pending applications
+  * Accepted applications
+  * Rejected applications
+- View application details in modal with all information
+- Accept/Reject applications with confirmation prompts
+- Add notes to applications
+- Delete applications (for accepted/rejected ones)
+- Status badges for visual clarity
+- Clickable contact info (email, phone)
+
+5.4 Database & Security
+- Created applications table in Supabase
+- Row Level Security (RLS) policies:
+  * Anonymous users can submit applications
+  * Only members with "applications" permission can view
+  * Only members with "applications" permission can update/delete
+- Migration: allow_anonymous_application_inserts.sql
+
+5.5 Import Feature
+- "Import from Application" button in member creation modal
+- Opens modal showing all applications in a list
+- Selecting an application prefills member form with:
+  * Name, personal email, phone
+  * School, state, grade
+  * Other available fields
+- SPAN email auto-generated from name
+
+================================================================================
+                6. MEMBER MANAGEMENT SYSTEM
+================================================================================
+
+OBJECTIVE: Create comprehensive member management system with automated user
+provisioning and registration workflow.
+
+COMPLETED WORK:
+
+6.1 Member Creation System
+- Create new members directly from dashboard (executive directors only)
+- Form includes all member fields:
+  * Basic info: name, email, original_email, role
+  * Dates: start date, date of birth
+  * Location: city, state, school
+  * Contact: phone, LinkedIn, Instagram
+  * Additional: bio, notes
+  * Permissions: volunteer, applications, bills, registration (checkboxes)
+  * Active status: active/inactive member toggle
+- Automatically triggers member provisioning pipeline:
+  * Creates auth user in Supabase
+  * Generates temporary password
+  * Sends email invitation via Edge Function
+  * Sets up Cloudflare email routing
+  * Links user_id in members table
+
+6.2 Member Registration Form
+- Shows on first login if registration_complete is false
+- Pre-filled with existing member data from when they were added
+- Required fields:
+  * Name, email, phone
+  * Date of birth
+  * School, city, state
+  * Profile photo upload
+- Optional fields:
+  * Position/role
+  * LinkedIn, Instagram
+  * Additional info
+- Features:
+  * Profile photo upload to Supabase storage with validation
+  * Phone number auto-formatting as user types
+  * State abbreviation auto-uppercase conversion
+  * Blocks access to dashboard until registration is complete
+  * Automatically refreshes member data after successful registration
+
+6.3 Member Management Interface
+- Renamed "New Member Registration" to "Member Management"
+- Table view showing all members
+- Split into Active/Inactive sections (2-column layout)
+- Scrollable sections to prevent excessive page length
+- Quick action buttons for each member:
+  * Edit member info and roles
+  * Email member (mailto: link)
+  * Text member (sms: link)
+- Edit member functionality:
+  * Load existing member data into form
+  * Update any field including roles
+  * Change active/inactive status
+  * Update profile photo
+
+6.4 SPAN Email Auto-Generation
+- Format: firstname.lastname@spanationwide.org
+- Auto-generates when adding member
+- Updates as name is typed (unless manually edited)
+- Uses first letter of last name if last name exists
+
+6.5 Database Functions
+- create_member function: Handles member creation with auth user provisioning
+- update_member function: Handles member updates including roles
+- Edge Function: members-provision/index.ts
+  * Creates Supabase auth user
+  * Generates secure temporary password
+  * Sends welcome email with credentials
+  * Handles Cloudflare email routing setup
+
+================================================================================
+                    7. DASHBOARD IMPROVEMENTS
+================================================================================
+
+OBJECTIVE: Enhance dashboard functionality and user experience for all members
+and executive directors.
+
+COMPLETED WORK:
+
+7.1 "Your Info" Section Redesign
+- Modern split-card layout
+- Dark top section with key information
+- Light grid bottom section with details
+- Icons and improved typography
+- Better visual hierarchy
+
+7.2 Volunteer Hours Management
+- Submit volunteer hours with two input modes:
+  * DateTime mode: start time, end time, date
+  * Hours mode: direct hours input, date
+- View all volunteer entries
+- Executive directors can:
+  * View all members' volunteer entries
+  * Approve/reject entries
+  * Add comments to entries
+  * Delete entries
+
+7.3 Bill Management (Executive Directors)
+- Bills grouped by state in collapsible accordions
+- State flags/icons for visual organization
+- Nested accordions for individual bills
+- Edit and delete functionality for each bill
+- Upload/update PDF proposals
+- Manage collaborators
+
+7.4 Application Management
+- See all applications
+- Filter by status (All/Pending/Accepted/Rejected)
+- View application details in modal
+- Accept/Reject applications
+- Add notes to applications
+- Delete applications
+
+7.5 Member Management
+- See all members in table format
+- Split Active/Inactive views
+- Quick actions (Edit, Email, Text)
+- Create new members
+- Edit existing members
+- Import from applications
+
+7.6 Password Management
+- Change password functionality
+- Moved to bottom of dashboard (as requested)
+
+7.7 Permission-Based Access
+- Dashboard sections show/hide based on user permissions
+- Volunteer section: requires "volunteer" permission
+- Applications section: requires "applications" permission
+- Bills section: requires "bills" permission
+- Member Management: requires "registration" permission
+- HR Reports: visible to all members, status updates require all permissions
+
+================================================================================
+                    8. HR REPORTS SYSTEM
+================================================================================
+
+OBJECTIVE: Create HR complaint reporting system for members to report issues
+while protecting executive directors from viewing reports about themselves.
+
+COMPLETED WORK:
+
+8.1 HR Report Submission
+- Form available to all members in dashboard
+- Fields:
+  * Nature of complaint (text)
+  * Who it is regarding (text)
+  * When it happened (date)
+  * Additional details (text)
+- All members (including execs) can submit reports
+
+8.2 HR Report Viewing
+- Executive directors can view all reports EXCEPT those about themselves
+- Filter by status:
+  * All reports
+  * Pending
+  * Reviewed
+  * Resolved
+  * Dismissed
+- View report details in modal
+- Status badges for visual clarity
+
+8.3 HR Report Status Management
+- Only executive directors (all 4 permissions) can update status
+- Status options:
+  * Pending (default)
+  * Reviewed
+  * Resolved
+  * Dismissed
+- Status update buttons in modal
+- Real-time status updates in UI
+
+8.4 Database Implementation
+- Created hr_reports table with fields:
+  * report_id (primary key)
+  * user_id (foreign key to auth.users)
+  * nature_of_complaint (text)
+  * regarding (text)
+  * when_happened (date)
+  * additional_details (text)
+  * status (enum: pending, reviewed, resolved, dismissed)
+  * created_at, updated_at (timestamps)
+
+8.5 Security Policies
+- Members can submit their own reports
+- Members can view their own reports
+- Executive directors can view all reports EXCEPT those about themselves
+- Only executive directors (all 4 permissions) can update report status
+- Migration: create_hr_reports_table.sql
+- Migration: add_hr_reports_update_policy.sql
+
+================================================================================
+            9. ROLE-BASED PERMISSIONS REFACTOR
+================================================================================
+
+OBJECTIVE: Replace tiering system and is_executive_director field with granular
+role-based permission system.
+
+COMPLETED WORK:
+
+9.1 Database Schema Changes
+- Removed columns:
+  * is_executive_director (boolean)
+  * tier (text)
+- Added columns:
+  * volunteer (boolean) - access to volunteer hours management
+  * applications (boolean) - access to application review
+  * bills (boolean) - access to bill management
+  * registration (boolean) - access to member management
+- Migrated existing executive directors to have all 4 roles = true
+
+9.2 Permission System Logic
+- Executive Director = member with ALL 4 permissions
+- Granular permissions allow specific access:
+  * volunteer: manage and approve volunteer hours
+  * applications: review new member applications
+  * bills: create, edit, delete bills
+  * registration: manage members (create, edit, view all)
+
+9.3 Frontend Updates
+- Created hasPermission() helper function (later renamed to 
+  hasExecutiveDirectorPermissions())
+- Replaced all is_executive_director checks with role-based permission checks
+- Updated dashboard sections to check specific permissions
+- Updated BillCard component to check bills permission
+- Member management modal shows permission checkboxes
+
+9.4 Row Level Security (RLS) Updates
+- Updated all RLS policies to use new permission columns
+- Policies updated for:
+  * volunteers table
+  * bills table
+  * applications table
+  * storage.objects (proposals)
+  * hr_reports table
+- Migration: add_role_based_permissions.sql
+
+9.5 Member Management UI
+- Permission checkboxes in member creation/edit modal
+- Members cannot change their own permissions (UI enforced)
+- Visual indication of member permissions in management table
+
+================================================================================
+             10. UI/UX IMPROVEMENTS & BUG FIXES
+================================================================================
+
+COMPLETED WORK:
+
+10.1 Homepage Improvements
+- "Our Impact" section: Clicking U.S. region opens bills for United States
+- Header text color: Changed to beige color used in navbar
+- Application form improvements (see section 5.2)
+
+10.2 Bills Page Improvements
+- Equal vertical and horizontal spacing between bill cards
+- Filter buttons redesigned for mobile (better responsive design)
+- Removed "Oppose Unless Amended" position option
+- Standardized state icon sizes
+- Changed bills per page from 9 to 6
+- Federal legislation excluded from "states targeted" stat
+
+10.3 Dashboard Improvements
+- "Your Info" section redesigned (see section 7.1)
+- Password change moved to bottom
+- Active/Inactive member views in 2 columns
+- Scrollable member sections
+- Import from application button positioning fixed
+
+10.4 Bug Fixes
+- Fixed SPAN email not updating as name is typed
+- Fixed duplicate variable declaration (emailManuallyEdited)
+- Fixed HR report status not updating in UI
+- Fixed status dropdown buttons not working (replaced with individual buttons)
+- Fixed RLS policy conflicts when dropping columns
+- Fixed member dashboard not showing sections based on permissions
+- Fixed console errors and warnings
+
+10.5 Mobile Responsiveness
+- Improved filter button layout on mobile
+- Better card stacking on smaller screens
+- Responsive table layouts
+- Touch-friendly button sizes
+
+================================================================================
+           11. DATABASE MIGRATIONS & SECURITY
+================================================================================
+
+COMPLETED WORK:
+
+11.1 Migrations Created
+
+11.1.1 add_role_based_permissions.sql
+- Adds volunteer, applications, bills, registration columns
+- Migrates existing exec directors
+- Removes is_executive_director and tier columns
+- Updates create_member function
+- Creates update_member function
+- Updates all RLS policies to use new permissions
+
+11.1.2 allow_anonymous_application_inserts.sql
+- Enables RLS on applications table
+- Allows anonymous users to insert applications
+- Allows anonymous users to select their own applications
+
+11.1.3 create_hr_reports_table.sql
+- Creates hr_reports table
+- Sets up RLS policies:
+  * Members can submit reports
+  * Members can view their own reports
+  * Executive directors can view all reports (except about themselves)
+
+11.1.4 add_hr_reports_update_policy.sql
+- Creates UPDATE policy for hr_reports
+- Only executive directors (all 4 permissions) can update status
+- Includes DROP POLICY IF EXISTS for safe re-runs
+
+11.2 Security Enhancements
+- Row Level Security (RLS) enabled on all sensitive tables
+- Permission-based access control
+- Executive directors protected from viewing HR reports about themselves
+- Anonymous application submissions secured
+- Member data protected by user_id checks
+
+11.3 Database Functions
+- create_member: Handles member creation with auth provisioning
+- update_member: Handles member updates
+- Both functions bypass RLS for admin operations
+
+================================================================================
+             12. TECHNICAL INFRASTRUCTURE
+================================================================================
+
+COMPLETED WORK:
+
+12.1 Supabase Integration
+- Supabase client setup (src/lib/supabase.js)
+- Authentication system
+- Database queries and mutations
+- Storage integration for:
+  * Member profile photos
+  * Bill PDF proposals
+- Edge Functions for member provisioning
+
+12.2 Build & Deployment
+- Vite build configuration
+- GitHub Pages deployment setup
+- Production build optimization
+- Asset handling and routing
+
+12.3 Code Organization
+- Component-based architecture
+- Reusable utility functions
+- Shared constants and configurations
+- Proper separation of concerns
+
+12.4 Performance Optimizations
+- Lazy loading of components
+- Code splitting by route
+- Optimized database queries
+- Efficient state management
+
+12.5 Error Handling
+- Try-catch blocks for async operations
+- User-friendly error messages
+- Loading states for async operations
+- Error boundaries (where applicable)
+
+================================================================================
+                          KEY ACHIEVEMENTS
+================================================================================
+
+1. ✅ Complete React migration of all user-facing pages
+2. ✅ Native application system replacing Google Forms (pipeline, emails, onboarding scheduling)
+3. ✅ Comprehensive member management with automated provisioning
+4. ✅ Role-based permissions (volunteer, applications, bills, registration, blog)
+5. ✅ HR reports system with proper security
+6. ✅ Bills: public page + exec suite (assignments, pool, research, compare, outreach, publish flow)
+7. ✅ Modern blog integration with Medium RSS; Medium OTP path for blog editors
+8. ✅ Improved dashboard with permission-based access and view-as exec
+9. ✅ Volunteer hours with reviewer attribution
+10. ✅ Secure database policies and migrations
+
+================================================================================
+                         TECHNICAL METRICS
+================================================================================
+
+(Approximate — see git history and supabase/migrations for ground truth.)
+
+- Pages Migrated to React: 7+
+- Components: many (pages + shared components under src/components)
+- Database migrations: full set under supabase/migrations/
+- Edge Functions: multiple (members-provision, email flows, dashboard-view, etc.)
+- RLS: per-table policies in migrations
+
+================================================================================
+                            FILE STRUCTURE
+================================================================================
+
+src/
+├── components/          # Reusable React components
+├── pages/              # Page components
+├── lib/                # Utilities (Supabase client)
+├── App.jsx             # Router
+└── main.jsx            # Entry point
+
+supabase/
+├── migrations/         # Database migration files
+└── functions/          # Edge Functions
+
+assets/                 # Static assets (CSS, images, scripts)
+
+================================================================================
+                         DEPLOYMENT STATUS
+================================================================================
+
+- All changes committed to git
+- Production builds tested
+- Database migrations run in Supabase
+- Features deployed and functional
+- Security policies in place
+
+================================================================================
+                            CONCLUSION
+================================================================================
+
+This document represents a comprehensive transformation of the SPAN website from
+a basic vanilla JavaScript site to a modern, feature-rich React application with:
+
+- Complete member lifecycle management
+- Automated user provisioning
+- Role-based access control
+- Application review system
+- HR reporting system
+- Enhanced bills tracking
+- Modern UI/UX
+- Secure database policies
+- Mobile-responsive design
+
+All work has been completed, tested, and deployed. The codebase is now more
+maintainable, scalable, and user-friendly.
+
+================================================================================
+                          END OF DOCUMENT
+================================================================================
+

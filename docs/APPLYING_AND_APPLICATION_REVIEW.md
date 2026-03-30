@@ -1,6 +1,6 @@
 # Applying to SPAN & application review
 
-This section walks through the flow from **someone applying to join SPAN** to **reviewing and deciding** on that application. It’s the start of the lifecycle: no login required to apply; the rest happens in the dashboard.
+Description of the flow from **public application** through **dashboard review**: no login is required to apply; review and status changes happen in the dashboard for members with the applications permission.
 
 ---
 
@@ -35,7 +35,8 @@ They submit with **no account** as we don’t ask them to log in, of course. The
 From the modal they can:
 
 - **Mark Invited (email):** Opens a **preview** of the interview invitation (from Joel’s address on `spanationwide.org`, Vishank CC’d). Confirming **sends** the email via Resend and sets status to **Invited** (no separate “invite without email” path).  
-- **Update status** to **Met with** or **Onboard** (other pipeline steps before accept/reject). These are workflow steps; they don’t create an account.  
+- **Mark Met with:** Choose a date, then status becomes **met_with** (workflow only; no account yet).  
+- **Mark Onboard (email):** Same preview/send pattern as the invite, using **`send-onboarding-schedule-email`**: congratulates the applicant and asks for availability over the next two weeks to schedule the **onboarding call**; then status becomes **Onboard**.  
 - **Set a review score** (optional numeric value, e.g. 1, 2.5) stored as `numeric_grade`, separate from the applicant’s school grade.  
 - **Add or edit notes** (stored on the application) for other execs to see.  
 - **Accept:** The application is marked `accepted`, and the **Add Member** modal opens with the application’s data pre-filled so the exec can create the new member in the next step (covered in the next section).  
@@ -48,7 +49,7 @@ From the modal they can:
 
 **Data:**
 
-- **Table:** `applications`. Key columns for this flow: `status` (pending → invited → met\_with → onboard → accepted | rejected), `numeric_grade` (optional internal score), `reviewed_by` (member\_id of the exec who last updated), `reviewed_at`, `notes`. Applicant school grade is in `grade` (text). Resume filename is in `resume_file`; the modal links to the file in the **`applications-resumes`** bucket.  
+- **Table:** `applications`. Key columns for this flow: `status` (pending → invited → met\_with → onboard → accepted | rejected), `numeric_grade` (optional internal score), `reviewed_by` (member\_id of the exec who last updated), `reviewed_at`, `notes`, `met_with_at`, optional **`referral_friend_name`** (when referral source is friend/classmate). Applicant school grade is in `grade` (text). Resume filename is in `resume_file`; the modal links to the file in the **`applications-resumes`** bucket.  
 - **Who can see:** RLS allows only members with the appropriate permission to read applications; the dashboard only shows the Applications section when the member has `applications` permission.
 
 **Things to know:** Accepting an application doesn’t create the member by itself — it opens the member-creation form with the application data imported. The actual creation (Auth user \+ `members` row \+ welcome email) is the next section. Rejection email is optional and goes through an Edge Function.

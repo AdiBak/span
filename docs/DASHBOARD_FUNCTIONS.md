@@ -1,6 +1,6 @@
 # Dashboard: member experience & exec actions
 
-The dashboard is a single page (`src/pages/DashboardPage.jsx`) that shows or hides sections based on the logged-in member's permissions. Below: section order, what everyone sees, what each permission adds, and what execs get on top (they have all four permissions and a few pure exec-only actions).
+The dashboard is a single page (`src/pages/DashboardPage.jsx`) that shows or hides sections based on the logged-in member’s permissions. Below: section order, what a typical member sees, what each permission adds, and what execs get on top (execs have all five flags—volunteer, applications, bills, registration, blog—plus a few exec-only actions such as view-as).
 
 **Section order** — Main dashboard sections are in a flex container with CSS `order` so they appear in a fixed sequence. Sections that don’t apply (e.g. Bill Management for members) use `order: 99` so they stay at the end and don’t affect the visible order.
 
@@ -37,7 +37,7 @@ So by default: your profile, your volunteer entries, your requests, your reports
 ### Applications
 
 - **See:** The Applications section — full list of applications with filters (All, Pending, Invited, Met with, Onboard, Accepted, Rejected), school grade and internal **review score** column, and per-application review score in the detail modal.
-- **Do:** Open an application, **Mark Invited** (preview + send interview email via Resend, then status becomes Invited), update status to Met with / Onboard, add notes, Accept (opens Add Member with data pre-filled), or Reject (with optional rejection email).
+- **Do:** Open an application, **Mark Invited** (preview + send interview email via Resend, then status becomes Invited), **Mark Met with** (date), **Mark Onboard** (preview + send onboarding scheduling email via Resend, then status Onboard), add notes, Accept (opens Add Member with data pre-filled), or Reject (with optional rejection email).
 - For a visualization, see section 2 of applying to SPAN.
 
 ### Bills
@@ -53,7 +53,7 @@ So by default: your profile, your volunteer entries, your requests, your reports
 
 - **See:** Member Management (active and inactive member list).
 - **Do:** Add a new member, edit any member (details), set active/inactive
-- **Note:** Only execs can edit member perms (volunteer, applications, bills, registration)
+- **Note:** Only execs can edit member perms (volunteer, applications, bills, registration, blog)
 
 *Figure: member management section allows viewing member list*
 

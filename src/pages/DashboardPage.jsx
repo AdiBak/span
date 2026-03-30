@@ -134,6 +134,9 @@ function DashboardPage() {
   const [selectedEntryId, setSelectedEntryId] = useState(null)
   const [commentText, setCommentText] = useState('')
   const [passwordForm, setPasswordForm] = useState({ newPassword: '', confirmPassword: '' })
+  const [mediumOtpLoading, setMediumOtpLoading] = useState(false)
+  const [mediumOtpError, setMediumOtpError] = useState('')
+  const [mediumOtpSuccess, setMediumOtpSuccess] = useState('')
   const [passwordMessage, setPasswordMessage] = useState('')
   const [volunteerForm, setVolunteerForm] = useState({
     jobTitle: '',
@@ -240,7 +243,8 @@ function DashboardPage() {
     volunteer: false,
     applications: false,
     bills: false,
-    registration: false
+    registration: false,
+    blog: false
   })
   const [memberError, setMemberError] = useState('')
   const [memberSuccess, setMemberSuccess] = useState('')
@@ -1325,8 +1329,8 @@ function DashboardPage() {
   const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
   const effectiveSuggestions = viewAsData ? [] : (isExec ? filteredSuggestions : mySuggestions)
   const dashboardOrder = isExec
-    ? { yourInfo: 1, leaveExtension: 2, billManagement: 3, applications: 4, ideasSuggestions: 5, volunteerHours: 6, hrReports: 7, memberManagement: 8, schoolsPartners: 9, changePassword: 10, billSubmission: 99 }
-    : { yourInfo: 1, leaveExtension: 2, billSubmission: 3, volunteerHours: 4, ideasSuggestions: 5, hrReports: 6, changePassword: 7, billManagement: 99, applications: 99, memberManagement: 99, schoolsPartners: 99 }
+    ? { yourInfo: 1, leaveExtension: 2, billManagement: 3, applications: 4, ideasSuggestions: 5, volunteerHours: 6, hrReports: 7, memberManagement: 8, schoolsPartners: 9, mediumBlog: 10, changePassword: 11, billSubmission: 99 }
+    : { yourInfo: 1, leaveExtension: 2, billSubmission: 3, volunteerHours: 4, ideasSuggestions: 5, hrReports: 6, mediumBlog: 7, changePassword: 8, billManagement: 99, applications: 99, memberManagement: 99, schoolsPartners: 99 }
 
   const loadMemberData = async (skipRedirect = false) => {
     try {
@@ -1667,6 +1671,37 @@ function DashboardPage() {
       setVerifiedPassword(passwordForm.newPassword)
     } catch (err) {
       setPasswordMessage(err.message || 'Failed to update password.')
+    }
+  }
+
+  const handleMediumOtpArm = async () => {
+    setMediumOtpError('')
+    setMediumOtpSuccess('')
+    setMediumOtpLoading(true)
+    try {
+      const base = import.meta.env.VITE_SUPABASE_URL
+      const anon = import.meta.env.VITE_SUPABASE_ANON_KEY
+      if (!base || !anon) throw new Error('App configuration error.')
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('Not signed in.')
+      const res = await fetch(`${base.replace(/\/$/, '')}/functions/v1/medium-otp-arm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: anon,
+        },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not start Medium forward.')
+      setMediumOtpSuccess(
+        'Forward is armed for ~10 minutes. On Medium, sign in with spanationwide@gmail.com; the login email will be sent to your SPAN address.',
+      )
+    } catch (err) {
+      setMediumOtpError(err.message || 'Something went wrong.')
+    } finally {
+      setMediumOtpLoading(false)
     }
   }
 
@@ -2710,7 +2745,8 @@ function DashboardPage() {
       volunteer: false,
       applications: false,
       bills: false,
-      registration: false
+      registration: false,
+      blog: false
     })
     setMemberError('')
     setMemberSuccess('')
@@ -2747,7 +2783,8 @@ function DashboardPage() {
       volunteer: false,
       applications: false,
       bills: false,
-      registration: false
+      registration: false,
+      blog: false
     })
     
     setShowImportApplicationModal(false)
@@ -2870,7 +2907,8 @@ function DashboardPage() {
       volunteer: memberToEdit.volunteer === true || memberToEdit.volunteer === 'true',
       applications: memberToEdit.applications === true || memberToEdit.applications === 'true',
       bills: memberToEdit.bills === true || memberToEdit.bills === 'true',
-      registration: memberToEdit.registration === true || memberToEdit.registration === 'true'
+      registration: memberToEdit.registration === true || memberToEdit.registration === 'true',
+      blog: memberToEdit.blog === true || memberToEdit.blog === 'true'
     })
     setMemberError('')
     setMemberSuccess('')
@@ -2878,7 +2916,7 @@ function DashboardPage() {
   }
 
   const handleSaveMember = async () => {
-    const { firstName, lastName, email, originalEmail, role, active, startDate, dob, schoolName, city, state, phone, linkedin, instagram, notes, bio, volunteer, applications, bills, registration } = memberForm
+    const { firstName, lastName, email, originalEmail, role, active, startDate, dob, schoolName, city, state, phone, linkedin, instagram, notes, bio, volunteer, applications, bills, registration, blog } = memberForm
     setMemberError('')
     setMemberSuccess('')
 
@@ -2923,7 +2961,8 @@ function DashboardPage() {
           p_volunteer: volunteer,
           p_applications: applications,
           p_bills: bills,
-          p_registration: registration
+          p_registration: registration,
+          p_blog: blog
         })
 
         if (updateError) {
@@ -2955,7 +2994,8 @@ function DashboardPage() {
           p_volunteer: volunteer,
           p_applications: applications,
           p_bills: bills,
-          p_registration: registration
+          p_registration: registration,
+          p_blog: blog
         })
 
         if (insertError) {
@@ -2966,6 +3006,8 @@ function DashboardPage() {
 
         setMemberSuccess(`Member "${firstName} ${lastName}" added successfully! They will receive an email invitation to set up their account.`)
       }
+
+      const savedEditingId = editingMemberId
 
       // Reset form
       setMemberForm({
@@ -2988,7 +3030,8 @@ function DashboardPage() {
         volunteer: false,
         applications: false,
         bills: false,
-        registration: false
+        registration: false,
+        blog: false
       })
       setEditingMemberId(null)
       
@@ -2996,6 +3039,9 @@ function DashboardPage() {
       await loadAllMembers()
       if (hasPermission('registration')) {
         await loadAllMembersForManagement()
+      }
+      if (savedEditingId && member?.member_id === savedEditingId) {
+        await loadMemberData(true)
       }
       
       // Close modal after 3 seconds
@@ -5938,7 +5984,10 @@ function DashboardPage() {
                                     {memberItem.applications && <span className="badge bg-success">Applications</span>}
                                     {memberItem.bills && <span className="badge bg-info">Bills</span>}
                                     {memberItem.registration && <span className="badge bg-warning text-dark">Registration</span>}
-                                    {!memberItem.volunteer && !memberItem.applications && !memberItem.bills && !memberItem.registration && (
+                                    {(memberItem.blog === true || memberItem.blog === 'true') && (
+                                      <span className="badge bg-secondary">Blog</span>
+                                    )}
+                                    {!memberItem.volunteer && !memberItem.applications && !memberItem.bills && !memberItem.registration && !(memberItem.blog === true || memberItem.blog === 'true') && (
                                       <span className="text-muted">No permissions</span>
                                     )}
                                   </div>
@@ -6117,7 +6166,10 @@ function DashboardPage() {
                                     {memberItem.applications && <span className="badge bg-success">Applications</span>}
                                     {memberItem.bills && <span className="badge bg-info">Bills</span>}
                                     {memberItem.registration && <span className="badge bg-warning text-dark">Registration</span>}
-                                    {!memberItem.volunteer && !memberItem.applications && !memberItem.bills && !memberItem.registration && (
+                                    {(memberItem.blog === true || memberItem.blog === 'true') && (
+                                      <span className="badge bg-secondary">Blog</span>
+                                    )}
+                                    {!memberItem.volunteer && !memberItem.applications && !memberItem.bills && !memberItem.registration && !(memberItem.blog === true || memberItem.blog === 'true') && (
                                       <span className="text-muted">No permissions</span>
                                     )}
                                   </div>
@@ -6709,6 +6761,49 @@ function DashboardPage() {
             <p className="text-muted mb-0">Submit a confidential HR complaint or report using the button above. Reports are reviewed by executive directors.</p>
           )}
         </section>
+
+        {!viewAsData && member && (member.blog === true || member.blog === 'true') && (
+          <section className="mt-5" style={{ order: dashboardOrder.mediumBlog }}>
+            <h3>Medium (blog) login</h3>
+            <div className="card mt-3 shadow-sm">
+              <div className="card-body">
+                <p className="text-muted mb-3">
+                  SPAN uses one shared Medium account. Click below to tell the system to forward the next login email from that inbox to your official SPAN email, then open Medium and sign in using <strong>spanationwide@gmail.com</strong>.
+                </p>
+                <div className="d-flex flex-wrap gap-2 align-items-center">
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    disabled={mediumOtpLoading}
+                    onClick={handleMediumOtpArm}
+                  >
+                    {mediumOtpLoading ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" />
+                        Arming…
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-shield-check me-1" />
+                        I want to log in to Medium
+                      </>
+                    )}
+                  </button>
+                  <a
+                    href="https://medium.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-outline-dark"
+                  >
+                    Open Medium
+                  </a>
+                </div>
+                {mediumOtpSuccess && <div className="text-success small mt-3 mb-0">{mediumOtpSuccess}</div>}
+                {mediumOtpError && <div className="text-danger small mt-3 mb-0">{mediumOtpError}</div>}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Password Change */}
         <section className="mt-5" style={{ order: dashboardOrder.changePassword }}>
@@ -8473,6 +8568,21 @@ function DashboardPage() {
                                 Member Management
                               </label>
                               <small className="text-muted d-block">Can add/edit members and manage roles</small>
+                            </div>
+                          </div>
+                          <div className="col-md-6">
+                            <div className="form-check">
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                checked={memberForm.blog}
+                                onChange={(e) => setMemberForm({ ...memberForm, blog: e.target.checked })}
+                                id="memberBlog"
+                              />
+                              <label className="form-check-label" htmlFor="memberBlog">
+                                Medium / blog login
+                              </label>
+                              <small className="text-muted d-block">Can arm OTP forwarding from the dashboard (shared Medium account)</small>
                             </div>
                           </div>
                         </div>

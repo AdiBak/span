@@ -434,6 +434,19 @@ async function initVolunteerSystem() {
 
     if (error) return console.error(error);
 
+    const reviewedByIds = [...new Set(entries.map(e => e.reviewed_by).filter(Boolean))];
+    const reviewersMap = {};
+    if (reviewedByIds.length) {
+      const { data: revData } = await supabase
+        .from('members')
+        .select('member_id, first_name, last_name')
+        .in('member_id', reviewedByIds);
+      (revData || []).forEach(m => { reviewersMap[m.member_id] = m; });
+    }
+    entries.forEach(e => {
+      e.reviewed_by_member = e.reviewed_by ? (reviewersMap[e.reviewed_by] || null) : null;
+    });
+
     const cardContainer = document.getElementById('volunteerCards');
     cardContainer.innerHTML = '';
 
@@ -516,6 +529,14 @@ async function initVolunteerSystem() {
               <p><i class="bi bi-clock-history me-1"></i>End: ${end.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</p>
               <p><i class="bi bi-person-workspace me-1"></i>Supervisor Comment: ${entry.supervisor_comment || '-'}</p>
               <p><i class="bi bi-upload me-1"></i>Submitted: ${new Date(entry.request_submit_timestamp).toLocaleString([], {hour:'2-digit', minute:'2-digit'})}</p>
+              ${(entry.reviewed_by_member || entry.reviewed_at) && (entry.approved === 'approved' || entry.approved === 'denied') ? `
+              <div class="mb-2">
+                <strong>Reviewed by:</strong>
+                <p class="mb-0 mt-1">
+                  ${entry.reviewed_by_member ? `${entry.reviewed_by_member.first_name} ${entry.reviewed_by_member.last_name}` : 'Unknown'}
+                  ${entry.reviewed_at ? `<span class="text-muted d-block small">${formatDateLong(new Date(entry.reviewed_at))}</span>` : ''}
+                </p>
+              </div>` : ''}
               <div class="mt-2 d-flex gap-2 flex-wrap">
                 ${currentMember.tier === 1 && !isOwn ? `
                   <button class="btn btn-sm btn-outline-success approveBtn" data-id="${entry.id}"><i class="bi bi-check-circle me-1"></i>Approve</button>
@@ -586,12 +607,20 @@ async function initVolunteerSystem() {
     if (!entryId) return;
 
     if (btn.classList.contains('approveBtn')) {
-      await supabase.from('volunteers').update({ approved: 'approved' }).eq('id', entryId);
+      await supabase.from('volunteers').update({
+        approved: 'approved',
+        reviewed_by: currentMember.member_id,
+        reviewed_at: new Date().toISOString(),
+      }).eq('id', entryId);
       await loadVolunteerEntries();
     }
 
     if (btn.classList.contains('denyBtn')) {
-      await supabase.from('volunteers').update({ approved: 'denied' }).eq('id', entryId);
+      await supabase.from('volunteers').update({
+        approved: 'denied',
+        reviewed_by: currentMember.member_id,
+        reviewed_at: new Date().toISOString(),
+      }).eq('id', entryId);
       await loadVolunteerEntries();
     }
 

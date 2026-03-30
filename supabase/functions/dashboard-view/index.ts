@@ -124,9 +124,15 @@ serve(
           : Promise.resolve({ data: null, error: null }),
       ])
 
-      const volunteer_entries = volunteerRes.data ?? []
-      const leave_requests = (requestsRes.data ?? []) as Array<{ reviewed_by?: string; reviewed_by_member?: { member_id: string; first_name: string; last_name: string } | null }>
-      const reviewerIds = [...new Set(leave_requests.map((r) => r.reviewed_by).filter(Boolean))] as string[]
+      type ReviewerRow = { reviewed_by?: string; reviewed_by_member?: { member_id: string; first_name: string; last_name: string } | null }
+      const volunteer_entries = (volunteerRes.data ?? []) as Array<Record<string, unknown> & ReviewerRow>
+      const leave_requests = (requestsRes.data ?? []) as Array<Record<string, unknown> & ReviewerRow>
+      const reviewerIds = [
+        ...new Set([
+          ...leave_requests.map((r) => r.reviewed_by).filter(Boolean),
+          ...volunteer_entries.map((e) => e.reviewed_by).filter(Boolean),
+        ] as string[]),
+      ]
       if (reviewerIds.length > 0) {
         const { data: reviewersData } = await admin
           .from("members")
@@ -136,6 +142,9 @@ serve(
         reviewersData?.forEach((m) => { reviewersMap[m.member_id] = m })
         leave_requests.forEach((r) => {
           r.reviewed_by_member = r.reviewed_by ? (reviewersMap[r.reviewed_by] ?? null) : null
+        })
+        volunteer_entries.forEach((e) => {
+          e.reviewed_by_member = e.reviewed_by ? (reviewersMap[e.reviewed_by] ?? null) : null
         })
       }
       const submitted_bills = billsByMeRes.data ?? []

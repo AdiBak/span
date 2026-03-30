@@ -1641,10 +1641,12 @@ function DashboardPage() {
     // If we have entries, fetch member data separately
     if (entries && entries.length > 0) {
       const memberIds = [...new Set(entries.map(e => e.member_id))]
+      const reviewedByIds = [...new Set(entries.map(e => e.reviewed_by).filter(Boolean))]
+      const allMemberIds = [...new Set([...memberIds, ...reviewedByIds])]
       const { data: membersData, error: membersError } = await supabase
         .from('members')
         .select('member_id, first_name, last_name, image, email')
-        .in('member_id', memberIds)
+        .in('member_id', allMemberIds)
       
       if (membersError) {
         console.error('Error fetching members:', membersError)
@@ -1661,6 +1663,7 @@ function DashboardPage() {
       // Add member data to each entry
       entries.forEach(entry => {
         entry.members = membersMap[entry.member_id] || {}
+        entry.reviewed_by_member = entry.reviewed_by ? (membersMap[entry.reviewed_by] ?? null) : null
       })
     }
 
@@ -1986,12 +1989,22 @@ function DashboardPage() {
   }
 
   const handleApproveEntry = async (entryId) => {
-    await supabase.from('volunteers').update({ approved: 'approved' }).eq('id', entryId)
+    if (!member?.member_id) return
+    await supabase.from('volunteers').update({
+      approved: 'approved',
+      reviewed_by: member.member_id,
+      reviewed_at: new Date().toISOString(),
+    }).eq('id', entryId)
     await loadVolunteerEntries(member)
   }
 
   const handleDenyEntry = async (entryId) => {
-    await supabase.from('volunteers').update({ approved: 'denied' }).eq('id', entryId)
+    if (!member?.member_id) return
+    await supabase.from('volunteers').update({
+      approved: 'denied',
+      reviewed_by: member.member_id,
+      reviewed_at: new Date().toISOString(),
+    }).eq('id', entryId)
     await loadVolunteerEntries(member)
   }
 
@@ -4852,6 +4865,15 @@ function DashboardPage() {
                                   <p><i className="bi bi-clock-history me-1"></i>End: {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                   <p><i className="bi bi-person-workspace me-1"></i>Supervisor Comment: {entry.supervisor_comment || '-'}</p>
                                   <p><i className="bi bi-upload me-1"></i>Submitted: {new Date(entry.request_submit_timestamp || entry.created_at || 0).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                  {(entry.reviewed_by_member || entry.reviewed_at) && (entry.approved === 'approved' || entry.approved === 'denied') && (
+                                    <div className="mb-2">
+                                      <strong>Reviewed by:</strong>
+                                      <p className="mb-0 mt-1">
+                                        {entry.reviewed_by_member ? `${entry.reviewed_by_member.first_name} ${entry.reviewed_by_member.last_name}` : 'Unknown'}
+                                        {entry.reviewed_at && <span className="text-muted d-block small">{formatDateLong(entry.reviewed_at)}</span>}
+                                      </p>
+                                    </div>
+                                  )}
                                   {!viewAsData && (
                                   <div className="mt-2 d-flex gap-2 flex-wrap">
                                     {hasPermission('volunteer') && !isOwn && (
@@ -8858,7 +8880,12 @@ function DashboardPage() {
                     </div>
                     <div className="col-md-6">
                       <strong>How they heard about SPAN:</strong>
-                      <p>{selectedApplication.referral_source}</p>
+                      <p className="mb-0">{selectedApplication.referral_source}</p>
+                      {selectedApplication.referral_friend_name && (
+                        <p className="text-muted small mb-0 mt-1">
+                          Referred by: {selectedApplication.referral_friend_name}
+                        </p>
+                      )}
                     </div>
                     {selectedApplication.linkedin_url && (
                       <div className="col-md-6">

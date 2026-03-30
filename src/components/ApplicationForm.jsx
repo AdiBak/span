@@ -26,6 +26,7 @@ function ApplicationForm() {
     additionalInfo: '',
     referralSource: '',
     referralSourceOther: '',
+    referralFriendName: '',
     linkedinUrl: '',
     instagramUrl: ''
   })
@@ -34,12 +35,18 @@ function ApplicationForm() {
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const [submitError, setSubmitError] = useState('')
 
+  const FRIEND_REFERRAL = 'A friend or classmate'
+
   const handleChange = (e) => {
     const { name, value } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
+    setFormData(prev => {
+      const next = { ...prev, [name]: value }
+      if (name === 'referralSource') {
+        if (value !== 'Other') next.referralSourceOther = ''
+        if (value !== FRIEND_REFERRAL) next.referralFriendName = ''
+      }
+      return next
+    })
   }
 
   const handleSubmit = async (e) => {
@@ -75,6 +82,12 @@ function ApplicationForm() {
 
     if (formData.referralSource === 'Other' && !formData.referralSourceOther.trim()) {
       setSubmitError('Please specify how you heard about SPAN.')
+      setSubmitting(false)
+      return
+    }
+
+    if (formData.referralSource === FRIEND_REFERRAL && !formData.referralFriendName.trim()) {
+      setSubmitError('Please enter the name of the friend or classmate who told you about SPAN.')
       setSubmitting(false)
       return
     }
@@ -126,6 +139,8 @@ function ApplicationForm() {
           hours_per_week: formData.hoursPerWeek,
           additional_info: formData.additionalInfo.trim() || null,
           referral_source: referralValue.trim(),
+          referral_friend_name:
+            formData.referralSource === FRIEND_REFERRAL ? formData.referralFriendName.trim() : null,
           linkedin_url: formData.linkedinUrl.trim() || null,
           instagram_url: formData.instagramUrl.trim() || null,
           resume_file: resumeFileName,
@@ -156,6 +171,7 @@ function ApplicationForm() {
         additionalInfo: '',
         referralSource: '',
         referralSourceOther: '',
+        referralFriendName: '',
         linkedinUrl: '',
         instagramUrl: ''
       })
@@ -393,12 +409,32 @@ function ApplicationForm() {
                 required
               >
                 <option value="">Select option...</option>
-                <option value="A friend or classmate">A friend or classmate</option>
+                <option value={FRIEND_REFERRAL}>A friend or classmate</option>
                 <option value="Social media">Social media</option>
                 <option value="Teacher or mentor">Teacher or mentor</option>
                 <option value="Other">Other</option>
               </select>
             </div>
+
+            {/* Friend / classmate referrer name */}
+            {formData.referralSource === FRIEND_REFERRAL && (
+              <div>
+                <label htmlFor="referralFriendName" className="form-label">
+                  Who told you about SPAN? (their name) <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  className="form-control"
+                  id="referralFriendName"
+                  name="referralFriendName"
+                  value={formData.referralFriendName}
+                  onChange={handleChange}
+                  autoComplete="name"
+                  placeholder="Full name"
+                  required={formData.referralSource === FRIEND_REFERRAL}
+                />
+              </div>
+            )}
 
             {/* Referral Source Other */}
             {formData.referralSource === 'Other' && (

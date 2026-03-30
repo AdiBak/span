@@ -282,6 +282,11 @@ function DashboardPage() {
   const [inviteEmailPreviewLoading, setInviteEmailPreviewLoading] = useState(false)
   const [inviteEmailPreview, setInviteEmailPreview] = useState(null)
   const [inviteEmailSending, setInviteEmailSending] = useState(false)
+  /** Preview + send onboarding scheduling email (→ onboard) via Resend */
+  const [showOnboardScheduleEmailModal, setShowOnboardScheduleEmailModal] = useState(false)
+  const [onboardScheduleEmailPreviewLoading, setOnboardScheduleEmailPreviewLoading] = useState(false)
+  const [onboardScheduleEmailPreview, setOnboardScheduleEmailPreview] = useState(null)
+  const [onboardScheduleEmailSending, setOnboardScheduleEmailSending] = useState(false)
   const [hrReports, setHrReports] = useState([])
   const [hrReportFilter, setHrReportFilter] = useState('pending') // exec HR Reports default to Pending; 'all', 'pending', 'reviewed', 'resolved', 'dismissed'
   const [showHrReportModal, setShowHrReportModal] = useState(false)
@@ -3241,6 +3246,9 @@ function DashboardPage() {
     setShowInviteEmailModal(false)
     setInviteEmailPreview(null)
     setInviteEmailPreviewLoading(false)
+    setShowOnboardScheduleEmailModal(false)
+    setOnboardScheduleEmailPreview(null)
+    setOnboardScheduleEmailPreviewLoading(false)
   }
 
   const openInviteEmailPreviewModal = async () => {
@@ -3360,6 +3368,130 @@ function DashboardPage() {
       alert(err.message || 'Failed to send invitation email. The application was not marked as invited.')
     } finally {
       setInviteEmailSending(false)
+    }
+  }
+
+  const openOnboardScheduleEmailPreviewModal = async () => {
+    if (!selectedApplication) return
+    const email = (selectedApplication.email || '').trim()
+    if (!email) {
+      alert('This application has no email address. Add an email before sending the onboarding scheduling message.')
+      return
+    }
+    setShowOnboardScheduleEmailModal(true)
+    setOnboardScheduleEmailPreview(null)
+    setOnboardScheduleEmailPreviewLoading(true)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in.')
+        setShowOnboardScheduleEmailModal(false)
+        return
+      }
+      const base = import.meta.env.VITE_SUPABASE_URL
+      const resp = await fetch(`${base}/functions/v1/send-onboarding-schedule-email`, {
+        method: 'POST',
+        headers: supabaseInvokeHeaders(session.access_token),
+        body: JSON.stringify({
+          dry_run: true,
+          applicant_name: selectedApplication.full_name,
+          applicant_email: email,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(
+          typeof data.error === 'string' ? data.error : data.details || 'Could not load email preview'
+        )
+      }
+      setOnboardScheduleEmailPreview(data)
+    } catch (err) {
+      console.error('Onboarding schedule email preview error:', err)
+      alert(err.message || 'Could not load email preview.')
+      setShowOnboardScheduleEmailModal(false)
+    } finally {
+      setOnboardScheduleEmailPreviewLoading(false)
+    }
+  }
+
+  const handleSendOnboardingScheduleEmailAndMarkOnboard = async () => {
+    if (!selectedApplication) return
+    const email = (selectedApplication.email || '').trim()
+    if (!email) {
+      alert('This application has no email address.')
+      return
+    }
+    const from = selectedApplication.status
+    if (!isAllowedApplicationStatusTransition(from, 'onboard')) {
+      alert('This application can no longer be moved to Onboard from its current stage.')
+      setShowOnboardScheduleEmailModal(false)
+      return
+    }
+
+    setOnboardScheduleEmailSending(true)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in.')
+        return
+      }
+      const base = import.meta.env.VITE_SUPABASE_URL
+      const resp = await fetch(`${base}/functions/v1/send-onboarding-schedule-email`, {
+        method: 'POST',
+        headers: supabaseInvokeHeaders(session.access_token),
+        body: JSON.stringify({
+          dry_run: false,
+          applicant_name: selectedApplication.full_name,
+          applicant_email: email,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(
+          typeof data.error === 'string' ? data.error : data.details || 'Failed to send onboarding scheduling email'
+        )
+      }
+
+      const nowIso = new Date().toISOString()
+      const { error } = await supabase
+        .from('applications')
+        .update({
+          status: 'onboard',
+          reviewed_by: member.member_id,
+          reviewed_at: nowIso,
+          notes: applicationNotes.trim() || null,
+        })
+        .eq('application_id', selectedApplication.application_id)
+
+      if (error) {
+        console.error('Error marking onboard after email:', error)
+        alert(
+          'The email was sent, but updating the application status failed: ' +
+            error.message +
+            '\n\nPlease set the status to Onboard manually if needed.'
+        )
+        setShowOnboardScheduleEmailModal(false)
+        setOnboardScheduleEmailPreview(null)
+        await loadApplications()
+        return
+      }
+
+      await loadApplications()
+      setShowOnboardScheduleEmailModal(false)
+      setOnboardScheduleEmailPreview(null)
+      closeApplicationModal()
+    } catch (err) {
+      console.error('Send onboarding schedule email error:', err)
+      alert(
+        err.message ||
+          'Failed to send onboarding scheduling email. The application was not marked as Onboard.'
+      )
+    } finally {
+      setOnboardScheduleEmailSending(false)
     }
   }
 
@@ -9024,9 +9156,9 @@ function DashboardPage() {
                           <button
                             type="button"
                             className="btn btn-secondary"
-                            onClick={() => handleUpdateApplicationStatus('onboard')}
+                            onClick={() => openOnboardScheduleEmailPreviewModal()}
                           >
-                            <i className="bi bi-person-check me-1"></i>Mark Onboard
+                            <i className="bi bi-envelope me-1"></i>Mark Onboard (email)
                           </button>
                         )}
                         {isAllowedApplicationStatusTransition(selectedApplication.status, 'accepted') && (
@@ -9609,6 +9741,121 @@ function DashboardPage() {
                       <>
                         <i className="bi bi-send me-1"></i>
                         Send email &amp; mark Invited
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1070 }}></div>
+        </>
+      )}
+
+      {/* Onboarding scheduling email: preview + send (Resend); then mark onboard */}
+      {showOnboardScheduleEmailModal && selectedApplication && (
+        <>
+          <div
+            className="modal fade show"
+            style={{ display: 'block', zIndex: 1075 }}
+            onClick={(e) => {
+              if (
+                e.target.className.includes('modal fade show') &&
+                !onboardScheduleEmailSending &&
+                !onboardScheduleEmailPreviewLoading
+              ) {
+                setShowOnboardScheduleEmailModal(false)
+                setOnboardScheduleEmailPreview(null)
+              }
+            }}
+          >
+            <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    <i className="bi bi-envelope-check me-2"></i>
+                    Send onboarding scheduling email
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => {
+                      if (!onboardScheduleEmailSending && !onboardScheduleEmailPreviewLoading) {
+                        setShowOnboardScheduleEmailModal(false)
+                        setOnboardScheduleEmailPreview(null)
+                      }
+                    }}
+                    disabled={onboardScheduleEmailSending || onboardScheduleEmailPreviewLoading}
+                  ></button>
+                </div>
+                <div className="modal-body">
+                  <p className="text-muted small">
+                    This message congratulates the applicant and asks them to reply with availability for the next two
+                    weeks to schedule the <strong>onboarding call</strong> (welcome details are meant for the call
+                    itself). When you confirm, the email is sent via Resend and the application is set to{' '}
+                    <strong>Onboard</strong>.
+                  </p>
+                  {onboardScheduleEmailPreviewLoading && (
+                    <div className="text-center py-5 text-muted">
+                      <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Loading preview…</span>
+                      </div>
+                    </div>
+                  )}
+                  {!onboardScheduleEmailPreviewLoading && onboardScheduleEmailPreview && (
+                    <>
+                      <dl className="row small mb-3">
+                        <dt className="col-sm-2">From</dt>
+                        <dd className="col-sm-10 text-break">{onboardScheduleEmailPreview.from}</dd>
+                        <dt className="col-sm-2">To</dt>
+                        <dd className="col-sm-10 text-break">{onboardScheduleEmailPreview.to?.join(', ')}</dd>
+                        <dt className="col-sm-2">Cc</dt>
+                        <dd className="col-sm-10 text-break">{onboardScheduleEmailPreview.cc?.join(', ') || '—'}</dd>
+                        <dt className="col-sm-2">Subject</dt>
+                        <dd className="col-sm-10 text-break">{onboardScheduleEmailPreview.subject}</dd>
+                      </dl>
+                      <label className="form-label small text-muted">Preview</label>
+                      <div
+                        className="border rounded bg-light overflow-auto"
+                        style={{ maxHeight: 'min(50vh, 420px)' }}
+                        dangerouslySetInnerHTML={{ __html: onboardScheduleEmailPreview.html }}
+                      />
+                    </>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={() => {
+                      if (!onboardScheduleEmailSending) {
+                        setShowOnboardScheduleEmailModal(false)
+                        setOnboardScheduleEmailPreview(null)
+                      }
+                    }}
+                    disabled={onboardScheduleEmailSending || onboardScheduleEmailPreviewLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => handleSendOnboardingScheduleEmailAndMarkOnboard()}
+                    disabled={
+                      onboardScheduleEmailSending ||
+                      onboardScheduleEmailPreviewLoading ||
+                      !onboardScheduleEmailPreview
+                    }
+                  >
+                    {onboardScheduleEmailSending ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Sending…
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-send me-1"></i>
+                        Send email &amp; mark Onboard
                       </>
                     )}
                   </button>

@@ -1,6 +1,6 @@
 # span
 
-SPAN (Students for Patient Advocacy Nationwide) — **React**, **Vite**, **Supabase**. This repo is mostly **reference**: how the app is built, how major features behave, and where code lives. It is **not** a public “join the dev team” handbook; real URLs, keys, and access live with whoever operates the deployment.
+SPAN (Students for Patient Advocacy Nationwide) — **React**, **Vite**, **Supabase**. This repo is mostly **reference**: how the app is built, how major features behave, and where code lives. 
 
 | | |
 | :-- | :-- |

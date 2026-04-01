@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import RegistrationForm from '../components/RegistrationForm'
 import BillResearchPanel from '../components/BillResearchPanel'
 import BillOutreachPanel from '../components/BillOutreachPanel'
+import LeaveExtensionCalendar from '../components/LeaveExtensionCalendar'
 import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import { billStateGroupKey, canonicalUSStateName } from '../lib/usStateCanonical'
 import './DashboardPage.css'
@@ -304,6 +305,7 @@ function DashboardPage() {
   const [myRequests, setMyRequests] = useState([])
   const [allMemberRequests, setAllMemberRequests] = useState([])
   const [memberRequestFilter, setMemberRequestFilter] = useState('pending') // 'all' | 'pending' | 'approved' | 'declined'
+  const [leaveExtensionViewMode, setLeaveExtensionViewMode] = useState('calendar') // 'calendar' | 'table'
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [requestForm, setRequestForm] = useState({
     type: 'leave',
@@ -4664,7 +4666,23 @@ function DashboardPage() {
         <section className="mt-5" style={{ order: dashboardOrder.leaveExtension }}>
           <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <h3 className="mb-0">Leave & Extension Requests</h3>
-            <div className="d-flex align-items-center gap-2">
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <div className="btn-group" role="group" aria-label="Leave requests view">
+                <button
+                  type="button"
+                  className={`btn btn-sm ${leaveExtensionViewMode === 'calendar' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setLeaveExtensionViewMode('calendar')}
+                >
+                  <i className="bi bi-calendar3 me-1"></i>Calendar
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${leaveExtensionViewMode === 'table' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  onClick={() => setLeaveExtensionViewMode('table')}
+                >
+                  <i className="bi bi-table me-1"></i>Table
+                </button>
+              </div>
               {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
                 <div className="btn-group" role="group">
                   <button
@@ -4708,6 +4726,15 @@ function DashboardPage() {
             const isExecDisplay = !viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
             const requests = effectiveRequests
             if (requests.length > 0) {
+              if (leaveExtensionViewMode === 'calendar') {
+                return (
+                  <LeaveExtensionCalendar
+                    requests={requests}
+                    isExecDisplay={isExecDisplay}
+                    onSelectRequest={openRequestViewModal}
+                  />
+                )
+              }
               return (
                 <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
                   <table className="table table-hover">

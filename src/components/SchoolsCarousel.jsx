@@ -68,12 +68,12 @@ function SchoolsCarousel() {
         console.warn('Could not list storage files (this is okay if bucket is not publicly listable):', storageErr)
       }
 
-      // Create a map of database schools by image filename
-      const dbSchoolMap = new Map()
+      // Image filenames known to ANY school row (including inactive). If we only tracked active
+      // schools, marking a school inactive would remove its filename from this set and the
+      // storage orphan path would re-add the logo to the carousel.
       const dbImageSet = new Set()
-      activeDbSchools.forEach(school => {
+      ;(dbSchools || []).forEach(school => {
         if (school.school_image) {
-          dbSchoolMap.set(school.school_image, school)
           dbImageSet.add(school.school_image)
         }
       })

@@ -1,0 +1,209 @@
+.lec-wrap {
+  --lec-lane-height: 22px;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.lec-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.lec-toolbar h4 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #212529;
+}
+
+.lec-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.lec-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  color: #6c757d;
+  border-bottom: 1px solid #e9ecef;
+  background: #fff;
+}
+
+.lec-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.lec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.lec-dot--pending {
+  background: #ffc107;
+}
+
+.lec-dot--approved {
+  background: #198754;
+}
+
+.lec-dot--declined {
+  background: #dc3545;
+}
+
+.lec-calendar {
+  display: flex;
+  flex-direction: column;
+}
+
+.lec-dow-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-bottom: 1px solid #e9ecef;
+}
+
+.lec-dow {
+  padding: 0.4rem 0.25rem;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6c757d;
+  background: #f8f9fa;
+  border-right: 1px solid #e9ecef;
+}
+
+.lec-dow:last-child {
+  border-right: none;
+}
+
+.lec-week {
+  border-bottom: 1px solid #e9ecef;
+}
+
+.lec-week:last-child {
+  border-bottom: none;
+}
+
+.lec-week-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  min-height: 36px;
+}
+
+.lec-day-cell {
+  padding: 0.35rem 0.25rem 0.15rem;
+  border-right: 1px solid #e9ecef;
+  background: #fff;
+}
+
+.lec-day-cell:last-child {
+  border-right: none;
+}
+
+.lec-day-cell--muted {
+  background: #fafbfc;
+}
+
+.lec-day-cell--muted .lec-daynum {
+  color: #adb5bd;
+}
+
+.lec-day-cell--today {
+  box-shadow: inset 0 0 0 2px #16213e;
+}
+
+.lec-daynum {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #212529;
+}
+
+/* Event track: one row per lane; bars span columns */
+.lec-week-track {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  column-gap: 1px;
+  row-gap: 3px;
+  padding: 2px 0 8px;
+  background: #fff;
+}
+
+.lec-bar {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  margin: 0 1px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  transition: filter 0.12s ease, transform 0.12s ease;
+}
+
+.lec-bar:hover {
+  filter: brightness(0.96);
+  transform: translateY(-1px);
+  z-index: 1;
+}
+
+.lec-bar:focus-visible {
+  outline: 2px solid #16213e;
+  outline-offset: 1px;
+  z-index: 2;
+}
+
+.lec-bar-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.lec-bar--pending {
+  background: #fff3cd;
+  color: #664d03;
+  border: 1px solid #ffc107;
+}
+
+.lec-bar--approved {
+  background: #d1e7dd;
+  color: #0f5132;
+  border: 1px solid #198754;
+}
+
+.lec-bar--declined {
+  background: #f8d7da;
+  color: #842029;
+  border: 1px solid #dc3545;
+}
+
+@media (max-width: 576px) {
+  .lec-wrap {
+    --lec-lane-height: 20px;
+  }
+
+  .lec-bar {
+    font-size: 0.58rem;
+    padding: 1px 4px;
+  }
+}

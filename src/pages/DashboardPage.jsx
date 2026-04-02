@@ -288,6 +288,9 @@ function DashboardPage() {
   const [onboardScheduleEmailPreviewLoading, setOnboardScheduleEmailPreviewLoading] = useState(false)
   const [onboardScheduleEmailPreview, setOnboardScheduleEmailPreview] = useState(null)
   const [onboardScheduleEmailSending, setOnboardScheduleEmailSending] = useState(false)
+  /** Optional per-send fields for onboarding schedule email (Edge Function). */
+  const [onboardScheduleWhen2meetUrl, setOnboardScheduleWhen2meetUrl] = useState('')
+  const [onboardScheduleDeadlineNote, setOnboardScheduleDeadlineNote] = useState('')
   const [hrReports, setHrReports] = useState([])
   const [hrReportFilter, setHrReportFilter] = useState('pending') // exec HR Reports default to Pending; 'all', 'pending', 'reviewed', 'resolved', 'dismissed'
   const [showHrReportModal, setShowHrReportModal] = useState(false)
@@ -3373,15 +3376,13 @@ function DashboardPage() {
     }
   }
 
-  const openOnboardScheduleEmailPreviewModal = async () => {
+  const loadOnboardScheduleEmailPreview = async (when2meetUrlStr, deadlineNoteStr) => {
     if (!selectedApplication) return
     const email = (selectedApplication.email || '').trim()
     if (!email) {
       alert('This application has no email address. Add an email before sending the onboarding scheduling message.')
       return
     }
-    setShowOnboardScheduleEmailModal(true)
-    setOnboardScheduleEmailPreview(null)
     setOnboardScheduleEmailPreviewLoading(true)
     try {
       const {
@@ -3400,6 +3401,12 @@ function DashboardPage() {
           dry_run: true,
           applicant_name: selectedApplication.full_name,
           applicant_email: email,
+          ...(String(when2meetUrlStr || '').trim()
+            ? { when2meet_url: String(when2meetUrlStr).trim() }
+            : {}),
+          ...(String(deadlineNoteStr || '').trim()
+            ? { deadline_note: String(deadlineNoteStr).trim() }
+            : {}),
         }),
       })
       const data = await resp.json().catch(() => ({}))
@@ -3416,6 +3423,20 @@ function DashboardPage() {
     } finally {
       setOnboardScheduleEmailPreviewLoading(false)
     }
+  }
+
+  const openOnboardScheduleEmailPreviewModal = async () => {
+    if (!selectedApplication) return
+    const email = (selectedApplication.email || '').trim()
+    if (!email) {
+      alert('This application has no email address. Add an email before sending the onboarding scheduling message.')
+      return
+    }
+    setOnboardScheduleWhen2meetUrl('')
+    setOnboardScheduleDeadlineNote('')
+    setShowOnboardScheduleEmailModal(true)
+    setOnboardScheduleEmailPreview(null)
+    await loadOnboardScheduleEmailPreview('', '')
   }
 
   const handleSendOnboardingScheduleEmailAndMarkOnboard = async () => {
@@ -3449,6 +3470,12 @@ function DashboardPage() {
           dry_run: false,
           applicant_name: selectedApplication.full_name,
           applicant_email: email,
+          ...(onboardScheduleWhen2meetUrl.trim()
+            ? { when2meet_url: onboardScheduleWhen2meetUrl.trim() }
+            : {}),
+          ...(onboardScheduleDeadlineNote.trim()
+            ? { deadline_note: onboardScheduleDeadlineNote.trim() }
+            : {}),
         }),
       })
       const data = await resp.json().catch(() => ({}))
@@ -9732,8 +9759,8 @@ function DashboardPage() {
                       </dl>
                       <label className="form-label small text-muted">Preview</label>
                       <div
-                        className="border rounded bg-light overflow-auto"
-                        style={{ maxHeight: 'min(50vh, 420px)' }}
+                        className="border rounded bg-white overflow-auto"
+                        style={{ maxHeight: 'min(50vh, 420px)', backgroundColor: '#fff' }}
                         dangerouslySetInnerHTML={{ __html: inviteEmailPreview.html }}
                       />
                     </>
@@ -9817,11 +9844,57 @@ function DashboardPage() {
                 </div>
                 <div className="modal-body">
                   <p className="text-muted small">
-                    This message congratulates the applicant and asks them to reply with availability for the next two
-                    weeks to schedule the <strong>onboarding call</strong> (welcome details are meant for the call
-                    itself). When you confirm, the email is sent via Resend and the application is set to{' '}
-                    <strong>Onboard</strong>.
+                    Letterhead-style email with congratulations and scheduling instructions. Optionally add a{' '}
+                    <strong>when2meet</strong> (or other) <strong>https</strong> link and a short deadline line; leave
+                    blank to ask them to reply with availability only. Click <strong>Refresh preview</strong> after
+                    editing. Sending uses Resend and sets the application to <strong>Onboard</strong>.
                   </p>
+                  <div className="row g-2 mb-3">
+                    <div className="col-12">
+                      <label className="form-label small mb-0">Scheduling link (optional)</label>
+                      <input
+                        type="url"
+                        className="form-control form-control-sm"
+                        placeholder="https://www.when2meet.com/?…"
+                        value={onboardScheduleWhen2meetUrl}
+                        onChange={(e) => setOnboardScheduleWhen2meetUrl(e.target.value)}
+                        disabled={onboardScheduleEmailSending || onboardScheduleEmailPreviewLoading}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label small mb-0">Deadline note (optional)</label>
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder='e.g. Wednesday, April 1st'
+                        value={onboardScheduleDeadlineNote}
+                        onChange={(e) => setOnboardScheduleDeadlineNote(e.target.value)}
+                        disabled={onboardScheduleEmailSending || onboardScheduleEmailPreviewLoading}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="col-12">
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary btn-sm"
+                        onClick={() =>
+                          loadOnboardScheduleEmailPreview(
+                            onboardScheduleWhen2meetUrl,
+                            onboardScheduleDeadlineNote
+                          )
+                        }
+                        disabled={
+                          onboardScheduleEmailSending ||
+                          onboardScheduleEmailPreviewLoading ||
+                          !selectedApplication
+                        }
+                      >
+                        <i className="bi bi-arrow-clockwise me-1"></i>
+                        Refresh preview
+                      </button>
+                    </div>
+                  </div>
                   {onboardScheduleEmailPreviewLoading && (
                     <div className="text-center py-5 text-muted">
                       <div className="spinner-border text-primary" role="status">
@@ -9843,8 +9916,8 @@ function DashboardPage() {
                       </dl>
                       <label className="form-label small text-muted">Preview</label>
                       <div
-                        className="border rounded bg-light overflow-auto"
-                        style={{ maxHeight: 'min(50vh, 420px)' }}
+                        className="border rounded bg-white overflow-auto"
+                        style={{ maxHeight: 'min(50vh, 420px)', backgroundColor: '#fff' }}
                         dangerouslySetInnerHTML={{ __html: onboardScheduleEmailPreview.html }}
                       />
                     </>
@@ -9989,8 +10062,8 @@ function DashboardPage() {
                           </dl>
                           <label className="form-label small text-muted">Preview</label>
                           <div
-                            className="border rounded bg-light overflow-auto"
-                            style={{ maxHeight: 'min(50vh, 420px)' }}
+                            className="border rounded bg-white overflow-auto"
+                            style={{ maxHeight: 'min(50vh, 420px)', backgroundColor: '#fff' }}
                             dangerouslySetInnerHTML={{ __html: rejectionEmailPreview.html }}
                           />
                         </>

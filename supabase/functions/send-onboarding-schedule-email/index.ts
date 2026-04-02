@@ -47,36 +47,110 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;")
 }
 
-function buildOnboardingScheduleEmailHtml(applicantName: string): string {
+/** Only allow https scheduling links (when2meet, Calendly, etc.) */
+function sanitizeSchedulingUrl(raw: string | undefined): string | null {
+  const t = String(raw ?? "").trim()
+  if (!t) return null
+  try {
+    const u = new URL(t)
+    if (u.protocol !== "https:") return null
+    return u.toString()
+  } catch {
+    return null
+  }
+}
+
+/** Wide logo (PNG) — better support in email clients than SVG */
+const LOGO_IMG_SRC = "https://i.ibb.co/yn6WY2M2/logo-wide-dark.png"
+
+function buildOnboardingScheduleEmailHtml(
+  applicantName: string,
+  opts: { when2meetUrl: string | null; deadlineNote: string | null },
+): string {
   const name = escapeHtml(String(applicantName).trim() || "there")
   const p =
     "font-size: 15px; color: #212529; line-height: 1.65; margin: 0 0 1rem 0;"
+  const when2meetUrl = opts.when2meetUrl
+  const deadlineNote = opts.deadlineNote ? escapeHtml(opts.deadlineNote.trim()) : ""
+
+  /* After “complete the following”: when2meet link, or reply instructions if no link */
+  const when2meetBlock = when2meetUrl
+    ? `<p style="${p}">
+            <a href="${escapeHtml(when2meetUrl)}" style="color: #0b6ef9; text-decoration: underline; word-break: break-all;">${escapeHtml(when2meetUrl)}</a>
+          </p>
+          <p style="${p}">
+            If you have any trouble with the link, reply to this email with times that work for you over the <strong>next two weeks</strong>.
+          </p>`
+    : `<p style="${p}">
+            Please reply to this email with your availability over the <strong>next two weeks</strong> so we can schedule your <strong>onboarding call</strong>.
+          </p>`
+
+  /**
+   * “We would appreciate it if you could complete the following by …” + when2meet or reply.
+   * If no deadline: use “at your earliest convenience” when there’s a link; otherwise skip and only ask to reply.
+   */
+  const actionBlock = (() => {
+    if (deadlineNote) {
+      return `<p style="${p}">
+            We would appreciate it if you could complete the following by <strong>${deadlineNote}</strong>.
+          </p>
+          ${when2meetBlock}`
+    }
+    if (when2meetUrl) {
+      return `<p style="${p}">
+            We would appreciate it if you could complete the following at your earliest convenience.
+          </p>
+          ${when2meetBlock}`
+    }
+    return when2meetBlock
+  })()
+
   return `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
-        <div style="text-align: center; margin-bottom: 32px;">
-          <h1 style="color: #16213e; font-size: 24px; margin: 0;">SPAN</h1>
-          <p style="color: #6c757d; font-size: 14px; margin: 4px 0 0;">Students for Patient Advocacy Nationwide</p>
-        </div>
-        <div style="background: #ffffff; border: 1px solid #e9ecef; border-radius: 12px; padding: 32px;">
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 28px 20px 40px; color: #212529;">
+        <!-- Letterhead -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse: collapse; margin-bottom: 20px;">
+          <tr>
+            <td valign="top" style="padding: 0 12px 0 0;">
+              <img
+                src="${LOGO_IMG_SRC}"
+                alt="SPAN — Students for Patient Advocacy Nationwide"
+                width="240"
+                style="display: block; max-width: 240px; width: 100%; height: auto; border: 0;"
+              />
+            </td>
+            <td valign="top" align="right" style="font-size: 12px; color: #6c757d; line-height: 1.5;">
+              1702 Clifton Road Suite 1650<br/>
+              Atlanta, GA 30322<br/>
+              <a href="https://www.spanationwide.org" style="color: #0b6ef9; text-decoration: underline;">www.spanationwide.org</a>
+            </td>
+          </tr>
+        </table>
+        <div style="border-top: 1px solid #dee2e6; margin-bottom: 24px;"></div>
+
+        <div style="background: #ffffff;">
           <p style="font-size: 16px; color: #212529; margin: 0 0 1rem 0;">Hello ${name},</p>
           <p style="${p}">
-            Congratulations — we&apos;re excited to let you know you&apos;ve been selected to join SPAN (Students for Patient Advocacy Nationwide).
+            <strong>Congratulations!</strong>
           </p>
           <p style="${p}">
-            Please reply to this email with your availability over the <strong>next two weeks</strong> so we can schedule your <strong>onboarding call</strong>. We&apos;ll use that conversation to get you set up; more detailed welcome information will be shared during the call itself.
+            You have been accepted into <strong>Students for Patient Advocacy Nationwide (SPAN)</strong>. We were impressed with your application and interview, and would like to offer you a position in the organization.
           </p>
           <p style="${p}">
-            We look forward to onboarding you soon.
+            This is a remarkable group, and we can&apos;t wait to see what we accomplish together. You were selected because we believe in what you bring to the organization, and we&apos;re thrilled to have you on board!
           </p>
-          <p style="font-size: 15px; color: #212529; line-height: 1.65; margin: 1.25rem 0 0 0;">
-            Best,<br/>
+          ${actionBlock}
+          <p style="${p}">
+            Please feel free to be in touch if you have any questions.
+          </p>
+          <p style="font-size: 15px; color: #212529; line-height: 1.65; margin: 1.5rem 0 0 0;">
+            All the best,<br/>
             <strong>Joel Blessan</strong><br/>
             Executive Director | Students for Patient Advocacy Nationwide<br/>
-            <a href="mailto:joel.blessan@spanationwide.org" style="color: #0d6efd; text-decoration: none;">joel.blessan@spanationwide.org</a><br/>
-            <a href="tel:+18326277795" style="color: #0d6efd; text-decoration: none;">832-627-7795</a>
+            <a href="mailto:joel.blessan@spanationwide.org" style="color: #0b6ef9; text-decoration: none;">joel.blessan@spanationwide.org</a><br/>
+            <a href="tel:+18326277795" style="color: #0b6ef9; text-decoration: none;">832-627-7795</a>
           </p>
         </div>
-        <div style="text-align: center; margin-top: 24px;">
+        <div style="text-align: center; margin-top: 28px;">
           <p style="font-size: 12px; color: #adb5bd;">
             &copy; ${new Date().getFullYear()} Students for Patient Advocacy Nationwide
           </p>
@@ -99,10 +173,14 @@ serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { applicant_name, applicant_email, dry_run } = body as {
+    const { applicant_name, applicant_email, dry_run, when2meet_url, deadline_note } = body as {
       applicant_name?: string
       applicant_email?: string
       dry_run?: boolean
+      /** Optional https URL (e.g. when2meet); shown in body. Omitted → reply-with-availability only. */
+      when2meet_url?: string
+      /** Optional plain text, e.g. "Wednesday, April 1st" — escaped; shown as deadline sentence. */
+      deadline_note?: string
     }
 
     if (!applicant_name || !applicant_email) {
@@ -149,7 +227,22 @@ serve(async (req) => {
       )
     }
 
-    const html = buildOnboardingScheduleEmailHtml(String(applicant_name))
+    const safeWhen2meet = sanitizeSchedulingUrl(when2meet_url)
+    if (String(when2meet_url ?? "").trim() && !safeWhen2meet) {
+      return new Response(
+        JSON.stringify({
+          error: "when2meet_url must be a valid https:// link (e.g. when2meet or Calendly).",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      )
+    }
+    const deadlineNote =
+      typeof deadline_note === "string" && deadline_note.trim() ? deadline_note.trim() : null
+
+    const html = buildOnboardingScheduleEmailHtml(String(applicant_name), {
+      when2meetUrl: safeWhen2meet,
+      deadlineNote,
+    })
     const cc = ccList()
     const from = fromAddress()
     const previewPayload = {

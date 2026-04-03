@@ -1,135 +1,64 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import QRCode from 'qrcode'
 import RegistrationForm from '../components/RegistrationForm'
 import BillResearchPanel from '../components/BillResearchPanel'
 import BillOutreachPanel from '../components/BillOutreachPanel'
-import LeaveExtensionCalendar from '../components/LeaveExtensionCalendar'
 import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import { billStateGroupKey, canonicalUSStateName } from '../lib/usStateCanonical'
+import { isAllowedApplicationStatusTransition } from './dashboard/applications'
+import AssignBillWorkModal from './dashboard/AssignBillWorkModal'
+import BillAssignmentsExecPanel from './dashboard/BillAssignmentsExecPanel'
+import {
+  BillAssignmentsMemberAssignedPanel,
+  BillAssignmentsOpenTasksPanel,
+} from './dashboard/BillAssignmentsMemberPanels'
+import {
+  billAssignmentAssigneeIds,
+  billIdMatchingAssignmentPrefill,
+  normalizeBillFormPosition,
+} from './dashboard/billAssignments'
+import DeleteBillAssignmentModal from './dashboard/DeleteBillAssignmentModal'
+import DeleteBillModal from './dashboard/DeleteBillModal'
+import BillEditModal from './dashboard/BillEditModal'
+import BillUploadModal from './dashboard/BillUploadModal'
+import ApplicationsSection from './dashboard/ApplicationsSection'
+import VolunteerEntryModal from './dashboard/VolunteerEntryModal'
+import VolunteerHoursSection from './dashboard/VolunteerHoursSection'
+import HrReportSubmitModal from './dashboard/HrReportSubmitModal'
+import HrReportsSection from './dashboard/HrReportsSection'
+import HrReportViewModal from './dashboard/HrReportViewModal'
+import IdeasSuggestionsSection from './dashboard/IdeasSuggestionsSection'
+import LeaveExtensionSection from './dashboard/LeaveExtensionSection'
+import LeaveRequestQuickReviewModal from './dashboard/LeaveRequestQuickReviewModal'
+import LeaveRequestSubmitModal from './dashboard/LeaveRequestSubmitModal'
+import LeaveRequestViewModal from './dashboard/LeaveRequestViewModal'
+import SuggestionViewModal from './dashboard/SuggestionViewModal'
+import BillPdfPreviewModal from './dashboard/BillPdfPreviewModal'
+import DeleteVolunteerEntryModal from './dashboard/DeleteVolunteerEntryModal'
+import MemberFormModal from './dashboard/MemberFormModal'
+import MemberManagementSection from './dashboard/MemberManagementSection'
+import ExecBillManagementSection from './dashboard/ExecBillManagementSection'
+import BillSubmissionSection from './dashboard/BillSubmissionSection'
+import ApplicationViewModal from './dashboard/ApplicationViewModal'
+import ImportApplicationModal from './dashboard/ImportApplicationModal'
+import DeleteApplicationConfirmModal from './dashboard/DeleteApplicationConfirmModal'
+import ApplicationInviteEmailPreviewModal from './dashboard/ApplicationInviteEmailPreviewModal'
+import ApplicationOnboardScheduleEmailPreviewModal from './dashboard/ApplicationOnboardScheduleEmailPreviewModal'
+import ApplicationRejectConfirmModal from './dashboard/ApplicationRejectConfirmModal'
+import ApplicationMetWithDateModal from './dashboard/ApplicationMetWithDateModal'
+import VolunteerVerificationModal from './dashboard/VolunteerVerificationModal'
+import PartnerFormModal from './dashboard/PartnerFormModal'
+import SchoolFormModal from './dashboard/SchoolFormModal'
+import SpanCardPasswordModal from './dashboard/SpanCardPasswordModal'
+import VolunteerSupervisorCommentModal from './dashboard/VolunteerSupervisorCommentModal'
+import {
+  IMAGE_BASE_URL,
+  PARTNERS_IMAGES_BASE_URL,
+  SCHOOLS_IMAGES_BASE_URL,
+} from './dashboard/constants'
+import { supabaseInvokeHeaders } from './dashboard/supabaseInvoke'
 import './DashboardPage.css'
-
-const PDFViewer = lazy(() => import('../components/PDFViewer'))
-
-const IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
-
-/** Application pipeline status labels (DB values: pending, invited, met_with, onboard, accepted, rejected) */
-const APPLICATION_STATUS_LABELS = {
-  pending: 'Pending',
-  invited: 'Invited',
-  met_with: 'Met with',
-  onboard: 'Onboard',
-  accepted: 'Accepted',
-  rejected: 'Rejected',
-}
-
-function applicationStatusLabel(status) {
-  return APPLICATION_STATUS_LABELS[status] || (status ? status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ') : '')
-}
-
-function applicationStatusBadgeClass(status) {
-  switch (status) {
-    case 'pending':
-      return 'bg-warning text-dark'
-    case 'invited':
-      return 'bg-info'
-    case 'met_with':
-      return 'bg-primary'
-    case 'onboard':
-      return 'bg-secondary'
-    case 'accepted':
-      return 'bg-success'
-    case 'rejected':
-      return 'bg-danger'
-    default:
-      return 'bg-secondary'
-  }
-}
-
-function isApplicationPipelineStatus(status) {
-  return ['pending', 'invited', 'met_with', 'onboard'].includes(status)
-}
-
-/** Forward-only pipeline before terminal accepted/rejected (no going back to earlier stages). */
-const APPLICATION_PIPELINE_ORDER = ['pending', 'invited', 'met_with', 'onboard']
-
-function applicationPipelineRank(status) {
-  const i = APPLICATION_PIPELINE_ORDER.indexOf(status)
-  return i >= 0 ? i : -1
-}
-
-/**
- * Whether an exec may move an application from `fromStatus` to `toStatus`.
- * Pipeline moves must strictly advance (skipping stages is OK). Reject only from pipeline stages.
- * Reset to `pending` is handled separately (accepted/rejected only).
- */
-function isAllowedApplicationStatusTransition(fromStatus, toStatus) {
-  if (toStatus === 'rejected') {
-    return APPLICATION_PIPELINE_ORDER.includes(fromStatus)
-  }
-  if (toStatus === 'accepted') {
-    return applicationPipelineRank(fromStatus) >= 0
-  }
-  const fromR = applicationPipelineRank(fromStatus)
-  const toR = applicationPipelineRank(toStatus)
-  if (fromR < 0 || toR < 0) return false
-  return toR > fromR
-}
-
-const BILL_ASSIGNMENT_STATUS_LABELS = {
-  available: 'Open',
-  not_started: 'Not started',
-  in_progress: 'In progress',
-  completed: 'Completed',
-  in_review: 'In review',
-  approved: 'Approved',
-}
-
-function billAssignmentStatusLabel(status) {
-  return BILL_ASSIGNMENT_STATUS_LABELS[status] || (status || '')
-}
-
-function billAssignmentStatusBadgeClass(status) {
-  switch (status) {
-    case 'available':
-      return 'bg-info text-dark'
-    case 'not_started':
-      return 'bg-secondary'
-    case 'in_progress':
-      return 'bg-primary'
-    case 'completed':
-      return 'bg-info text-dark'
-    case 'in_review':
-      return 'bg-warning text-dark'
-    case 'approved':
-      return 'bg-success'
-    default:
-      return 'bg-secondary'
-  }
-}
-
-/** Member IDs from nested merge / Supabase join `bill_assignment_assignees`. */
-function billAssignmentAssigneeIds(assignment) {
-  const rows = assignment?.bill_assignment_assignees
-  if (!Array.isArray(rows)) return []
-  return rows.map((r) => r.member_id).filter(Boolean)
-}
-
-const BILL_FORM_POSITION_VALUES = ['Support', 'Oppose', 'Support If Amended', 'Propose']
-
-function normalizeBillFormPosition(value) {
-  const v = typeof value === 'string' ? value.trim() : ''
-  return BILL_FORM_POSITION_VALUES.includes(v) ? v : 'Support'
-}
-
-/** Headers for fetch() to Supabase Edge Functions (apikey is required by the gateway). */
-function supabaseInvokeHeaders(accessToken) {
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${accessToken}`,
-    apikey: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
-  }
-}
 
 function DashboardPage() {
   console.log('DashboardPage component rendering...')
@@ -192,6 +121,8 @@ function DashboardPage() {
     prefillState: '',
     prefillBillName: '',
     prefillPosition: 'Support',
+    /** Synced bill picker in modal; not persisted */
+    prefillSourceBillId: '',
     assigneeMemberIds: [],
     dueDate: '',
     /** true = open pool; anyone with Bill permission can claim */
@@ -2149,6 +2080,7 @@ function DashboardPage() {
       prefillState: '',
       prefillBillName: '',
       prefillPosition: 'Support',
+      prefillSourceBillId: '',
       assigneeMemberIds: [],
       dueDate: '',
       poolOpen: false,
@@ -2176,6 +2108,7 @@ function DashboardPage() {
       prefillState: a.prefill_state || '',
       prefillBillName: a.prefill_bill_name || '',
       prefillPosition: normalizeBillFormPosition(a.prefill_position),
+      prefillSourceBillId: billIdMatchingAssignmentPrefill(allBills, a.prefill_state, a.prefill_bill_name),
       assigneeMemberIds: billAssignmentAssigneeIds(a),
       dueDate: a.due_date ? String(a.due_date).slice(0, 10) : '',
       poolOpen: a.status === 'available',
@@ -4230,6 +4163,15 @@ function DashboardPage() {
     }
   }
 
+  const assignPrefillBillChoices = useMemo(() => {
+    return [...(allBills || [])].sort((a, b) => {
+      const sa = canonicalUSStateName(a.state) || String(a.state || '')
+      const sb = canonicalUSStateName(b.state) || String(b.state || '')
+      if (sa !== sb) return sa.localeCompare(sb)
+      return String(a.name || '').localeCompare(String(b.name || ''))
+    })
+  }, [allBills])
+
   if (loading) {
     return (
       <div className="container my-5 text-center">
@@ -4284,12 +4226,19 @@ function DashboardPage() {
     : effectiveVolunteerEntries.filter(e => e.approved === approvedToFilter())
 
   const effectiveBills = viewAsData ? (viewAsData.bills ?? []) : (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? allBills : mySubmittedBills)
-  /** Approved (or legacy unset) bills with LegiScan URL — Bill Management → Outreach. */
-  const execOutreachBills = effectiveBills.filter(
-    (b) =>
-      (b.status === 'approved' || b.status == null || b.status === '') &&
-      String(b.legiscan_link || '').trim()
-  )
+  /** Under review, approved, or modified (plus legacy unset); LegiScan optional — Outreach + Open States prospects. */
+  const execOutreachBills = effectiveBills.filter((b) => {
+    if (b.status === 'rejected') return false
+    const s = b.status
+    return (
+      s === 'under_review' ||
+      s === 'approved' ||
+      s === 'modified' ||
+      s == null ||
+      s === ''
+    )
+  })
+
   const effectiveRequests = viewAsData ? (viewAsData.leave_requests ?? []) : (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? filteredMemberRequests : myRequests)
   const effectiveApplications = viewAsData ? (viewAsData.applications ?? []) : applications
   const filteredEffectiveApplications = applicationFilter === 'all' ? effectiveApplications : effectiveApplications.filter(app => app.status === applicationFilter)
@@ -4689,1032 +4638,146 @@ function DashboardPage() {
           </div>
         </section>
 
-        {/* Leave & extension requests - single section: members see own requests + make new; execs see all + filters + make new */}
-        <section className="mt-5" style={{ order: dashboardOrder.leaveExtension }}>
-          <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-            <h3 className="mb-0">Leave & Extension Requests</h3>
-            <div className="d-flex align-items-center gap-2 flex-wrap">
-              <div className="btn-group" role="group" aria-label="Leave requests view">
-                <button
-                  type="button"
-                  className={`btn btn-sm ${leaveExtensionViewMode === 'calendar' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setLeaveExtensionViewMode('calendar')}
-                >
-                  <i className="bi bi-calendar3 me-1"></i>Calendar
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${leaveExtensionViewMode === 'table' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setLeaveExtensionViewMode('table')}
-                >
-                  <i className="bi bi-table me-1"></i>Table
-                </button>
-              </div>
-              {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
-                <div className="btn-group" role="group">
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${memberRequestFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
-                    onClick={() => setMemberRequestFilter('all')}
-                  >
-                    All ({allMemberRequests.length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${memberRequestFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
-                    onClick={() => setMemberRequestFilter('pending')}
-                  >
-                    Pending ({allMemberRequests.filter(r => r.status === 'pending').length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${memberRequestFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
-                    onClick={() => setMemberRequestFilter('approved')}
-                  >
-                    Approved ({allMemberRequests.filter(r => r.status === 'approved').length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${memberRequestFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
-                    onClick={() => setMemberRequestFilter('declined')}
-                  >
-                    Declined ({allMemberRequests.filter(r => r.status === 'declined').length})
-                  </button>
-                </div>
-              )}
-              {!viewAsData && (
-                <button className="btn btn-dark btn-sm" onClick={() => { setRequestError(''); setRequestSuccess(''); setRequestForm({ type: 'leave', reason: '', leaveStart: '', leaveEnd: '', projectName: '', requestedByDate: '' }); setShowRequestModal(true) }}>
-                  <i className="bi bi-plus-circle me-2"></i>Make new request
-                </button>
-              )}
-            </div>
-          </div>
-          {(() => {
-            const isExecDisplay = !viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
-            const requests = effectiveRequests
-            if (requests.length > 0) {
-              if (leaveExtensionViewMode === 'calendar') {
-                return (
-                  <LeaveExtensionCalendar
-                    requests={requests}
-                    isExecDisplay={isExecDisplay}
-                    onSelectRequest={openRequestViewModal}
-                  />
-                )
-              }
-              return (
-                <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
-                  <table className="table table-hover">
-                    <thead>
-                      <tr>
-                        {isExecDisplay && <th>Member</th>}
-                        <th>Type</th>
-                        <th>Reason</th>
-                        <th>Details</th>
-                        <th>Status</th>
-                        <th>Submitted</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {requests.map(req => (
-                        <tr key={req.request_id}>
-                          {isExecDisplay && (
-                            <td>
-                              {req.member ? `${req.member.first_name} ${req.member.last_name}` : 'Unknown'}
-                              {req.member?.email && <div className="small text-muted">{req.member.email}</div>}
-                            </td>
-                          )}
-                          <td><span className="badge bg-secondary text-capitalize">{req.type}</span></td>
-                          <td>{req.reason}</td>
-                          <td>
-                            {req.type === 'leave' && (req.leave_start || req.leave_end)
-                              ? `${req.leave_start ? formatDate(req.leave_start) : '—'} to ${req.leave_end ? formatDate(req.leave_end) : '—'}`
-                              : req.type === 'extension' && (req.project_name || req.requested_by_date)
-                                ? [req.project_name, req.requested_by_date ? formatDate(req.requested_by_date) : null].filter(Boolean).join(' · ')
-                                : '—'}
-                          </td>
-                          <td>
-                            <span className={`badge ${req.status === 'approved' ? 'bg-success' : req.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}`}>
-                              {req.status}
-                            </span>
-                          </td>
-                          <td>{formatDateLong(req.created_at)}</td>
-                          <td>
-                            <button className="btn btn-sm btn-outline-primary" onClick={() => openRequestViewModal(req)}>
-                              <i className="bi bi-eye me-1"></i>View
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
-            }
-            return (
-              <div className="text-center py-5 text-muted">
-                <i className="bi bi-calendar-x display-4 d-block mb-3"></i>
-                <p className="mb-0">
-                  {isExecDisplay ? `No ${memberRequestFilter === 'all' ? '' : memberRequestFilter} leave or extension requests.` : 'No leave or extension requests yet. Use the button above to submit one.'}
-                </p>
-              </div>
-            )
-          })()}
-        </section>
+        <LeaveExtensionSection
+          sectionOrder={dashboardOrder.leaveExtension}
+          leaveExtensionViewMode={leaveExtensionViewMode}
+          setLeaveExtensionViewMode={setLeaveExtensionViewMode}
+          viewAsData={viewAsData}
+          showExecRequestFilters={
+            !viewAsData &&
+            hasPermission('volunteer') &&
+            hasPermission('applications') &&
+            hasPermission('bills') &&
+            hasPermission('registration')
+          }
+          memberRequestFilter={memberRequestFilter}
+          setMemberRequestFilter={setMemberRequestFilter}
+          allMemberRequests={allMemberRequests}
+          effectiveRequests={effectiveRequests}
+          formatDate={formatDate}
+          formatDateLong={formatDateLong}
+          onOpenNewRequest={() => {
+            setRequestError('')
+            setRequestSuccess('')
+            setRequestForm({
+              type: 'leave',
+              reason: '',
+              leaveStart: '',
+              leaveEnd: '',
+              projectName: '',
+              requestedByDate: '',
+            })
+            setShowRequestModal(true)
+          }}
+          onViewRequest={openRequestViewModal}
+        />
 
-        {/* Ideas & suggestions - members submit; execs view all and set status/comments */}
-        <section className="mt-5" style={{ order: dashboardOrder.ideasSuggestions }}>
-          <h3 className="mb-4">Ideas & Suggestions</h3>
-          <p className="text-muted mb-3">Suggest a bill you want to work on, share interests, or propose a web or feature idea. Execs can review and leave comments.</p>
+        <IdeasSuggestionsSection
+          sectionOrder={dashboardOrder.ideasSuggestions}
+          viewAsData={viewAsData}
+          isExec={isExec}
+          suggestionForm={suggestionForm}
+          setSuggestionForm={setSuggestionForm}
+          suggestionError={suggestionError}
+          suggestionSuccess={suggestionSuccess}
+          onSubmitSuggestion={handleSubmitSuggestion}
+          suggestionFilter={suggestionFilter}
+          setSuggestionFilter={setSuggestionFilter}
+          allSuggestions={allSuggestions}
+          effectiveSuggestions={effectiveSuggestions}
+          formatDateLong={formatDateLong}
+          onViewSuggestion={openSuggestionViewModal}
+        />
 
-          {!viewAsData && (
-            <div className="card mb-4">
-              <div className="card-body">
-                <h5 className="card-title mb-3">Submit an idea</h5>
-                <form onSubmit={handleSubmitSuggestion}>
-                  <div className="row g-3">
-                    <div className="col-md-4">
-                      <label className="form-label">Type</label>
-                      <select
-                        className="form-select"
-                        value={suggestionForm.type}
-                        onChange={(e) => setSuggestionForm({ ...suggestionForm, type: e.target.value })}
-                      >
-                        <option value="bill_idea">Bill idea</option>
-                        <option value="general_interest">General interest</option>
-                        <option value="web_dev_feature">Web / feature suggestion</option>
-                      </select>
-                    </div>
-                    <div className="col-md-8">
-                      <label className="form-label">Title</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Short title for your idea"
-                        value={suggestionForm.title}
-                        onChange={(e) => setSuggestionForm({ ...suggestionForm, title: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-12">
-                      <label className="form-label">Description (optional)</label>
-                      <textarea
-                        className="form-control"
-                        rows="2"
-                        placeholder="Add details, links, or context"
-                        value={suggestionForm.description}
-                        onChange={(e) => setSuggestionForm({ ...suggestionForm, description: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  {suggestionError && <div className="text-danger small mt-2">{suggestionError}</div>}
-                  {suggestionSuccess && <div className="text-success small mt-2">{suggestionSuccess}</div>}
-                  <button type="submit" className="btn btn-dark mt-3">Submit suggestion</button>
-                </form>
-              </div>
-            </div>
-          )}
-
-          <div className="d-flex align-items-center gap-2 mb-3">
-            {isExec && !viewAsData && (
-              <div className="btn-group" role="group">
-                <button type="button" className={`btn btn-sm ${suggestionFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`} onClick={() => setSuggestionFilter('all')}>All ({allSuggestions.length})</button>
-                <button type="button" className={`btn btn-sm ${suggestionFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`} onClick={() => setSuggestionFilter('pending')}>Pending ({allSuggestions.filter(s => s.status === 'pending').length})</button>
-                <button type="button" className={`btn btn-sm ${suggestionFilter === 'under_review' ? 'btn-info' : 'btn-outline-info'}`} onClick={() => setSuggestionFilter('under_review')}>Under review ({allSuggestions.filter(s => s.status === 'under_review').length})</button>
-                <button type="button" className={`btn btn-sm ${suggestionFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`} onClick={() => setSuggestionFilter('approved')}>Approved ({allSuggestions.filter(s => s.status === 'approved').length})</button>
-                <button type="button" className={`btn btn-sm ${suggestionFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`} onClick={() => setSuggestionFilter('declined')}>Declined ({allSuggestions.filter(s => s.status === 'declined').length})</button>
-              </div>
-            )}
-          </div>
-
-          {effectiveSuggestions.length > 0 ? (
-            <div className="table-responsive" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              <table className="table table-hover">
-                <thead>
-                  <tr>
-                    {isExec && !viewAsData && <th>Member</th>}
-                    <th>Type</th>
-                    <th>Title</th>
-                    <th>Status</th>
-                    <th>Submitted</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {effectiveSuggestions.map(s => (
-                    <tr key={s.suggestion_id}>
-                      {isExec && !viewAsData && (
-                        <td>
-                          {s.member ? `${s.member.first_name} ${s.member.last_name}` : 'Unknown'}
-                          {s.member?.email && <div className="small text-muted">{s.member.email}</div>}
-                        </td>
-                      )}
-                      <td>
-                        <span className="badge bg-secondary">
-                          {s.type === 'bill_idea' ? 'Bill idea' : s.type === 'general_interest' ? 'General interest' : 'Web / feature'}
-                        </span>
-                      </td>
-                      <td>{s.title}</td>
-                      <td>
-                        <span className={`badge ${
-                          s.status === 'pending' ? 'bg-warning text-dark' :
-                          s.status === 'under_review' ? 'bg-info' :
-                          s.status === 'approved' ? 'bg-success' : 'bg-danger'
-                        }`}>
-                          {s.status.replace('_', ' ')}
-                        </span>
-                      </td>
-                      <td>{formatDateLong(s.created_at)}</td>
-                      <td>
-                        <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => openSuggestionViewModal(s)}>
-                          <i className="bi bi-eye me-1"></i>View
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-center py-4 text-muted">
-              <i className="bi bi-lightbulb display-4 d-block mb-2"></i>
-              <p className="mb-0">{viewAsData ? 'No suggestions to show.' : isExec ? `No ${suggestionFilter === 'all' ? '' : suggestionFilter.replace('_', ' ')} suggestions.` : 'You haven\'t submitted any suggestions yet.'}</p>
-            </div>
-          )}
-        </section>
-
-        {/* Volunteer Hours Section */}
-        <section className="mt-5" style={{ order: dashboardOrder.volunteerHours }}>
-          <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-            <h3 className="mb-0">Volunteer Hours</h3>
-            <div className="d-flex align-items-center gap-2">
-              <div className="btn-group" role="group">
-                <button
-                  type="button"
-                  className={`btn btn-sm ${volunteerFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setVolunteerFilter('all')}
-                >
-                  All ({effectiveVolunteerEntries.length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${volunteerFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
-                  onClick={() => setVolunteerFilter('pending')}
-                >
-                  Pending ({effectiveVolunteerEntries.filter(e => e.approved === 'waiting').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${volunteerFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
-                  onClick={() => setVolunteerFilter('approved')}
-                >
-                  Approved ({effectiveVolunteerEntries.filter(e => e.approved === 'approved').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${volunteerFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
-                  onClick={() => setVolunteerFilter('declined')}
-                >
-                  Declined ({effectiveVolunteerEntries.filter(e => e.approved === 'denied').length})
-                </button>
-              </div>
-              {!viewAsData && (
-                <button className="btn btn-dark btn-sm" onClick={handleAddVolunteer}>
-                  <i className="bi bi-plus-circle me-2"></i>Add Entry
-                </button>
-              )}
-            </div>
-          </div>
-          <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
-            {Object.entries(groupedEntries).map(([memberId, entries]) => {
-              const firstEntry = entries[0]
-              const memberData = viewAsData ? effectiveMember : (firstEntry.members || {})
-              const isOwn = firstEntry.member_id === effectiveMember.member_id
-              const memberName = isOwn ? 'You' : `${memberData.first_name || ''} ${memberData.last_name || ''}`.trim()
-              const memberImage = memberData.image
-                ? `${IMAGE_BASE_URL}/${memberData.image}`
-                : `${IMAGE_BASE_URL}/default.jpg`
-
-              return (
-                <div key={memberId} className="accordion mb-3 shadow-sm border rounded">
-                  <h2 className="accordion-header">
-                    <button
-                      className="accordion-button collapsed bg-light text-dark"
-                      type="button"
-                      data-bs-toggle="collapse"
-                      data-bs-target={`#collapseUser${memberId}`}
-                      aria-expanded="false"
-                    >
-                      <div className="d-flex align-items-center gap-2">
-                        <img src={memberImage} alt={memberName} className="rounded-circle" width="32" height="32" />
-                        <span>{memberName}</span>
-                        <span className="fw-bold ms-2 text-muted">
-                          ({entries.length} {entries.length === 1 ? 'entry' : 'entries'})
-                        </span>
-                      </div>
-                    </button>
-                  </h2>
-                  <div id={`collapseUser${memberId}`} className="accordion-collapse collapse" data-bs-parent=".accordion">
-                    <div className="accordion-body">
-                      <div className="accordion">
-                        {entries.map(entry => {
-                          const start = new Date(entry.start_timestamp)
-                          const end = new Date(entry.end_timestamp)
-                          const duration = formatDuration(entry.start_timestamp, entry.end_timestamp)
-                          const statusColor = entry.approved === 'approved' ? { bg: 'bg-success', color: 'white' } :
-                            entry.approved === 'denied' ? { bg: 'bg-danger', color: 'white' } :
-                              { bg: 'bg-warning', color: 'black' }
-
-                          return (
-                            <div key={entry.id} className="accordion-item mb-2 shadow-sm border rounded">
-                              <h2 className="accordion-header">
-                                <button
-                                  className="accordion-button collapsed bg-white text-dark"
-                                  type="button"
-                                  data-bs-toggle="collapse"
-                                  data-bs-target={`#collapse${entry.id}`}
-                                  aria-expanded="false"
-                                >
-                                  <div className="d-flex w-100 justify-content-between align-items-center">
-                                    <span><i className="bi bi-calendar-event me-2"></i>{formatDateLong(start)}</span>
-                                    <span className={`badge ${statusColor.bg} text-capitalize`} style={{ color: statusColor.color }}>
-                                      {entry.approved}
-                                    </span>
-                                    <span className="fw-bold ms-3">{duration}</span>
-                                  </div>
-                                </button>
-                              </h2>
-                              <div id={`collapse${entry.id}`} className="accordion-collapse collapse" data-bs-parent={`#collapseUser${memberId} .accordion`}>
-                                <div className="accordion-body">
-                                  <p><strong>{entry.volunteering_job_title}</strong> - {entry.volunteering_job_desc}</p>
-                                  <p><i className="bi bi-clock me-1"></i>Start: {start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                  <p><i className="bi bi-clock-history me-1"></i>End: {end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                  <p><i className="bi bi-person-workspace me-1"></i>Supervisor Comment: {entry.supervisor_comment || '-'}</p>
-                                  <p><i className="bi bi-upload me-1"></i>Submitted: {new Date(entry.request_submit_timestamp || entry.created_at || 0).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</p>
-                                  {(entry.reviewed_by_member || entry.reviewed_at) && (entry.approved === 'approved' || entry.approved === 'denied') && (
-                                    <div className="mb-2">
-                                      <strong>Reviewed by:</strong>
-                                      <p className="mb-0 mt-1">
-                                        {entry.reviewed_by_member ? `${entry.reviewed_by_member.first_name} ${entry.reviewed_by_member.last_name}` : 'Unknown'}
-                                        {entry.reviewed_at && <span className="text-muted d-block small">{formatDateLong(entry.reviewed_at)}</span>}
-                                      </p>
-                                    </div>
-                                  )}
-                                  {!viewAsData && (
-                                  <div className="mt-2 d-flex gap-2 flex-wrap">
-                                    {hasPermission('volunteer') && !isOwn && (
-                                      <>
-                                        <button
-                                          className="btn btn-sm btn-outline-success"
-                                          onClick={() => handleApproveEntry(entry.id)}
-                                        >
-                                          <i className="bi bi-check-circle me-1"></i>Approve
-                                        </button>
-                                        <button
-                                          className="btn btn-sm btn-outline-danger"
-                                          onClick={() => handleDenyEntry(entry.id)}
-                                        >
-                                          <i className="bi bi-x-circle me-1"></i>Deny
-                                        </button>
-                                        <button
-                                          className="btn btn-sm btn-outline-secondary"
-                                          onClick={() => handleCommentEntry(entry.id)}
-                                        >
-                                          <i className="bi bi-chat-left-text me-1"></i>Add Comment
-                                        </button>
-                                      </>
-                                    )}
-                                    {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
-                                      <button
-                                        className="btn btn-sm btn-outline-danger"
-                                        onClick={() => {
-                                          setSelectedEntryId(entry.id)
-                                          setShowDeleteModal(true)
-                                        }}
-                                      >
-                                        <i className="bi bi-trash me-1"></i>Delete
-                                      </button>
-                                    )}
-                                  </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                      {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && entries.some(e => e.approved === 'approved') && (
-                        <div className="mt-3 pt-3 border-top d-flex justify-content-end">
-                          <button
-                            className="btn btn-sm btn-outline-dark"
-                            disabled={verificationGenerating}
-                            onClick={() => {
-                              const approved = entries.filter(e => e.approved === 'approved')
-                              handleSendVerification(memberId, approved)
-                            }}
-                          >
-                            {verificationGenerating ? (
-                              <><span className="spinner-border spinner-border-sm me-1" role="status"></span>Generating...</>
-                            ) : (
-                              <><i className="bi bi-file-earmark-pdf me-1"></i>Send Verification Letter ({entries.filter(e => e.approved === 'approved').length} approved)</>
-                            )}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-            {Object.keys(groupedEntries).length === 0 && (
-              <div className="text-center py-5 text-muted">
-                <i className="bi bi-clock-history display-4 d-block mb-3"></i>
-                <p>
-                  {effectiveVolunteerEntries.length === 0
-                    ? `No volunteer entries found.${!viewAsData ? ' Add your first entry to get started.' : ''}`
-                    : `No ${volunteerFilter === 'all' ? '' : volunteerFilter === 'pending' ? 'pending' : volunteerFilter === 'declined' ? 'declined' : 'approved'} entries.`}
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
+        <VolunteerHoursSection
+          sectionOrder={dashboardOrder.volunteerHours}
+          volunteerFilter={volunteerFilter}
+          setVolunteerFilter={setVolunteerFilter}
+          effectiveVolunteerEntries={effectiveVolunteerEntries}
+          groupedEntries={groupedEntries}
+          viewAsData={viewAsData}
+          effectiveMember={effectiveMember}
+          formatDuration={formatDuration}
+          formatDateLong={formatDateLong}
+          onAddEntry={handleAddVolunteer}
+          canSuperviseVolunteerHours={hasPermission('volunteer')}
+          canExecVolunteerActions={
+            hasPermission('volunteer') &&
+            hasPermission('applications') &&
+            hasPermission('bills') &&
+            hasPermission('registration')
+          }
+          verificationGenerating={verificationGenerating}
+          onApproveEntry={handleApproveEntry}
+          onDenyEntry={handleDenyEntry}
+          onCommentEntry={handleCommentEntry}
+          onRequestDeleteEntry={(id) => {
+            setSelectedEntryId(id)
+            setShowDeleteModal(true)
+          }}
+          onSendVerification={handleSendVerification}
+        />
 
         {/* Bill Management Section - Execs Only (all 4 permissions) */}
         {(() => {
           const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
           return isExec
         })() && (
-          <section className="mt-5" style={{ order: dashboardOrder.billManagement }}>
-            <div className="mb-3">
-              <h3 className="mb-2">Bill Management</h3>
-              <div className="btn-group" role="group">
-                <button
-                  type="button"
-                  className={`btn btn-sm ${execBillSectionTab === 'review_queue' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setExecBillSectionTab('review_queue')}
-                >
-                  Review queue
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${execBillSectionTab === 'assigned_bills' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setExecBillSectionTab('assigned_bills')}
-                >
-                  Assigned work
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${execBillSectionTab === 'research' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setExecBillSectionTab('research')}
-                >
-                  Research
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${execBillSectionTab === 'outreach' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setExecBillSectionTab('outreach')}
-                >
-                  Outreach
-                </button>
-              </div>
-            </div>
-
-            {execBillSectionTab === 'outreach' && (
-              <BillOutreachPanel bills={execOutreachBills} member={member} />
-            )}
-
-            {execBillSectionTab === 'research' && (
-              <BillResearchPanel
-                bills={researchBills}
-                loading={researchBillsLoading}
-                loadError={researchBillsError}
-                spanSearchState={researchBillSearchState}
-                onSpanSearchStateChange={setResearchBillSearchState}
-                spanSearchBillNumber={researchBillSearchNumber}
-                onSpanSearchBillNumberChange={setResearchBillSearchNumber}
-                spanSearchKeywords={researchBillSearchKeywords}
-                onSpanSearchKeywordsChange={setResearchBillSearchKeywords}
-                statusFilter={researchBillStatusFilter}
-                onStatusFilterChange={setResearchBillStatusFilter}
-                allMembers={allMembers}
-                getBillPdfUrl={getBillPdfUrl}
-                formatDate={formatDate}
-                onRefresh={loadResearchBills}
-                getStateFileName={getStateFileName}
-              />
-            )}
-
-            {execBillSectionTab === 'review_queue' && (
-            <>
-            <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-              <span className="text-muted small align-self-center">Submitted proposals for approval</span>
-              <div className="d-flex align-items-center gap-2 flex-wrap">
-                <div className="btn-group" role="group">
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${billFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
-                    onClick={() => setBillFilter('all')}
-                  >
-                    All ({effectiveBills.length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${billFilter === 'under_review' ? 'btn-warning' : 'btn-outline-warning'}`}
-                    onClick={() => setBillFilter('under_review')}
-                  >
-                    Under Review ({effectiveBills.filter(b => b.status === 'under_review' || (!b.status && billFilter === 'under_review')).length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${billFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
-                    onClick={() => setBillFilter('approved')}
-                  >
-                    Approved ({effectiveBills.filter(b => b.status === 'approved' || (!b.status && billFilter === 'approved')).length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${billFilter === 'modified' ? 'btn-info' : 'btn-outline-info'}`}
-                    onClick={() => setBillFilter('modified')}
-                  >
-                    Modified ({effectiveBills.filter(b => b.status === 'modified').length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${billFilter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'}`}
-                    onClick={() => setBillFilter('rejected')}
-                  >
-                    Rejected ({effectiveBills.filter(b => b.status === 'rejected').length})
-                  </button>
-                </div>
-                {!viewAsData && (
-                  <button className="btn btn-dark btn-sm" onClick={handleAddBill}>
-                    <i className="bi bi-plus-circle me-2"></i>Upload New Bill
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Filtered Bills List */}
-            {(() => {
-              const filteredBills = billFilter === 'all' 
-                ? effectiveBills 
-                : effectiveBills.filter(bill => {
-                    if (billFilter === 'approved' && (!bill.status || bill.status === 'approved')) return true
-                    return bill.status === billFilter
-                  })
-              
-              // Group by state (canonical so abbreviations match full names)
-              const billsByStateFiltered = {}
-              filteredBills.forEach(bill => {
-                const state = billStateGroupKey(bill.state)
-                if (!billsByStateFiltered[state]) {
-                  billsByStateFiltered[state] = []
-                }
-                billsByStateFiltered[state].push(bill)
-              })
-              
-              const sortedStatesFiltered = Object.keys(billsByStateFiltered).sort((a, b) => {
-                if (a === 'Unknown') return 1
-                if (b === 'Unknown') return -1
-                return a.localeCompare(b)
-              })
-
-              return filteredBills.length > 0 ? (
-              <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                {sortedStatesFiltered.map(state => {
-                  const stateBills = billsByStateFiltered[state]
-                  const stateFileName = getStateFileName(state)
-                  
-                  return (
-                    <div key={state} className="accordion mb-3 shadow-sm border rounded">
-                      <h2 className="accordion-header">
-                        <button
-                          className="accordion-button collapsed bg-light text-dark"
-                          type="button"
-                          data-bs-toggle="collapse"
-                          data-bs-target={`#collapseState${state.replace(/\s+/g, '')}`}
-                          aria-expanded="false"
-                        >
-                          <div className="d-flex align-items-center gap-2">
-                            <img
-                              src={`/images/states/${stateFileName}.svg`}
-                              alt={`${state} flag`}
-                              style={{ width: '32px', height: 'auto' }}
-                              onError={(e) => {
-                                e.target.src = '/images/states/United States.svg'
-                              }}
-                            />
-                            <span>{state}</span>
-                            <span className="fw-bold ms-2 text-muted">
-                              ({stateBills.length} {stateBills.length === 1 ? 'bill' : 'bills'})
-                            </span>
-                          </div>
-                        </button>
-                      </h2>
-                      <div id={`collapseState${state.replace(/\s+/g, '')}`} className="accordion-collapse collapse">
-                        <div className="accordion-body">
-                          <div className="accordion" id={`stateAccordion${state.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')}`}>
-                            {stateBills.map(bill => (
-                              <div key={bill.bill_id} className="accordion-item mb-2 shadow-sm border rounded">
-                                <h2 className="accordion-header">
-                                  <button
-                                    className="accordion-button collapsed bg-white text-dark"
-                                    type="button"
-                                    data-bs-toggle="collapse"
-                                    data-bs-target={`#collapseBill${bill.bill_id}`}
-                                    aria-expanded="false"
-                                  >
-                                    <div className="d-flex w-100 justify-content-between align-items-center">
-                                      <span className="fw-bold">{bill.name}</span>
-                                      <div className="d-flex gap-2 align-items-center">
-                                        <span className={`badge ${
-                                          bill.position === 'Support' ? 'bg-success' :
-                                          bill.position === 'Oppose' ? 'bg-danger' :
-                                          bill.position === 'Propose' ? 'bg-info' :
-                                          'bg-warning text-dark'
-                                        }`}>
-                                          {bill.position}
-                                        </span>
-                                        {bill.status && bill.status !== 'approved' && (
-                                          <span className={`badge ${
-                                            bill.status === 'under_review' ? 'bg-warning text-dark' :
-                                            bill.status === 'modified' ? 'bg-info' :
-                                            bill.status === 'rejected' ? 'bg-danger' :
-                                            'bg-secondary'
-                                          }`} title={bill.status === 'under_review' ? 'Under Review' : bill.status}>
-                                            {bill.status === 'under_review' ? 'Under Review' :
-                                             bill.status === 'modified' ? 'Modified' :
-                                             bill.status === 'rejected' ? 'Rejected' :
-                                             bill.status}
-                                          </span>
-                                        )}
-                                        {bill.hidden && (bill.status === 'approved' || bill.status === 'modified') && (
-                                          <span className="badge bg-secondary" title="Hidden from public Bills page">Hidden</span>
-                                        )}
-                                      </div>
-                                      <span className="text-muted">{formatDate(bill.bill_date)}</span>
-                                    </div>
-                                  </button>
-                                </h2>
-                                <div id={`collapseBill${bill.bill_id}`} className="accordion-collapse collapse" data-bs-parent={`#stateAccordion${state.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '')}`}>
-                                  <div className="accordion-body">
-                                    <div className="mb-3">
-                                      <strong>Description:</strong>
-                                      <p className="mt-1 mb-0">{bill.description || '-'}</p>
-                                    </div>
-                                    {bill.legiscan_link && (
-                                      <div className="mb-3">
-                                        <strong>LegiScan Link:</strong>
-                                        <p className="mt-1 mb-0">
-                                          <a href={bill.legiscan_link} target="_blank" rel="noopener noreferrer" className="text-primary">
-                                            {bill.legiscan_link}
-                                          </a>
-                                        </p>
-                                      </div>
-                                    )}
-                                    {bill.google_doc_link && (
-                                      <div className="mb-3">
-                                        <strong>Proposal (Google Doc):</strong>
-                                        <p className="mt-1 mb-0">
-                                          <a href={bill.google_doc_link} target="_blank" rel="noopener noreferrer" className="text-primary">
-                                            {bill.google_doc_link}
-                                          </a>
-                                        </p>
-                                      </div>
-                                    )}
-                                    {bill.bill_collaborators && bill.bill_collaborators.length > 0 && (
-                                      <div className="mb-3">
-                                        <strong>Collaborators:</strong>
-                                        <p className="mt-1 mb-0">
-                                          {bill.bill_collaborators.join(', ')}
-                                        </p>
-                                      </div>
-                                    )}
-                                    {bill.status === 'under_review' && bill.submitted_by && (
-                                      <div className="mb-3">
-                                        <strong>Submitted By:</strong>
-                                        <p className="mt-1 mb-0">
-                                          {(() => {
-                                            const submitter = allMembers.find(m => m.member_id === bill.submitted_by)
-                                            return submitter ? `${submitter.first_name} ${submitter.last_name}` : 'Unknown'
-                                          })()}
-                                        </p>
-                                      </div>
-                                    )}
-                                    <div className="mt-3 d-flex gap-2 flex-wrap">
-                                      {bill.pdfExists && (
-                                        <button
-                                          type="button"
-                                          className="btn btn-sm btn-outline-dark"
-                                          onClick={() => setBillPdfPreviewBill(bill)}
-                                        >
-                                          <i className="bi bi-file-pdf me-1"></i>View PDF
-                                        </button>
-                                      )}
-                                      {bill.google_doc_link && (
-                                        <a
-                                          href={bill.google_doc_link}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="btn btn-sm btn-outline-secondary"
-                                        >
-                                          <i className="bi bi-link-45deg me-1"></i>Proposal (Google Doc)
-                                        </a>
-                                      )}
-                                      {bill.status === 'under_review' ? (
-                                        <>
-                                          <button
-                                            className="btn btn-sm btn-success"
-                                            onClick={() => {
-                                              if (window.confirm(`Approve "${bill.name}" and make it live?`)) {
-                                                handleApproveBill(bill, false, false)
-                                              }
-                                            }}
-                                          >
-                                            <i className="bi bi-check-circle me-1"></i>Approve
-                                          </button>
-                                          <button
-                                            className="btn btn-sm btn-outline-success"
-                                            onClick={() => {
-                                              if (window.confirm(`Approve "${bill.name}" but keep it hidden from the public site? It will stay in the backend and the submitter can still see it.`)) {
-                                                handleApproveBill(bill, false, true)
-                                              }
-                                            }}
-                                            title="Approved but not shown on public Bills page"
-                                          >
-                                            <i className="bi bi-eye-slash me-1"></i>Approve but hide
-                                          </button>
-                                          <button
-                                            className="btn btn-sm btn-primary"
-                                            onClick={() => handleModifyAndApproveBill(bill)}
-                                          >
-                                            <i className="bi bi-pencil me-1"></i>Modify & Approve
-                                          </button>
-                                          <button
-                                            className="btn btn-sm btn-danger"
-                                            onClick={() => {
-                                              const notes = window.prompt('Rejection reason (optional):')
-                                              if (notes !== null) {
-                                                handleRejectBill(bill, notes)
-                                              }
-                                            }}
-                                          >
-                                            <i className="bi bi-x-circle me-1"></i>Reject
-                                          </button>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <button
-                                            className="btn btn-sm btn-outline-primary"
-                                            onClick={() => {
-                                              setSelectedBillForEdit(bill)
-                                              setEditBillForm({
-                                                state: bill.state || '',
-                                                name: bill.name || '',
-                                                position: bill.position || 'Support',
-                                                description: bill.description || '',
-                                                billDate: bill.bill_date ? new Date(bill.bill_date).toISOString().split('T')[0] : '',
-                                                legiscanLink: bill.legiscan_link || '',
-                                                googleDocLink: bill.google_doc_link || '',
-                                                hidden: !!(bill.hidden),
-                                                collaborators: bill.bill_collaborators || []
-                                              })
-                                              setEditBillPdfFile(null)
-                                              setBillError('')
-                                              setBillSuccess('')
-                                              setShowEditBillModal(true)
-                                            }}
-                                          >
-                                            <i className="bi bi-pencil me-1"></i>Edit
-                                          </button>
-                                          <button
-                                            className="btn btn-sm btn-outline-danger"
-                                            onClick={() => {
-                                              setSelectedBillForDelete(bill)
-                                              setShowDeleteBillModal(true)
-                                            }}
-                                          >
-                                            <i className="bi bi-trash me-1"></i>Delete
-                                          </button>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-5 text-muted">
-                <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
-                <p>No {billFilter === 'all' ? '' : billFilter.replace('_', ' ')} bills found.</p>
-              </div>
-            )
-            })()}
-            </>
-            )}
-
-            {execBillSectionTab === 'assigned_bills' && (
-              <>
-                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                  <div className="btn-group flex-wrap" role="group">
-                    {['all', 'available', 'not_started', 'in_progress', 'completed', 'in_review', 'approved'].map((key) => (
-                      <button
-                        key={key}
-                        type="button"
-                        className={`btn btn-sm ${execAssignmentFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
-                        onClick={() => setExecAssignmentFilter(key)}
-                      >
-                        {key === 'all'
-                          ? `All (${billAssignments.length})`
-                          : `${billAssignmentStatusLabel(key)} (${billAssignments.filter((x) => x.status === key).length})`}
-                      </button>
-                    ))}
-                  </div>
-                  {!viewAsData && (
-                    <button type="button" className="btn btn-dark btn-sm" onClick={handleOpenAssignBillModal}>
-                      <i className="bi bi-plus-circle me-1"></i>Assign work
-                    </button>
-                  )}
-                </div>
-                {(() => {
-                  const filtered =
-                    execAssignmentFilter === 'all'
-                      ? billAssignments
-                      : billAssignments.filter((x) => x.status === execAssignmentFilter)
-                  if (filtered.length === 0) {
-                    return (
-                      <div className="text-center py-5 text-muted">
-                        <i className="bi bi-list-task display-4 d-block mb-3"></i>
-                        <p>No assignments match this filter.</p>
-                      </div>
-                    )
-                  }
-                  return (
-                    <div className="accordion mb-4" id="execBillAssignmentsAccordion" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                      {filtered.map((a) => {
-                        const cid = `collapseExecAssign${String(a.assignment_id).replace(/-/g, '')}`
-                        return (
-                          <div key={a.assignment_id} className="accordion-item mb-2 shadow-sm border rounded">
-                            <h2 className="accordion-header">
-                              <button
-                                className="accordion-button collapsed bg-white text-dark"
-                                type="button"
-                                data-bs-toggle="collapse"
-                                data-bs-target={`#${cid}`}
-                                aria-expanded="false"
-                              >
-                                <div className="d-flex w-100 justify-content-between align-items-center flex-wrap gap-2 pe-2">
-                                  <span className="fw-bold text-start">{a.title}</span>
-                                  <span className={`badge ${billAssignmentStatusBadgeClass(a.status)}`}>
-                                    {billAssignmentStatusLabel(a.status)}
-                                  </span>
-                                  {a.status === 'approved' && a.resulting_bill_id != null && (
-                                    <span className="badge bg-dark text-nowrap">
-                                      <i className="bi bi-check2-circle me-1" aria-hidden="true" />
-                                      Published
-                                    </span>
-                                  )}
-                                  <span className="text-muted small">
-                                    {billAssignmentAssigneeIds(a).length
-                                      ? resolveBillAssignmentMemberNames(billAssignmentAssigneeIds(a))
-                                      : resolveBillAssignmentMemberName(null)}
-                                    {a.due_date ? ` · due ${formatDate(a.due_date)}` : ''}
-                                  </span>
-                                </div>
-                              </button>
-                            </h2>
-                            <div id={cid} className="accordion-collapse collapse" data-bs-parent="#execBillAssignmentsAccordion">
-                              <div className="accordion-body">
-                                <div className="mb-2">
-                                  <strong>Goal</strong>
-                                  <p className="mb-0 mt-1">{a.goal}</p>
-                                </div>
-                                {a.additional_info && (
-                                  <div className="mb-2">
-                                    <strong>Additional info</strong>
-                                    <p className="mb-0 mt-1">{a.additional_info}</p>
-                                  </div>
-                                )}
-                                <div className="mb-2 small text-muted">
-                                  Assigned by {resolveBillAssignmentMemberName(a.assigned_by_member_id)}
-                                </div>
-                                {(a.prefill_state || a.prefill_bill_name || a.prefill_position) && (
-                                  <div className="mb-2 small">
-                                    <strong>Bill prefill</strong>
-                                    <span className="text-muted ms-1">
-                                      {[a.prefill_state, a.prefill_bill_name, a.prefill_position].filter(Boolean).join(' · ') ||
-                                        '—'}
-                                    </span>
-                                  </div>
-                                )}
-                                {a.resulting_bill_id != null && (
-                                  <p className="small text-success mb-2">
-                                    Linked published bill #{a.resulting_bill_id}
-                                  </p>
-                                )}
-                                {a.status === 'approved' && a.resulting_bill_id == null && (
-                                  <p className="small text-warning mb-2 mb-md-0">
-                                    No bill linked yet. If you closed the publish window without saving, use{' '}
-                                    <strong>Publish bill…</strong> below to open it again with the same prefilled info.
-                                  </p>
-                                )}
-                                {(a.deliverable_doc_link || a.deliverable_pdf_url) && (
-                                  <div className="mb-3">
-                                    <strong>Deliverables</strong>
-                                    {a.deliverable_doc_link && (
-                                      <p className="mb-1 mt-1">
-                                        <a href={a.deliverable_doc_link} target="_blank" rel="noopener noreferrer">
-                                          Open doc / link
-                                        </a>
-                                      </p>
-                                    )}
-                                    {a.deliverable_pdf_url && (
-                                      <p className="mb-0 mt-1">
-                                        <a href={a.deliverable_pdf_url} target="_blank" rel="noopener noreferrer">
-                                          PDF URL
-                                        </a>
-                                      </p>
-                                    )}
-                                  </div>
-                                )}
-                                <div className="d-flex flex-wrap gap-2 align-items-center w-100">
-                                  {a.status === 'completed' && (
-                                    <>
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-warning"
-                                        onClick={() => handleExecBillAssignmentStatus(a.assignment_id, 'in_review')}
-                                      >
-                                        Mark in review
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-success"
-                                        onClick={() => handleExecApproveAssignment(a)}
-                                      >
-                                        Approve &amp; publish bill…
-                                      </button>
-                                    </>
-                                  )}
-                                  {a.status === 'in_review' && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-success"
-                                      onClick={() => handleExecApproveAssignment(a)}
-                                    >
-                                      Approve &amp; publish bill…
-                                    </button>
-                                  )}
-                                  {a.status === 'approved' && a.resulting_bill_id == null && !viewAsData && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-dark"
-                                      onClick={() => handleReopenPublishBillFromAssignment(a)}
-                                    >
-                                      <i className="bi bi-file-earmark-plus me-1"></i>Publish bill…
-                                    </button>
-                                  )}
-                                  {!viewAsData && (
-                                    <>
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-primary"
-                                        onClick={() => handleOpenEditAssignmentModal(a)}
-                                      >
-                                        <i className="bi bi-pencil me-1"></i>Edit
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-danger ms-auto"
-                                        onClick={() => {
-                                          setAssignmentToDelete(a)
-                                          setDeleteAssignmentError('')
-                                          setShowDeleteAssignmentModal(true)
-                                        }}
-                                      >
-                                        <i className="bi bi-trash me-1"></i>Delete
-                                      </button>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })()}
-              </>
-            )}
-          </section>
+          <ExecBillManagementSection
+            sectionOrder={dashboardOrder.billManagement}
+            execBillSectionTab={execBillSectionTab}
+            setExecBillSectionTab={setExecBillSectionTab}
+            execOutreachBills={execOutreachBills}
+            member={member}
+            researchBills={researchBills}
+            researchBillsLoading={researchBillsLoading}
+            researchBillsError={researchBillsError}
+            researchBillSearchState={researchBillSearchState}
+            setResearchBillSearchState={setResearchBillSearchState}
+            researchBillSearchNumber={researchBillSearchNumber}
+            setResearchBillSearchNumber={setResearchBillSearchNumber}
+            researchBillSearchKeywords={researchBillSearchKeywords}
+            setResearchBillSearchKeywords={setResearchBillSearchKeywords}
+            researchBillStatusFilter={researchBillStatusFilter}
+            setResearchBillStatusFilter={setResearchBillStatusFilter}
+            allMembers={allMembers}
+            getBillPdfUrl={getBillPdfUrl}
+            formatDate={formatDate}
+            loadResearchBills={loadResearchBills}
+            getStateFileName={getStateFileName}
+            billFilter={billFilter}
+            setBillFilter={setBillFilter}
+            effectiveBills={effectiveBills}
+            viewAsData={viewAsData}
+            handleAddBill={handleAddBill}
+            setBillPdfPreviewBill={setBillPdfPreviewBill}
+            handleApproveBill={handleApproveBill}
+            handleModifyAndApproveBill={handleModifyAndApproveBill}
+            handleRejectBill={handleRejectBill}
+            setSelectedBillForEdit={setSelectedBillForEdit}
+            setEditBillForm={setEditBillForm}
+            setEditBillPdfFile={setEditBillPdfFile}
+            setBillError={setBillError}
+            setBillSuccess={setBillSuccess}
+            setShowEditBillModal={setShowEditBillModal}
+            setSelectedBillForDelete={setSelectedBillForDelete}
+            setShowDeleteBillModal={setShowDeleteBillModal}
+            billAssignments={billAssignments}
+            execAssignmentFilter={execAssignmentFilter}
+            onExecAssignmentFilterChange={setExecAssignmentFilter}
+            onOpenAssignWork={handleOpenAssignBillModal}
+            resolveBillAssignmentMemberName={resolveBillAssignmentMemberName}
+            resolveBillAssignmentMemberNames={resolveBillAssignmentMemberNames}
+            onExecStatus={handleExecBillAssignmentStatus}
+            onApproveAndPublish={handleExecApproveAssignment}
+            onReopenPublish={handleReopenPublishBillFromAssignment}
+            onEditAssignment={handleOpenEditAssignmentModal}
+            onRequestDeleteAssignment={(a) => {
+              setAssignmentToDelete(a)
+              setDeleteAssignmentError('')
+              setShowDeleteAssignmentModal(true)
+            }}
+          />
         )}
 
         {/* Bill Submission Section - Members with Bills (non-exec); execs see this when viewing-as such a member */}
@@ -5723,855 +4786,69 @@ function DashboardPage() {
           const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
           return hasBills && !isExec
         })() && (
-          <section className="mt-5" style={{ order: dashboardOrder.billSubmission }}>
-            <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-              <div>
-                <h3 className="mb-0">{viewAsData ? 'Assigned to me' : 'Bill Submission'}</h3>
-                {viewAsData && (
-                  <p className="small text-muted mb-0 mt-1">
-                    {effectiveMember?.first_name} {effectiveMember?.last_name} (read-only)
-                  </p>
-                )}
-              </div>
-              {!viewAsData && memberBillSectionTab === 'my_bills' && (
-                <button className="btn btn-dark" onClick={handleAddBill}>
-                  <i className="bi bi-plus-circle me-2"></i>Submit Bill for Review
-                </button>
-              )}
-            </div>
-            {!viewAsData && (
-              <div className="btn-group mb-3" role="group">
-                <button
-                  type="button"
-                  className={`btn btn-sm ${memberBillSectionTab === 'my_bills' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setMemberBillSectionTab('my_bills')}
-                >
-                  My bills
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${memberBillSectionTab === 'assigned_to_me' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setMemberBillSectionTab('assigned_to_me')}
-                >
-                  Assigned to me
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${memberBillSectionTab === 'open_tasks' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setMemberBillSectionTab('open_tasks')}
-                >
-                  Open tasks
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${memberBillSectionTab === 'research' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setMemberBillSectionTab('research')}
-                >
-                  Research
-                </button>
-              </div>
-            )}
-
-            {billSubmissionViewTab === 'research' ? (
-              <BillResearchPanel
-                bills={researchBills}
-                loading={researchBillsLoading}
-                loadError={researchBillsError}
-                spanSearchState={researchBillSearchState}
-                onSpanSearchStateChange={setResearchBillSearchState}
-                spanSearchBillNumber={researchBillSearchNumber}
-                onSpanSearchBillNumberChange={setResearchBillSearchNumber}
-                spanSearchKeywords={researchBillSearchKeywords}
-                onSpanSearchKeywordsChange={setResearchBillSearchKeywords}
-                statusFilter={researchBillStatusFilter}
-                onStatusFilterChange={setResearchBillStatusFilter}
-                allMembers={allMembers}
-                getBillPdfUrl={getBillPdfUrl}
-                formatDate={formatDate}
-                onRefresh={loadResearchBills}
-                getStateFileName={getStateFileName}
-              />
-            ) : billSubmissionViewTab === 'open_tasks' ? (
-              <>
-                <p className="text-muted small mb-3">
-                  Tasks anyone with Bill permission can pick up. <strong>Only one person</strong> can claim each task (first come, first served). After you claim it, it moves to <strong>Assigned to me</strong> for you.
-                </p>
-                {(() => {
-                  const pool = billAssignments.filter(
-                    (a) => a.status === 'available' && billAssignmentAssigneeIds(a).length === 0
-                  )
-                  if (pool.length === 0) {
-                    return (
-                      <div className="text-center py-5 text-muted">
-                        <i className="bi bi-inbox display-4 d-block mb-3"></i>
-                        <p>No open tasks right now.</p>
-                      </div>
-                    )
-                  }
-                  return (
-                    <div className="accordion mb-4" id="memberOpenTasksAccordion" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                      {pool.map((a) => {
-                        const cid = `collapseOpenTask${String(a.assignment_id).replace(/-/g, '')}`
-                        return (
-                          <div key={a.assignment_id} className="accordion-item mb-2 shadow-sm border rounded">
-                            <h2 className="accordion-header">
-                              <button
-                                className="accordion-button collapsed bg-white text-dark"
-                                type="button"
-                                data-bs-toggle="collapse"
-                                data-bs-target={`#${cid}`}
-                                aria-expanded="false"
-                              >
-                                <div className="d-flex w-100 justify-content-between align-items-center flex-wrap gap-2 pe-2">
-                                  <span className="fw-bold text-start">{a.title}</span>
-                                  <span className={`badge ${billAssignmentStatusBadgeClass(a.status)}`}>
-                                    {billAssignmentStatusLabel(a.status)}
-                                  </span>
-                                  {a.due_date && <span className="text-muted small">Due {formatDate(a.due_date)}</span>}
-                                </div>
-                              </button>
-                            </h2>
-                            <div id={cid} className="accordion-collapse collapse" data-bs-parent="#memberOpenTasksAccordion">
-                              <div className="accordion-body">
-                                <div className="mb-2">
-                                  <strong>Goal</strong>
-                                  <p className="mb-0 mt-1">{a.goal}</p>
-                                </div>
-                                {a.additional_info && (
-                                  <div className="mb-3">
-                                    <strong>Additional info</strong>
-                                    <p className="mb-0 mt-1">{a.additional_info}</p>
-                                  </div>
-                                )}
-                                <div className="mb-2 small text-muted">
-                                  Posted by {resolveBillAssignmentMemberName(a.assigned_by_member_id)}
-                                </div>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-primary"
-                                  onClick={() => handleClaimBillAssignment(a.assignment_id)}
-                                >
-                                  <i className="bi bi-hand-index-thumb me-1"></i>Claim this task
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })()}
-              </>
-            ) : billSubmissionViewTab === 'assigned_to_me' ? (
-              <>
-                {viewAsData &&
-                  billAssignments.some(
-                    (a) => a.status === 'available' && billAssignmentAssigneeIds(a).length === 0
-                  ) && (
-                  <div className="mb-4 p-3 border rounded bg-light">
-                    <h4 className="h6 text-muted mb-2">Open tasks (pool)</h4>
-                    <ul className="list-unstyled mb-0 small">
-                      {billAssignments
-                        .filter((a) => a.status === 'available' && billAssignmentAssigneeIds(a).length === 0)
-                        .map((a) => (
-                          <li key={a.assignment_id} className="mb-2">
-                            <strong>{a.title}</strong>
-                            {a.due_date ? ` · due ${formatDate(a.due_date)}` : ''}
-                          </li>
-                        ))}
-                    </ul>
-                  </div>
-                )}
-                <p className="text-muted small mb-3">
-                  Work items assigned by the exec team. A task may be shared with several members—everyone sees the same deliverables and status. Add both a proposal doc link and a proposal PDF URL, save, then mark complete when ready for review.
-                </p>
-                <div className="btn-group flex-wrap mb-3" role="group">
-                  {['all', 'not_started', 'in_progress', 'completed', 'in_review', 'approved'].map((key) => {
-                    const mine = billAssignments.filter((x) =>
-                      billAssignmentAssigneeIds(x).includes(effectiveMember?.member_id)
-                    )
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        className={`btn btn-sm ${memberAssignmentFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
-                        onClick={() => setMemberAssignmentFilter(key)}
-                      >
-                        {key === 'all'
-                          ? `All (${mine.length})`
-                          : `${billAssignmentStatusLabel(key)} (${mine.filter((x) => x.status === key).length})`}
-                      </button>
-                    )
-                  })}
-                </div>
-                {(() => {
-                  const mine = billAssignments.filter((x) =>
-                    billAssignmentAssigneeIds(x).includes(effectiveMember?.member_id)
-                  )
-                  const filtered =
-                    memberAssignmentFilter === 'all'
-                      ? mine
-                      : mine.filter((x) => x.status === memberAssignmentFilter)
-                  if (filtered.length === 0) {
-                    return (
-                      <div className="text-center py-5 text-muted">
-                        <i className="bi bi-inbox display-4 d-block mb-3"></i>
-                        <p>No assignments in this view.</p>
-                      </div>
-                    )
-                  }
-                  return (
-                    <div className="accordion mb-4" id="memberBillAssignmentsAccordion" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                      {filtered.map((a) => {
-                        const cid = `collapseMemberAssign${String(a.assignment_id).replace(/-/g, '')}`
-                        const draft = memberDeliverableInputs[a.assignment_id] || {
-                          doc: a.deliverable_doc_link || '',
-                          pdf: a.deliverable_pdf_url || '',
-                        }
-                        return (
-                          <div key={a.assignment_id} className="accordion-item mb-2 shadow-sm border rounded">
-                            <h2 className="accordion-header">
-                              <button
-                                className="accordion-button collapsed bg-white text-dark"
-                                type="button"
-                                data-bs-toggle="collapse"
-                                data-bs-target={`#${cid}`}
-                                aria-expanded="false"
-                              >
-                                <div className="d-flex w-100 justify-content-between align-items-center flex-wrap gap-2 pe-2">
-                                  <span className="fw-bold text-start">{a.title}</span>
-                                  <span className={`badge ${billAssignmentStatusBadgeClass(a.status)}`}>
-                                    {billAssignmentStatusLabel(a.status)}
-                                  </span>
-                                  {a.due_date && (
-                                    <span className="text-muted small">Due {formatDate(a.due_date)}</span>
-                                  )}
-                                </div>
-                              </button>
-                            </h2>
-                            <div id={cid} className="accordion-collapse collapse" data-bs-parent="#memberBillAssignmentsAccordion">
-                              <div className="accordion-body">
-                                <div className="mb-2">
-                                  <strong>Goal</strong>
-                                  <p className="mb-0 mt-1">{a.goal}</p>
-                                </div>
-                                {a.additional_info && (
-                                  <div className="mb-3">
-                                    <strong>Additional info</strong>
-                                    <p className="mb-0 mt-1">{a.additional_info}</p>
-                                  </div>
-                                )}
-                                <div className="mb-2">
-                                  <label className="form-label small mb-0">
-                                    Proposal doc link <span className="text-danger">*</span>
-                                  </label>
-                                  <input
-                                    type="url"
-                                    className="form-control form-control-sm"
-                                    placeholder="https://docs.google.com/..."
-                                    value={draft.doc}
-                                    disabled={a.status === 'approved' || viewAsData}
-                                    onChange={(e) =>
-                                      setMemberDeliverableInputs((prev) => ({
-                                        ...prev,
-                                        [a.assignment_id]: { ...draft, doc: e.target.value },
-                                      }))
-                                    }
-                                  />
-                                  <small className="text-muted">Provide a link to the proposal doc so it can be edited.</small>
-                                </div>
-                                <div className="mb-3">
-                                  <label className="form-label small mb-0">
-                                    Proposal PDF URL <span className="text-danger">*</span>
-                                  </label>
-                                  <input
-                                    type="url"
-                                    className="form-control form-control-sm"
-                                    placeholder="https://drive.google.com/... or direct PDF link"
-                                    value={draft.pdf}
-                                    disabled={a.status === 'approved' || viewAsData}
-                                    onChange={(e) =>
-                                      setMemberDeliverableInputs((prev) => ({
-                                        ...prev,
-                                        [a.assignment_id]: { ...draft, pdf: e.target.value },
-                                      }))
-                                    }
-                                  />
-                                  <small className="text-muted">Link to the PDF (e.g. shared Drive file).</small>
-                                </div>
-                                <div className="d-flex flex-wrap gap-2">
-                                  {a.status !== 'approved' && !viewAsData && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-secondary"
-                                      onClick={() => handleSaveAssignmentDeliverable(a.assignment_id)}
-                                    >
-                                      Save deliverables
-                                    </button>
-                                  )}
-                                  {a.status === 'not_started' && !viewAsData && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-primary"
-                                      onClick={() => handleAssigneeAssignmentStatus(a.assignment_id, 'in_progress')}
-                                    >
-                                      Start work
-                                    </button>
-                                  )}
-                                  {(a.status === 'in_progress' || a.status === 'not_started') && !viewAsData && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-success"
-                                      onClick={() => handleAssigneeAssignmentStatus(a.assignment_id, 'completed')}
-                                    >
-                                      Mark complete for review
-                                    </button>
-                                  )}
-                                </div>
-                                {a.status === 'completed' && (
-                                  <p className="small text-muted mt-2 mb-0">Submitted — waiting for exec review.</p>
-                                )}
-                                {a.status === 'in_review' && (
-                                  <p className="small text-warning mt-2 mb-0">In review by exec team.</p>
-                                )}
-                                {a.status === 'approved' && (
-                                  <p className="small text-success mt-2 mb-0">Approved. Thank you!</p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })()}
-              </>
-            ) : effectiveBills.length > 0 ? (
-              <div>
-                <h4 className="mb-3">My Submitted Bills</h4>
-                <div className="accordion mb-4" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-                  {effectiveBills.map(bill => (
-                    <div key={bill.bill_id} className="accordion-item mb-2 shadow-sm border rounded">
-                      <h2 className="accordion-header">
-                        <button
-                          className="accordion-button collapsed bg-white text-dark"
-                          type="button"
-                          data-bs-toggle="collapse"
-                          data-bs-target={`#collapseMyBill${bill.bill_id}`}
-                          aria-expanded="false"
-                        >
-                          <div className="d-flex w-100 justify-content-between align-items-center">
-                            <span className="fw-bold">{bill.name}</span>
-                            <span className={`badge me-3 ${
-                              bill.status === 'approved' ? 'bg-success' :
-                              bill.status === 'modified' ? 'bg-info' :
-                              bill.status === 'rejected' ? 'bg-danger' :
-                              'bg-warning text-dark'
-                            }`}>
-                              {bill.status === 'under_review' ? 'Under Review' :
-                               bill.status === 'approved' ? 'Approved' :
-                               bill.status === 'modified' ? 'Modified' :
-                               bill.status === 'rejected' ? 'Rejected' :
-                               'Pending'}
-                            </span>
-                            {bill.hidden && (
-                              <span className="badge bg-secondary me-2" title="Hidden from public Bills page">Hidden</span>
-                            )}
-                            <span className="text-muted">{formatDate(bill.bill_date)}</span>
-                          </div>
-                        </button>
-                      </h2>
-                      <div id={`collapseMyBill${bill.bill_id}`} className="accordion-collapse collapse">
-                        <div className="accordion-body">
-                          <div className="mb-3">
-                            <strong>State:</strong>
-                            <p className="mt-1 mb-0">{bill.state}</p>
-                          </div>
-                          <div className="mb-3">
-                            <strong>Description:</strong>
-                            <p className="mt-1 mb-0">{bill.description || '-'}</p>
-                          </div>
-                          <div className="mb-3">
-                            <strong>Status:</strong>
-                            <p className="mt-1 mb-0">
-                              <span className={`badge ${
-                                bill.status === 'approved' ? 'bg-success' :
-                                bill.status === 'modified' ? 'bg-info' :
-                                bill.status === 'rejected' ? 'bg-danger' :
-                                'bg-warning text-dark'
-                              }`}>
-                                {bill.status === 'under_review' ? 'Under Review' :
-                                 bill.status === 'approved' ? 'Approved' :
-                                 bill.status === 'modified' ? 'Modified & Approved' :
-                                 bill.status === 'rejected' ? 'Rejected' :
-                                 'Pending'}
-                              </span>
-                            </p>
-                          </div>
-                          {bill.review_notes && (
-                            <div className="mb-3">
-                              <strong>Review Notes:</strong>
-                              <p className="mt-1 mb-0">{bill.review_notes}</p>
-                            </div>
-                          )}
-                          {bill.reviewed_at && (
-                            <div className="mb-3">
-                              <strong>Reviewed:</strong>
-                              <p className="mt-1 mb-0">{formatDateLong(bill.reviewed_at)}</p>
-                            </div>
-                          )}
-                          {bill.legiscan_link && (
-                            <div className="mb-3">
-                              <strong>LegiScan:</strong>
-                              <p className="mt-1 mb-0">
-                                <a href={bill.legiscan_link} target="_blank" rel="noopener noreferrer" className="text-primary">{bill.legiscan_link}</a>
-                              </p>
-                            </div>
-                          )}
-                          {bill.google_doc_link && (
-                            <div className="mb-3">
-                              <strong>Proposal (Google Doc):</strong>
-                              <p className="mt-1 mb-0">
-                                <a href={bill.google_doc_link} target="_blank" rel="noopener noreferrer" className="text-primary">Open proposal doc</a>
-                              </p>
-                            </div>
-                          )}
-                          <div className="mt-3 d-flex gap-2 flex-wrap">
-                            {bill.pdfExists && (
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-dark"
-                                onClick={() => setBillPdfPreviewBill(bill)}
-                              >
-                                <i className="bi bi-file-pdf me-1"></i>View PDF
-                              </button>
-                            )}
-                            {bill.google_doc_link && (
-                              <a
-                                href={bill.google_doc_link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn btn-sm btn-outline-secondary"
-                              >
-                                <i className="bi bi-link-45deg me-1"></i>Proposal (Google Doc)
-                              </a>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="text-center py-5 text-muted">
-                <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
-                <p>{viewAsData ? 'No submitted bills for this member.' : 'No submitted bills yet. Submit your first bill for review.'}</p>
-              </div>
-            )}
-          </section>
+          <BillSubmissionSection
+            sectionOrder={dashboardOrder.billSubmission}
+            viewAsData={viewAsData}
+            effectiveMember={effectiveMember}
+            memberBillSectionTab={memberBillSectionTab}
+            setMemberBillSectionTab={setMemberBillSectionTab}
+            billSubmissionViewTab={billSubmissionViewTab}
+            handleAddBill={handleAddBill}
+            researchBills={researchBills}
+            researchBillsLoading={researchBillsLoading}
+            researchBillsError={researchBillsError}
+            researchBillSearchState={researchBillSearchState}
+            setResearchBillSearchState={setResearchBillSearchState}
+            researchBillSearchNumber={researchBillSearchNumber}
+            setResearchBillSearchNumber={setResearchBillSearchNumber}
+            researchBillSearchKeywords={researchBillSearchKeywords}
+            setResearchBillSearchKeywords={setResearchBillSearchKeywords}
+            researchBillStatusFilter={researchBillStatusFilter}
+            setResearchBillStatusFilter={setResearchBillStatusFilter}
+            allMembers={allMembers}
+            getBillPdfUrl={getBillPdfUrl}
+            formatDate={formatDate}
+            loadResearchBills={loadResearchBills}
+            getStateFileName={getStateFileName}
+            billAssignments={billAssignments}
+            handleClaimBillAssignment={handleClaimBillAssignment}
+            resolveBillAssignmentMemberName={resolveBillAssignmentMemberName}
+            memberAssignmentFilter={memberAssignmentFilter}
+            setMemberAssignmentFilter={setMemberAssignmentFilter}
+            effectiveMemberId={effectiveMember?.member_id}
+            memberDeliverableInputs={memberDeliverableInputs}
+            setMemberDeliverableInputs={setMemberDeliverableInputs}
+            handleSaveAssignmentDeliverable={handleSaveAssignmentDeliverable}
+            handleAssigneeAssignmentStatus={handleAssigneeAssignmentStatus}
+            effectiveBills={effectiveBills}
+            setBillPdfPreviewBill={setBillPdfPreviewBill}
+            formatDateLong={formatDateLong}
+          />
         )}
 
-        {/* Member Management Section - Registration Permission Required */}
-        {(() => {
-          const hasReg = hasPermission('registration')
-          console.log('Rendering Member Management section?', hasReg, 'member.registration =', member?.registration)
-          return hasReg
-        })() && (
-          <section className="mt-5" style={{ order: dashboardOrder.memberManagement }}>
-            <div className="d-flex justify-content-between align-items-center mb-4">
-              <h3>Member Management</h3>
-              <button className="btn btn-dark" onClick={handleAddMember}>
-                <i className="bi bi-person-plus me-2"></i>Add New Member
-              </button>
-            </div>
-            
-            <div className="alert alert-info">
-              <i className="bi bi-info-circle me-2"></i>
-              When you add a new member, they will automatically receive an email invitation to set up their account.
-            </div>
-
-            <input
-              ref={execMemberPhotoInputRef}
-              type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp"
-              className="d-none"
-              onChange={handleExecMemberPhotoFileChange}
-            />
-            {(memberPhotoError || memberPhotoSuccess) && (
-              <div className="mb-3">
-                {memberPhotoError && <div className="small text-danger">{memberPhotoError}</div>}
-                {memberPhotoSuccess && <div className="small text-success">{memberPhotoSuccess}</div>}
-              </div>
-            )}
-
-            {/* Active and Inactive Members in 2 columns with collapsible accordions */}
-            <div className="row g-4">
-              {/* Active Members */}
-              <div className="col-lg-6">
-                <div className="mb-4">
-                  <h4 className="mb-3">Active Members</h4>
-                  <div style={{ maxHeight: '600px', overflowY: 'auto', overflowX: 'hidden' }}>
-                    {allMembersForManagement.filter(m => m.active !== false).length > 0 ? (
-                      <div className="accordion" id="activeMembersAccordion">
-                      {allMembersForManagement.filter(m => m.active !== false).map(memberItem => (
-                        <div key={memberItem.member_id} className="accordion-item mb-2 shadow-sm border rounded">
-                          <h2 className="accordion-header">
-                            <button
-                              className="accordion-button collapsed bg-white text-dark"
-                              type="button"
-                              data-bs-toggle="collapse"
-                              data-bs-target={`#collapseActiveMember${memberItem.member_id}`}
-                              aria-expanded="false"
-                            >
-                              <div className="d-flex w-100 align-items-center gap-3">
-                                {memberItem.image ? (
-                                  <img
-                                    src={`${IMAGE_BASE_URL}/${memberItem.image}`}
-                                    alt=""
-                                    className="rounded-circle flex-shrink-0"
-                                    style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                  />
-                                ) : (
-                                  <div
-                                    className="rounded-circle flex-shrink-0 bg-light text-dark d-flex align-items-center justify-content-center"
-                                    style={{ width: '40px', height: '40px', fontSize: '0.9rem' }}
-                                  >
-                                    {memberItem.first_name?.[0]}{memberItem.last_name?.[0]}
-                                  </div>
-                                )}
-                                <div className="d-flex flex-column text-start">
-                                  <div className="d-flex align-items-center gap-2">
-                                    <span className="fw-bold">{memberItem.first_name} {memberItem.last_name}</span>
-                                    <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
-                                  </div>
-                                  <small className="text-muted">{memberItem.email}</small>
-                                </div>
-                              </div>
-                            </button>
-                          </h2>
-                          <div id={`collapseActiveMember${memberItem.member_id}`} className="accordion-collapse collapse" data-bs-parent="#activeMembersAccordion">
-                            <div className="accordion-body">
-                              <div className="row g-3">
-                                <div className="col-12 d-flex align-items-center gap-3 mb-2">
-                                  {memberItem.image ? (
-                                    <img
-                                      src={`${IMAGE_BASE_URL}/${memberItem.image}`}
-                                      alt=""
-                                      className="rounded-circle"
-                                      style={{ width: '64px', height: '64px', objectFit: 'cover' }}
-                                    />
-                                  ) : (
-                                    <div
-                                      className="rounded-circle bg-light text-dark d-flex align-items-center justify-content-center"
-                                      style={{ width: '64px', height: '64px', fontSize: '1.25rem' }}
-                                    >
-                                      {memberItem.first_name?.[0]}{memberItem.last_name?.[0]}
-                                    </div>
-                                  )}
-                                  <div>
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-secondary"
-                                      onClick={(ev) => { ev.stopPropagation(); handleExecChangeMemberPhoto(memberItem); }}
-                                      disabled={memberPhotoLoading}
-                                    >
-                                      {memberPhotoLoading && memberPhotoTarget === memberItem.member_id ? (
-                                        <span className="spinner-border spinner-border-sm me-1" />
-                                      ) : (
-                                        <i className="bi bi-camera me-1" />
-                                      )}
-                                      Change profile picture
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="col-md-6">
-                                  <strong>Name:</strong>
-                                  <p className="mt-1 mb-0">{memberItem.first_name} {memberItem.last_name}</p>
-                                </div>
-                                <div className="col-md-6">
-                                  <strong>Email:</strong>
-                                  <p className="mt-1 mb-0">
-                                    <a href={`mailto:${memberItem.email}`}>{memberItem.email}</a>
-                                  </p>
-                                </div>
-                                <div className="col-md-6">
-                                  <strong>Role:</strong>
-                                  <p className="mt-1 mb-0">{memberItem.role || '-'}</p>
-                                </div>
-                                <div className="col-md-6">
-                                  <strong>Phone:</strong>
-                                  <p className="mt-1 mb-0">
-                                    {memberItem.phone ? (
-                                      <a href={`tel:${memberItem.phone}`}>{formatPhone(memberItem.phone.toString())}</a>
-                                    ) : '-'}
-                                  </p>
-                                </div>
-                                {memberItem.school_name && (
-                                  <div className="col-md-6">
-                                    <strong>School:</strong>
-                                    <p className="mt-1 mb-0">{memberItem.school_name}</p>
-                                  </div>
-                                )}
-                                {(memberItem.city || memberItem.state) && (
-                                  <div className="col-md-6">
-                                    <strong>Location:</strong>
-                                    <p className="mt-1 mb-0">
-                                      {memberItem.city && memberItem.state 
-                                        ? `${memberItem.city}, ${memberItem.state}`
-                                        : memberItem.city || memberItem.state || '-'}
-                                    </p>
-                                  </div>
-                                )}
-                                <div className="col-12">
-                                  <strong>Permissions:</strong>
-                                  <div className="d-flex gap-1 flex-wrap mt-1">
-                                    {memberItem.volunteer && <span className="badge bg-primary">Volunteer</span>}
-                                    {memberItem.applications && <span className="badge bg-success">Applications</span>}
-                                    {memberItem.bills && <span className="badge bg-info">Bills</span>}
-                                    {memberItem.registration && <span className="badge bg-warning text-dark">Registration</span>}
-                                    {(memberItem.blog === true || memberItem.blog === 'true') && (
-                                      <span className="badge bg-secondary">Blog</span>
-                                    )}
-                                    {!memberItem.volunteer && !memberItem.applications && !memberItem.bills && !memberItem.registration && !(memberItem.blog === true || memberItem.blog === 'true') && (
-                                      <span className="text-muted">No permissions</span>
-                                    )}
-                                  </div>
-                                </div>
-                                {memberItem.start_date && (
-                                  <div className="col-md-6">
-                                    <strong>Start Date:</strong>
-                                    <p className="mt-1 mb-0">{formatDate(memberItem.start_date)}</p>
-                                  </div>
-                                )}
-                                <div className="col-12 mt-2">
-                                  <div className="d-flex gap-2 flex-wrap">
-                                    {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
-                                      <a
-                                        href={`/dashboard?viewAs=${memberItem.member_id}`}
-                                        className="btn btn-sm btn-outline-dark"
-                                      >
-                                        <i className="bi bi-person-square me-1"></i>View dashboard
-                                      </a>
-                                    )}
-                                    <button
-                                      className="btn btn-sm btn-outline-primary"
-                                      onClick={() => handleEditMember(memberItem)}
-                                    >
-                                      <i className="bi bi-pencil me-1"></i>Edit
-                                    </button>
-                                    <a
-                                      href={`mailto:${memberItem.email}`}
-                                      className="btn btn-sm btn-outline-secondary"
-                                    >
-                                      <i className="bi bi-envelope me-1"></i>Email
-                                    </a>
-                                    {memberItem.phone && (
-                                      <a
-                                        href={`sms:${memberItem.phone}`}
-                                        className="btn btn-sm btn-outline-secondary"
-                                      >
-                                        <i className="bi bi-chat-dots me-1"></i>Text
-                                      </a>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    ) : (
-                    <p className="text-muted">No active members found.</p>
-                  )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Inactive Members */}
-              <div className="col-lg-6">
-                <div className="mb-4">
-                  <h4 className="mb-3">Inactive Members</h4>
-                  <div style={{ maxHeight: '600px', overflowY: 'auto', overflowX: 'hidden' }}>
-                    {allMembersForManagement.filter(m => m.active === false).length > 0 ? (
-                      <div className="accordion" id="inactiveMembersAccordion">
-                      {allMembersForManagement.filter(m => m.active === false).map(memberItem => (
-                        <div key={memberItem.member_id} className="accordion-item mb-2 shadow-sm border rounded opacity-75">
-                          <h2 className="accordion-header">
-                            <button
-                              className="accordion-button collapsed bg-white text-dark"
-                              type="button"
-                              data-bs-toggle="collapse"
-                              data-bs-target={`#collapseInactiveMember${memberItem.member_id}`}
-                              aria-expanded="false"
-                            >
-                              <div className="d-flex w-100 align-items-center gap-3">
-                                {memberItem.image ? (
-                                  <img
-                                    src={`${IMAGE_BASE_URL}/${memberItem.image}`}
-                                    alt=""
-                                    className="rounded-circle flex-shrink-0"
-                                    style={{ width: '40px', height: '40px', objectFit: 'cover' }}
-                                  />
-                                ) : (
-                                  <div
-                                    className="rounded-circle flex-shrink-0 bg-light text-dark d-flex align-items-center justify-content-center"
-                                    style={{ width: '40px', height: '40px', fontSize: '0.9rem' }}
-                                  >
-                                    {memberItem.first_name?.[0]}{memberItem.last_name?.[0]}
-                                  </div>
-                                )}
-                                <div className="d-flex flex-column text-start">
-                                  <div className="d-flex align-items-center gap-2">
-                                    <span className="fw-bold">{memberItem.first_name} {memberItem.last_name}</span>
-                                    <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
-                                  </div>
-                                  <small className="text-muted">{memberItem.email}</small>
-                                </div>
-                              </div>
-                            </button>
-                          </h2>
-                          <div id={`collapseInactiveMember${memberItem.member_id}`} className="accordion-collapse collapse" data-bs-parent="#inactiveMembersAccordion">
-                            <div className="accordion-body">
-                              <div className="row g-3">
-                                <div className="col-12 d-flex align-items-center gap-3 mb-2">
-                                  {memberItem.image ? (
-                                    <img
-                                      src={`${IMAGE_BASE_URL}/${memberItem.image}`}
-                                      alt=""
-                                      className="rounded-circle"
-                                      style={{ width: '64px', height: '64px', objectFit: 'cover' }}
-                                    />
-                                  ) : (
-                                    <div
-                                      className="rounded-circle bg-light text-dark d-flex align-items-center justify-content-center"
-                                      style={{ width: '64px', height: '64px', fontSize: '1.25rem' }}
-                                    >
-                                      {memberItem.first_name?.[0]}{memberItem.last_name?.[0]}
-                                    </div>
-                                  )}
-                                  <div>
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-secondary"
-                                      onClick={(ev) => { ev.stopPropagation(); handleExecChangeMemberPhoto(memberItem); }}
-                                      disabled={memberPhotoLoading}
-                                    >
-                                      {memberPhotoLoading && memberPhotoTarget === memberItem.member_id ? (
-                                        <span className="spinner-border spinner-border-sm me-1" />
-                                      ) : (
-                                        <i className="bi bi-camera me-1" />
-                                      )}
-                                      Change profile picture
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="col-md-6">
-                                  <strong>Name:</strong>
-                                  <p className="mt-1 mb-0">{memberItem.first_name} {memberItem.last_name}</p>
-                                </div>
-                                <div className="col-md-6">
-                                  <strong>Email:</strong>
-                                  <p className="mt-1 mb-0">
-                                    <a href={`mailto:${memberItem.email}`}>{memberItem.email}</a>
-                                  </p>
-                                </div>
-                                <div className="col-md-6">
-                                  <strong>Role:</strong>
-                                  <p className="mt-1 mb-0">{memberItem.role || '-'}</p>
-                                </div>
-                                <div className="col-md-6">
-                                  <strong>Phone:</strong>
-                                  <p className="mt-1 mb-0">
-                                    {memberItem.phone ? (
-                                      <a href={`tel:${memberItem.phone}`}>{formatPhone(memberItem.phone.toString())}</a>
-                                    ) : '-'}
-                                  </p>
-                                </div>
-                                {memberItem.school_name && (
-                                  <div className="col-md-6">
-                                    <strong>School:</strong>
-                                    <p className="mt-1 mb-0">{memberItem.school_name}</p>
-                                  </div>
-                                )}
-                                {(memberItem.city || memberItem.state) && (
-                                  <div className="col-md-6">
-                                    <strong>Location:</strong>
-                                    <p className="mt-1 mb-0">
-                                      {memberItem.city && memberItem.state 
-                                        ? `${memberItem.city}, ${memberItem.state}`
-                                        : memberItem.city || memberItem.state || '-'}
-                                    </p>
-                                  </div>
-                                )}
-                                <div className="col-12">
-                                  <strong>Permissions:</strong>
-                                  <div className="d-flex gap-1 flex-wrap mt-1">
-                                    {memberItem.volunteer && <span className="badge bg-primary">Volunteer</span>}
-                                    {memberItem.applications && <span className="badge bg-success">Applications</span>}
-                                    {memberItem.bills && <span className="badge bg-info">Bills</span>}
-                                    {memberItem.registration && <span className="badge bg-warning text-dark">Registration</span>}
-                                    {(memberItem.blog === true || memberItem.blog === 'true') && (
-                                      <span className="badge bg-secondary">Blog</span>
-                                    )}
-                                    {!memberItem.volunteer && !memberItem.applications && !memberItem.bills && !memberItem.registration && !(memberItem.blog === true || memberItem.blog === 'true') && (
-                                      <span className="text-muted">No permissions</span>
-                                    )}
-                                  </div>
-                                </div>
-                                {memberItem.start_date && (
-                                  <div className="col-md-6">
-                                    <strong>Start Date:</strong>
-                                    <p className="mt-1 mb-0">{formatDate(memberItem.start_date)}</p>
-                                  </div>
-                                )}
-                                <div className="col-12 mt-2">
-                                  <div className="d-flex gap-2 flex-wrap">
-                                    {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
-                                      <a
-                                        href={`/dashboard?viewAs=${memberItem.member_id}`}
-                                        className="btn btn-sm btn-outline-dark"
-                                      >
-                                        <i className="bi bi-person-square me-1"></i>View dashboard
-                                      </a>
-                                    )}
-                                    <button
-                                      className="btn btn-sm btn-outline-primary"
-                                      onClick={() => handleEditMember(memberItem)}
-                                    >
-                                      <i className="bi bi-pencil me-1"></i>Edit
-                                    </button>
-                                    <a
-                                      href={`mailto:${memberItem.email}`}
-                                      className="btn btn-sm btn-outline-secondary"
-                                    >
-                                      <i className="bi bi-envelope me-1"></i>Email
-                                    </a>
-                                    {memberItem.phone && (
-                                      <a
-                                        href={`sms:${memberItem.phone}`}
-                                        className="btn btn-sm btn-outline-secondary"
-                                      >
-                                        <i className="bi bi-chat-dots me-1"></i>Text
-                                      </a>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    ) : (
-                    <p className="text-muted">No inactive members found.</p>
-                  )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+        {hasPermission('registration') && (
+          <MemberManagementSection
+            sectionStyleOrder={dashboardOrder.memberManagement}
+            imageBaseUrl={IMAGE_BASE_URL}
+            allMembersForManagement={allMembersForManagement}
+            execMemberPhotoInputRef={execMemberPhotoInputRef}
+            onExecPhotoFileChange={handleExecMemberPhotoFileChange}
+            onAddMember={handleAddMember}
+            memberPhotoError={memberPhotoError}
+            memberPhotoSuccess={memberPhotoSuccess}
+            memberPhotoLoading={memberPhotoLoading}
+            memberPhotoTarget={memberPhotoTarget}
+            formatDate={formatDate}
+            formatPhone={formatPhone}
+            showViewAsDashboardLink={
+              hasPermission('volunteer') &&
+              hasPermission('applications') &&
+              hasPermission('bills') &&
+              hasPermission('registration')
+            }
+            onChangeProfilePhoto={handleExecChangeMemberPhoto}
+            onEditMember={handleEditMember}
+          />
         )}
 
         {/* Schools & Partners - Execs only */}
@@ -6628,7 +4905,7 @@ function DashboardPage() {
                                 <td>
                                   {school.school_image && (
                                     <img
-                                      src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/schools-images/${school.school_image}`}
+                                      src={`${SCHOOLS_IMAGES_BASE_URL}/${school.school_image}`}
                                       alt={school.school_name}
                                       style={{ maxHeight: '40px', maxWidth: '80px', objectFit: 'contain' }}
                                     />
@@ -6723,7 +5000,7 @@ function DashboardPage() {
                                 <td>
                                   {partner.partner_logo && (
                                     <img
-                                      src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/partners-images/${partner.partner_logo}`}
+                                      src={`${PARTNERS_IMAGES_BASE_URL}/${partner.partner_logo}`}
                                       alt={partner.partner_name}
                                       style={{ maxHeight: '40px', maxWidth: '80px', objectFit: 'contain' }}
                                     />
@@ -6778,335 +5055,52 @@ function DashboardPage() {
           </section>
         )}
 
-        {/* Applications Section - Applications Permission Required */}
-        {(() => {
-          const hasApps = hasPermission('applications')
-          console.log('Rendering Applications section?', hasApps, 'member.applications =', member?.applications)
-          return hasApps
-        })() && (
-          <section className="mt-5" style={{ order: dashboardOrder.applications }}>
-            <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-              <h3 className="mb-0">New Member Applications</h3>
-              <div className="btn-group flex-wrap" role="group">
-                <button
-                  type="button"
-                  className={`btn btn-sm ${applicationFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
-                  onClick={() => setApplicationFilter('all')}
-                >
-                  All ({effectiveApplications.length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${applicationFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
-                  onClick={() => setApplicationFilter('pending')}
-                >
-                  Pending ({effectiveApplications.filter(a => a.status === 'pending').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${applicationFilter === 'invited' ? 'btn-info' : 'btn-outline-info'}`}
-                  onClick={() => setApplicationFilter('invited')}
-                >
-                  Invited ({effectiveApplications.filter(a => a.status === 'invited').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${applicationFilter === 'met_with' ? 'btn-primary' : 'btn-outline-primary'}`}
-                  onClick={() => setApplicationFilter('met_with')}
-                >
-                  Met with ({effectiveApplications.filter(a => a.status === 'met_with').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${applicationFilter === 'onboard' ? 'btn-secondary' : 'btn-outline-secondary'}`}
-                  onClick={() => setApplicationFilter('onboard')}
-                >
-                  Onboard ({effectiveApplications.filter(a => a.status === 'onboard').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${applicationFilter === 'accepted' ? 'btn-success' : 'btn-outline-success'}`}
-                  onClick={() => setApplicationFilter('accepted')}
-                >
-                  Accepted ({effectiveApplications.filter(a => a.status === 'accepted').length})
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${applicationFilter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'}`}
-                  onClick={() => setApplicationFilter('rejected')}
-                >
-                  Rejected ({effectiveApplications.filter(a => a.status === 'rejected').length})
-                </button>
-              </div>
-            </div>
-
-            {filteredEffectiveApplications.length > 0 ? (
-              <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
-                <table className="table table-hover table-sm">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Email</th>
-                      <th>Age</th>
-                      <th>School grade</th>
-                      <th>Review score</th>
-                      <th>State</th>
-                      <th>Submitted</th>
-                      {applicationFilter === 'met_with' && <th>Met with</th>}
-                      <th>Status</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredEffectiveApplications.map(app => (
-                      <tr key={app.application_id}>
-                        <td>{app.full_name}</td>
-                        <td>
-                          <a href={`mailto:${app.email}`}>{app.email}</a>
-                        </td>
-                        <td>{app.age != null && app.age !== '' ? app.age : '—'}</td>
-                        <td>{app.grade}</td>
-                        <td>{app.numeric_grade != null && app.numeric_grade !== '' ? app.numeric_grade : '—'}</td>
-                        <td>{app.state}</td>
-                        <td>{formatDateLong(app.submitted_at)}</td>
-                        {applicationFilter === 'met_with' && (
-                          <td style={{ minWidth: '150px' }}>
-                            <input
-                              type="date"
-                              className="form-control form-control-sm"
-                              defaultValue={app.met_with_at ? String(app.met_with_at).slice(0, 10) : ''}
-                              key={`${app.application_id}-met-${app.met_with_at ?? ''}`}
-                              onBlur={(e) => {
-                                const next = e.target.value || ''
-                                const prev = app.met_with_at ? String(app.met_with_at).slice(0, 10) : ''
-                                if (next === prev) return
-                                handleSetMetWithAt(app.application_id, next)
-                              }}
-                            />
-                          </td>
-                        )}
-                        <td>
-                          <span className={`badge ${applicationStatusBadgeClass(app.status)}`}>
-                            {applicationStatusLabel(app.status)}
-                          </span>
-                        </td>
-                        <td className="text-end">
-                          <button
-                            className="btn btn-sm btn-outline-primary"
-                            onClick={() => handleViewApplication(app)}
-                          >
-                            <i className="bi bi-eye me-1"></i>View
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-5 text-muted">
-                <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
-                <p>No {applicationFilter === 'all' ? '' : `${applicationStatusLabel(applicationFilter).toLowerCase()} `}applications found.</p>
-              </div>
-            )}
-          </section>
+        {hasPermission('applications') && (
+          <ApplicationsSection
+            sectionOrder={dashboardOrder.applications}
+            applicationFilter={applicationFilter}
+            setApplicationFilter={setApplicationFilter}
+            effectiveApplications={effectiveApplications}
+            filteredEffectiveApplications={filteredEffectiveApplications}
+            formatDateLong={formatDateLong}
+            onViewApplication={handleViewApplication}
+            onSetMetWithAt={handleSetMetWithAt}
+          />
         )}
 
-        {/* HR Reports - single section: all members can submit; execs see filters + list */}
-        <section className="mt-5" style={{ order: dashboardOrder.hrReports }}>
-          <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-            <h3 className="mb-0">HR Reports</h3>
-            <div className="d-flex align-items-center gap-2">
-              {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
-                <div className="btn-group" role="group">
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${hrReportFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
-                    onClick={() => setHrReportFilter('all')}
-                  >
-                    All ({effectiveHrReports.length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${hrReportFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
-                    onClick={() => setHrReportFilter('pending')}
-                  >
-                    Pending ({effectiveHrReports.filter(r => r.status === 'pending').length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${hrReportFilter === 'reviewed' ? 'btn-info' : 'btn-outline-info'}`}
-                    onClick={() => setHrReportFilter('reviewed')}
-                  >
-                    Reviewed ({effectiveHrReports.filter(r => r.status === 'reviewed').length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${hrReportFilter === 'resolved' ? 'btn-success' : 'btn-outline-success'}`}
-                    onClick={() => setHrReportFilter('resolved')}
-                  >
-                    Resolved ({effectiveHrReports.filter(r => r.status === 'resolved').length})
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${hrReportFilter === 'dismissed' ? 'btn-secondary' : 'btn-outline-secondary'}`}
-                    onClick={() => setHrReportFilter('dismissed')}
-                  >
-                    Dismissed ({effectiveHrReports.filter(r => r.status === 'dismissed').length})
-                  </button>
-                </div>
-              )}
-              {!viewAsData && (
-                <button className="btn btn-dark btn-sm" onClick={() => {
-                  setHrReportForm({
-                    nature: '',
-                    regardingMemberId: '',
-                    regardingName: '',
-                    dateOccurred: '',
-                    details: ''
-                  })
-                  setHrReportError('')
-                  setHrReportSuccess('')
-                  setShowHrReportModal(true)
-                }}>
-                  <i className="bi bi-file-earmark-text me-2"></i>Submit HR Report
-                </button>
-              )}
-            </div>
-          </div>
-          {(hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')) ? (
-            <>
-              <div className="alert alert-info mb-3">
-                <i className="bi bi-info-circle me-2"></i>
-                You can view all HR reports except those that involve you directly.
-              </div>
-              {filteredHrReports.length > 0 ? (
-                <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
-                  <table className="table table-hover">
-                    <thead>
-                      <tr>
-                        <th>Submitted</th>
-                        <th>Submitted By</th>
-                        <th>Nature of Complaint</th>
-                        <th>Regarding</th>
-                        <th>Date Occurred</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredHrReports.map(report => (
-                        <tr key={report.report_id}>
-                          <td>{formatDateLong(report.created_at)}</td>
-                          <td>
-                            {report.submitted_by_member ? (
-                              `${report.submitted_by_member.first_name} ${report.submitted_by_member.last_name}`
-                            ) : 'Unknown'}
-                          </td>
-                          <td>{report.nature_of_complaint}</td>
-                          <td>
-                            {report.regarding_member ? (
-                              `${report.regarding_member.first_name} ${report.regarding_member.last_name}`
-                            ) : report.regarding_name || 'N/A'}
-                          </td>
-                          <td>{formatDate(report.date_occurred)}</td>
-                          <td>
-                            <span className={`badge ${
-                              report.status === 'pending' ? 'bg-warning text-dark' :
-                              report.status === 'resolved' ? 'bg-success' :
-                              report.status === 'dismissed' ? 'bg-secondary' :
-                              'bg-info'
-                            }`}>
-                              {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
-                            </span>
-                          </td>
-                          <td>
-                            <button
-                              className="btn btn-sm btn-outline-primary"
-                              onClick={() => {
-                                setSelectedHrReport(report)
-                                setShowHrReportViewModal(true)
-                              }}
-                            >
-                              <i className="bi bi-eye me-1"></i>View
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-5 text-muted">
-                  <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
-                  <p>No {hrReportFilter === 'all' ? '' : hrReportFilter} HR reports found.</p>
-                </div>
-              )}
-            </>
-          ) : member ? (
-            <>
-              <p className="text-muted mb-2">Your submitted HR reports.</p>
-              {filteredHrReports.length > 0 ? (
-                <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
-                  <table className="table table-hover">
-                    <thead>
-                      <tr>
-                        <th>Submitted</th>
-                        <th>Nature of Complaint</th>
-                        <th>Regarding</th>
-                        <th>Date Occurred</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredHrReports.map(report => (
-                        <tr key={report.report_id}>
-                          <td>{formatDateLong(report.created_at)}</td>
-                          <td>{report.nature_of_complaint}</td>
-                          <td>
-                            {report.regarding_member ? (
-                              `${report.regarding_member.first_name} ${report.regarding_member.last_name}`
-                            ) : report.regarding_name || 'N/A'}
-                          </td>
-                          <td>{formatDate(report.date_occurred)}</td>
-                          <td>
-                            <span className={`badge ${
-                              report.status === 'pending' ? 'bg-warning text-dark' :
-                              report.status === 'resolved' ? 'bg-success' :
-                              report.status === 'dismissed' ? 'bg-secondary' :
-                              'bg-info'
-                            }`}>
-                              {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
-                            </span>
-                          </td>
-                          <td>
-                            <button
-                              className="btn btn-sm btn-outline-primary"
-                              onClick={() => {
-                                setSelectedHrReport(report)
-                                setShowHrReportViewModal(true)
-                              }}
-                            >
-                              <i className="bi bi-eye me-1"></i>View
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-5 text-muted">
-                  <i className="bi bi-file-earmark-text display-4 d-block mb-3"></i>
-                  <p>You have not submitted any HR reports.</p>
-                </div>
-              )}
-            </>
-          ) : (
-            <p className="text-muted mb-0">Submit a confidential HR complaint or report using the button above. Reports are reviewed by executive directors.</p>
-          )}
-        </section>
+        <HrReportsSection
+          sectionOrder={dashboardOrder.hrReports}
+          hrReportFilter={hrReportFilter}
+          setHrReportFilter={setHrReportFilter}
+          effectiveHrReports={effectiveHrReports}
+          filteredHrReports={filteredHrReports}
+          viewAsData={viewAsData}
+          memberLoaded={!!member}
+          isExec={
+            hasPermission('volunteer') &&
+            hasPermission('applications') &&
+            hasPermission('bills') &&
+            hasPermission('registration')
+          }
+          formatDateLong={formatDateLong}
+          formatDate={formatDate}
+          onOpenSubmitHrReport={() => {
+            setHrReportForm({
+              nature: '',
+              regardingMemberId: '',
+              regardingName: '',
+              dateOccurred: '',
+              details: '',
+            })
+            setHrReportError('')
+            setHrReportSuccess('')
+            setShowHrReportModal(true)
+          }}
+          onViewReport={(report) => {
+            setSelectedHrReport(report)
+            setShowHrReportViewModal(true)
+          }}
+        />
 
         {!viewAsData && member && (member.blog === true || member.blog === 'true') && (
           <section className="mt-5" style={{ order: dashboardOrder.mediumBlog }}>
@@ -7194,3311 +5188,439 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* SPAN Card Password Modal */}
-      {showPasswordModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowPasswordModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Confirm Password</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowPasswordModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <p>Confirm your password to generate your SPANCard:</p>
-                  <input
-                    type="password"
-                    className="form-control"
-                    placeholder="Your password"
-                    value={qrPassword}
-                    onChange={(e) => setQrPassword(e.target.value)}
-                  />
-                  {qrPasswordError && <div className="text-danger mt-2">{qrPasswordError}</div>}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowPasswordModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    onClick={handleQrPasswordConfirm}
-                  >
-                    Confirm
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <SpanCardPasswordModal
+        open={showPasswordModal}
+        qrPassword={qrPassword}
+        setQrPassword={setQrPassword}
+        qrPasswordError={qrPasswordError}
+        onClose={() => setShowPasswordModal(false)}
+        onConfirm={handleQrPasswordConfirm}
+      />
 
-      {/* Add Volunteer Entry Modal */}
-      {showVolunteerModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowVolunteerModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Add Volunteer Entry</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowVolunteerModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <div className="mb-3">
-                    <label className="form-label">Job Title</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={volunteerForm.jobTitle}
-                      onChange={(e) => setVolunteerForm({ ...volunteerForm, jobTitle: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Job Description</label>
-                    <textarea
-                      className="form-control"
-                      rows="3"
-                      value={volunteerForm.jobDesc}
-                      onChange={(e) => setVolunteerForm({ ...volunteerForm, jobDesc: e.target.value })}
-                      required
-                    ></textarea>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Input Method</label>
-                    <div className="btn-group w-100" role="group">
-                      <input
-                        type="radio"
-                        className="btn-check"
-                        name="inputMode"
-                        id="inputModeDatetime"
-                        checked={volunteerForm.inputMode === 'datetime'}
-                        onChange={() => setVolunteerForm({ ...volunteerForm, inputMode: 'datetime' })}
-                      />
-                      <label className="btn btn-outline-primary" htmlFor="inputModeDatetime">
-                        <i className="bi bi-calendar-range me-1"></i>Date & Time Range
-                      </label>
-                      <input
-                        type="radio"
-                        className="btn-check"
-                        name="inputMode"
-                        id="inputModeHours"
-                        checked={volunteerForm.inputMode === 'hours'}
-                        onChange={() => setVolunteerForm({ ...volunteerForm, inputMode: 'hours' })}
-                      />
-                      <label className="btn btn-outline-primary" htmlFor="inputModeHours">
-                        <i className="bi bi-clock me-1"></i>Hours Only
-                      </label>
-                    </div>
-                  </div>
-                  {volunteerForm.inputMode === 'datetime' ? (
-                    <div className="mb-3 row">
-                      <div className="col-md-6">
-                        <label className="form-label">Start Time</label>
-                        <input
-                          type="datetime-local"
-                          className="form-control"
-                          value={volunteerForm.startTime}
-                          onChange={(e) => setVolunteerForm({ ...volunteerForm, startTime: e.target.value })}
-                          required={volunteerForm.inputMode === 'datetime'}
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">End Time</label>
-                        <input
-                          type="datetime-local"
-                          className="form-control"
-                          value={volunteerForm.endTime}
-                          onChange={(e) => setVolunteerForm({ ...volunteerForm, endTime: e.target.value })}
-                          required={volunteerForm.inputMode === 'datetime'}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mb-3 row">
-                      <div className="col-md-6">
-                        <label className="form-label">Work Date</label>
-                        <input
-                          type="date"
-                          className="form-control"
-                          value={volunteerForm.workDate}
-                          onChange={(e) => setVolunteerForm({ ...volunteerForm, workDate: e.target.value })}
-                          required={volunteerForm.inputMode === 'hours'}
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Hours</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          step="0.25"
-                          min="0.25"
-                          value={volunteerForm.hours}
-                          onChange={(e) => setVolunteerForm({ ...volunteerForm, hours: e.target.value })}
-                          placeholder="e.g., 2.5 for 2 hours 30 minutes"
-                          required={volunteerForm.inputMode === 'hours'}
-                        />
-                        <small className="text-muted">Enter hours as a decimal (e.g., 2.5 = 2h 30m)</small>
-                      </div>
-                    </div>
-                  )}
-                  {volunteerError && <div className="text-danger mt-2">{volunteerError}</div>}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowVolunteerModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    onClick={handleSaveVolunteer}
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <VolunteerEntryModal
+        open={showVolunteerModal}
+        volunteerForm={volunteerForm}
+        setVolunteerForm={setVolunteerForm}
+        volunteerError={volunteerError}
+        onClose={() => setShowVolunteerModal(false)}
+        onSave={handleSaveVolunteer}
+      />
 
-      {/* Request leave or extension modal */}
-      {showRequestModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) setShowRequestModal(false)
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Request leave or extension</h5>
-                  <button type="button" className="btn-close" onClick={() => setShowRequestModal(false)}></button>
-                </div>
-                <form onSubmit={handleSubmitRequest}>
-                  <div className="modal-body">
-                    <div className="mb-3">
-                      <label className="form-label">Type</label>
-                      <select
-                        className="form-select"
-                        value={requestForm.type}
-                        onChange={(e) => setRequestForm({ ...requestForm, type: e.target.value })}
-                      >
-                        <option value="leave">Leave / break</option>
-                        <option value="extension">Project extension</option>
-                      </select>
-                    </div>
-                    <div className="mb-3">
-                      <label className="form-label">Reason <span className="text-danger">*</span></label>
-                      <textarea
-                        className="form-control"
-                        rows="3"
-                        value={requestForm.reason}
-                        onChange={(e) => setRequestForm({ ...requestForm, reason: e.target.value })}
-                        placeholder="Explain your request..."
-                        required
-                      />
-                    </div>
-                    {requestForm.type === 'leave' && (
-                      <div className="mb-3 row">
-                        <div className="col-md-6">
-                          <label className="form-label">Start date (optional)</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={requestForm.leaveStart}
-                            onChange={(e) => setRequestForm({ ...requestForm, leaveStart: e.target.value })}
-                          />
-                        </div>
-                        <div className="col-md-6">
-                          <label className="form-label">End date (optional)</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={requestForm.leaveEnd}
-                            onChange={(e) => setRequestForm({ ...requestForm, leaveEnd: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    {requestForm.type === 'extension' && (
-                      <div className="mb-3">
-                        <div className="row">
-                          <div className="col-md-6 mb-2">
-                            <label className="form-label">Project name (optional)</label>
-                            <input
-                              type="text"
-                              className="form-control"
-                              value={requestForm.projectName}
-                              onChange={(e) => setRequestForm({ ...requestForm, projectName: e.target.value })}
-                              placeholder="e.g. Policy brief"
-                            />
-                          </div>
-                          <div className="col-md-6">
-                            <label className="form-label">Requested New Deadline (optional)</label>
-                            <input
-                              type="date"
-                              className="form-control"
-                              value={requestForm.requestedByDate}
-                              onChange={(e) => setRequestForm({ ...requestForm, requestedByDate: e.target.value })}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {requestError && <div className="text-danger small mt-2">{requestError}</div>}
-                    {requestSuccess && <div className="text-success small mt-2">{requestSuccess}</div>}
-                  </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-outline-dark" onClick={() => setShowRequestModal(false)}>Cancel</button>
-                    <button type="submit" className="btn btn-dark">Submit request</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <LeaveRequestSubmitModal
+        open={showRequestModal}
+        onClose={() => setShowRequestModal(false)}
+        requestForm={requestForm}
+        setRequestForm={setRequestForm}
+        requestError={requestError}
+        requestSuccess={requestSuccess}
+        onSubmit={handleSubmitRequest}
+      />
 
-      {/* Request review (approve/decline) modal - exec only */}
-      {showRequestReviewModal && selectedRequestForReview && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowRequestReviewModal(false)
-                setSelectedRequestForReview(null)
-                setRequestReviewNotes('')
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">{requestReviewAction === 'approve' ? 'Approve' : 'Decline'} request</h5>
-                  <button type="button" className="btn-close" onClick={() => { setShowRequestReviewModal(false); setSelectedRequestForReview(null) }}></button>
-                </div>
-                <div className="modal-body">
-                  <p className="mb-2"><strong>Member:</strong> {selectedRequestForReview.member ? `${selectedRequestForReview.member.first_name} ${selectedRequestForReview.member.last_name}` : 'Unknown'}</p>
-                  <p className="mb-2"><strong>Type:</strong> <span className="text-capitalize">{selectedRequestForReview.type}</span></p>
-                  <p className="mb-2"><strong>Reason:</strong> {selectedRequestForReview.reason}</p>
-                  <div className="mb-3">
-                    <label className="form-label">Review notes (optional)</label>
-                    <textarea
-                      className="form-control"
-                      rows="2"
-                      value={requestReviewNotes}
-                      onChange={(e) => setRequestReviewNotes(e.target.value)}
-                      placeholder="e.g. reason for decline or any follow-up"
-                    />
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-outline-dark" onClick={() => { setShowRequestReviewModal(false); setSelectedRequestForReview(null) }}>Cancel</button>
-                  <button
-                    type="button"
-                    className={requestReviewAction === 'approve' ? 'btn btn-success' : 'btn btn-danger'}
-                    onClick={handleRequestReviewSubmit}
-                  >
-                    {requestReviewAction === 'approve' ? 'Approve' : 'Decline'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <LeaveRequestQuickReviewModal
+        open={showRequestReviewModal}
+        request={selectedRequestForReview}
+        requestReviewAction={requestReviewAction}
+        requestReviewNotes={requestReviewNotes}
+        setRequestReviewNotes={setRequestReviewNotes}
+        onClose={() => {
+          setShowRequestReviewModal(false)
+          setSelectedRequestForReview(null)
+          setRequestReviewNotes('')
+        }}
+        onConfirm={handleRequestReviewSubmit}
+      />
 
-      {/* Request View Modal - details + approve/decline and comments for execs on pending */}
-      {showRequestViewModal && selectedRequestForView && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1056 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowRequestViewModal(false)
-                setSelectedRequestForView(null)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Leave/Extension Request</h5>
-                  <button type="button" className="btn-close" onClick={() => { setShowRequestViewModal(false); setSelectedRequestForView(null) }}></button>
-                </div>
-                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                  <div className="mb-3">
-                    <strong>Member:</strong>
-                    <p className="mb-0 mt-1">
-                      {selectedRequestForView.member ? `${selectedRequestForView.member.first_name} ${selectedRequestForView.member.last_name}` : 'Unknown'}
-                      {selectedRequestForView.member?.email && <span className="text-muted d-block small">{selectedRequestForView.member.email}</span>}
-                    </p>
-                  </div>
-                  <div className="mb-3">
-                    <strong>Type:</strong>
-                    <p className="mb-0 mt-1"><span className="badge bg-secondary text-capitalize">{selectedRequestForView.type}</span></p>
-                  </div>
-                  <div className="mb-3">
-                    <strong>Reason:</strong>
-                    <p className="mb-0 mt-1">{selectedRequestForView.reason}</p>
-                  </div>
-                  <div className="mb-3">
-                    <strong>Details:</strong>
-                    <p className="mb-0 mt-1">
-                      {selectedRequestForView.type === 'leave' && (selectedRequestForView.leave_start || selectedRequestForView.leave_end)
-                        ? `${selectedRequestForView.leave_start ? formatDate(selectedRequestForView.leave_start) : '—'} to ${selectedRequestForView.leave_end ? formatDate(selectedRequestForView.leave_end) : '—'}`
-                        : selectedRequestForView.type === 'extension' && (selectedRequestForView.project_name || selectedRequestForView.requested_by_date)
-                          ? [selectedRequestForView.project_name, selectedRequestForView.requested_by_date ? formatDate(selectedRequestForView.requested_by_date) : null].filter(Boolean).join(' · ')
-                          : '—'}
-                    </p>
-                  </div>
-                  <div className="mb-3">
-                    <strong>Status:</strong>
-                    <p className="mb-0 mt-1">
-                      <span className={`badge ${selectedRequestForView.status === 'approved' ? 'bg-success' : selectedRequestForView.status === 'declined' ? 'bg-danger' : 'bg-warning text-dark'}`}>
-                        {selectedRequestForView.status}
-                      </span>
-                    </p>
-                  </div>
-                  <div className="mb-3">
-                    <strong>Submitted:</strong>
-                    <p className="mb-0 mt-1">{formatDateLong(selectedRequestForView.created_at)}</p>
-                  </div>
-                  {(selectedRequestForView.reviewed_by_member || selectedRequestForView.reviewed_at) && (
-                    <div className="mb-3">
-                      <strong>Reviewed by:</strong>
-                      <p className="mb-0 mt-1">
-                        {selectedRequestForView.reviewed_by_member ? `${selectedRequestForView.reviewed_by_member.first_name} ${selectedRequestForView.reviewed_by_member.last_name}` : 'Unknown'}
-                        {selectedRequestForView.reviewed_at && <span className="text-muted d-block small">{formatDateLong(selectedRequestForView.reviewed_at)}</span>}
-                      </p>
-                    </div>
-                  )}
-                  {selectedRequestForView.review_notes && selectedRequestForView.status !== 'pending' && (
-                    <div className="mb-3">
-                      <strong>Review notes:</strong>
-                      <p className="mb-0 mt-1" style={{ whiteSpace: 'pre-wrap' }}>{selectedRequestForView.review_notes}</p>
-                    </div>
-                  )}
+      <LeaveRequestViewModal
+        open={showRequestViewModal}
+        request={selectedRequestForView}
+        onClose={() => {
+          setShowRequestViewModal(false)
+          setSelectedRequestForView(null)
+        }}
+        formatDate={formatDate}
+        formatDateLong={formatDateLong}
+        viewAsData={viewAsData}
+        showExecReviewPanel={
+          !viewAsData &&
+          hasPermission('volunteer') &&
+          hasPermission('applications') &&
+          hasPermission('bills') &&
+          hasPermission('registration')
+        }
+        requestReviewNotes={requestReviewNotes}
+        setRequestReviewNotes={setRequestReviewNotes}
+        onReviewFromView={handleRequestReviewSubmitFromView}
+        onStatusChangeFromView={handleRequestStatusChangeFromView}
+      />
 
-                  {!viewAsData && hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
-                    <div className="mt-4 pt-3 border-top">
-                      <label className="form-label">Review notes (optional)</label>
-                      <textarea
-                        className="form-control mb-3"
-                        rows="3"
-                        value={requestReviewNotes}
-                        onChange={(e) => setRequestReviewNotes(e.target.value)}
-                        placeholder="Add comments for the member (e.g. reason for decline or follow-up)"
-                      />
-                      {selectedRequestForView.status === 'pending' ? (
-                        <div className="d-flex gap-2">
-                          <button type="button" className="btn btn-success" onClick={() => handleRequestReviewSubmitFromView('approve')}>
-                            Approve
-                          </button>
-                          <button type="button" className="btn btn-danger" onClick={() => handleRequestReviewSubmitFromView('decline')}>
-                            Decline
-                          </button>
-                        </div>
-                      ) : (
-                        <div>
-                          <p className="small text-muted mb-2">Change status:</p>
-                          <div className="d-flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              className={`btn btn-sm ${selectedRequestForView.status === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
-                              onClick={() => handleRequestStatusChangeFromView('pending')}
-                            >
-                              Set to Pending
-                            </button>
-                            <button
-                              type="button"
-                              className={`btn btn-sm ${selectedRequestForView.status === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
-                              onClick={() => handleRequestStatusChangeFromView('approved')}
-                            >
-                              Set to Approved
-                            </button>
-                            <button
-                              type="button"
-                              className={`btn btn-sm ${selectedRequestForView.status === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
-                              onClick={() => handleRequestStatusChangeFromView('declined')}
-                            >
-                              Set to Declined
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-outline-dark" onClick={() => { setShowRequestViewModal(false); setSelectedRequestForView(null) }}>Close</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
-        </>
-      )}
+      <SuggestionViewModal
+        open={showSuggestionViewModal}
+        suggestion={selectedSuggestionForView}
+        onClose={() => {
+          setShowSuggestionViewModal(false)
+          setSelectedSuggestionForView(null)
+        }}
+        formatDateLong={formatDateLong}
+        showMemberBlock={isExec}
+        showExecReview={!viewAsData && isExec}
+        suggestionReviewNotes={suggestionReviewNotes}
+        setSuggestionReviewNotes={setSuggestionReviewNotes}
+        onStatusChange={handleSuggestionStatusChangeFromView}
+      />
 
-      {/* Suggestion View Modal - details + exec status/comments */}
-      {showSuggestionViewModal && selectedSuggestionForView && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1056 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowSuggestionViewModal(false)
-                setSelectedSuggestionForView(null)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Suggestion</h5>
-                  <button type="button" className="btn-close" onClick={() => { setShowSuggestionViewModal(false); setSelectedSuggestionForView(null) }}></button>
-                </div>
-                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                  {isExec && (
-                    <div className="mb-3">
-                      <strong>Member:</strong>
-                      <p className="mb-0 mt-1">
-                        {selectedSuggestionForView.member ? `${selectedSuggestionForView.member.first_name} ${selectedSuggestionForView.member.last_name}` : 'Unknown'}
-                        {selectedSuggestionForView.member?.email && <span className="text-muted d-block small">{selectedSuggestionForView.member.email}</span>}
-                      </p>
-                    </div>
-                  )}
-                  <div className="mb-3">
-                    <strong>Type:</strong>
-                    <p className="mb-0 mt-1">
-                      <span className="badge bg-secondary">
-                        {selectedSuggestionForView.type === 'bill_idea' ? 'Bill idea' : selectedSuggestionForView.type === 'general_interest' ? 'General interest' : 'Web / feature suggestion'}
-                      </span>
-                    </p>
-                  </div>
-                  <div className="mb-3">
-                    <strong>Title:</strong>
-                    <p className="mb-0 mt-1">{selectedSuggestionForView.title}</p>
-                  </div>
-                  {selectedSuggestionForView.description && (
-                    <div className="mb-3">
-                      <strong>Description:</strong>
-                      <p className="mb-0 mt-1" style={{ whiteSpace: 'pre-wrap' }}>{selectedSuggestionForView.description}</p>
-                    </div>
-                  )}
-                  <div className="mb-3">
-                    <strong>Status:</strong>
-                    <p className="mb-0 mt-1">
-                      <span className={`badge ${
-                        selectedSuggestionForView.status === 'pending' ? 'bg-warning text-dark' :
-                        selectedSuggestionForView.status === 'under_review' ? 'bg-info' :
-                        selectedSuggestionForView.status === 'approved' ? 'bg-success' : 'bg-danger'
-                      }`}>
-                        {selectedSuggestionForView.status.replace('_', ' ')}
-                      </span>
-                    </p>
-                  </div>
-                  <div className="mb-3">
-                    <strong>Submitted:</strong>
-                    <p className="mb-0 mt-1">{formatDateLong(selectedSuggestionForView.created_at)}</p>
-                  </div>
-                  {(selectedSuggestionForView.reviewed_by_member || selectedSuggestionForView.reviewed_at) && (
-                    <div className="mb-3">
-                      <strong>Reviewed by:</strong>
-                      <p className="mb-0 mt-1">
-                        {selectedSuggestionForView.reviewed_by_member ? `${selectedSuggestionForView.reviewed_by_member.first_name} ${selectedSuggestionForView.reviewed_by_member.last_name}` : 'Unknown'}
-                        {selectedSuggestionForView.reviewed_at && <span className="text-muted d-block small">{formatDateLong(selectedSuggestionForView.reviewed_at)}</span>}
-                      </p>
-                    </div>
-                  )}
-                  {selectedSuggestionForView.review_notes && (
-                    <div className="mb-3">
-                      <strong>Review notes:</strong>
-                      <p className="mb-0 mt-1" style={{ whiteSpace: 'pre-wrap' }}>{selectedSuggestionForView.review_notes}</p>
-                    </div>
-                  )}
+      <VolunteerSupervisorCommentModal
+        open={showCommentModal}
+        commentText={commentText}
+        setCommentText={setCommentText}
+        onClose={() => setShowCommentModal(false)}
+        onSave={handleSaveComment}
+      />
 
-                  {!viewAsData && isExec && (
-                    <div className="mt-4 pt-3 border-top">
-                      <label className="form-label">Review notes (optional)</label>
-                      <textarea
-                        className="form-control mb-3"
-                        rows="3"
-                        value={suggestionReviewNotes}
-                        onChange={(e) => setSuggestionReviewNotes(e.target.value)}
-                        placeholder="Leave a comment for the member..."
-                      />
-                      <p className="small text-muted mb-2">Change status:</p>
-                      <div className="d-flex flex-wrap gap-2">
-                        <button type="button" className={`btn btn-sm ${selectedSuggestionForView.status === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`} onClick={() => handleSuggestionStatusChangeFromView('pending')}>Pending</button>
-                        <button type="button" className={`btn btn-sm ${selectedSuggestionForView.status === 'under_review' ? 'btn-info' : 'btn-outline-info'}`} onClick={() => handleSuggestionStatusChangeFromView('under_review')}>Under review</button>
-                        <button type="button" className={`btn btn-sm ${selectedSuggestionForView.status === 'approved' ? 'btn-success' : 'btn-outline-success'}`} onClick={() => handleSuggestionStatusChangeFromView('approved')}>Approved</button>
-                        <button type="button" className={`btn btn-sm ${selectedSuggestionForView.status === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`} onClick={() => handleSuggestionStatusChangeFromView('declined')}>Declined</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-outline-dark" onClick={() => { setShowSuggestionViewModal(false); setSelectedSuggestionForView(null) }}>Close</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
-        </>
-      )}
+      <DeleteVolunteerEntryModal
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteEntry}
+      />
 
-      {/* Supervisor Comment Modal */}
-      {showCommentModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowCommentModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Add Supervisor Comment</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowCommentModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <textarea
-                    className="form-control"
-                    rows="3"
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                  ></textarea>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowCommentModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    onClick={handleSaveComment}
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <BillUploadModal
+        open={showBillModal}
+        billModalSourceAssignmentId={billModalSourceAssignmentId}
+        billForm={billForm}
+        setBillForm={setBillForm}
+        setBillPdfFile={setBillPdfFile}
+        billError={billError}
+        billSuccess={billSuccess}
+        allMembers={allMembers}
+        onClose={closeBillUploadModal}
+        onSave={handleSaveBill}
+        onToggleCollaborator={handleBillCollaboratorToggle}
+        setBillError={setBillError}
+      />
 
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowDeleteModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title text-danger">Delete Entry</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowDeleteModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  Are you sure you want to delete this volunteer entry? This cannot be undone.
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowDeleteModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    onClick={handleDeleteEntry}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <BillEditModal
+        open={showEditBillModal && !!selectedBillForEdit}
+        editBillForm={editBillForm}
+        setEditBillForm={setEditBillForm}
+        setEditBillPdfFile={setEditBillPdfFile}
+        billError={billError}
+        billSuccess={billSuccess}
+        allMembers={allMembers}
+        showHiddenCheckbox={
+          hasPermission('volunteer') &&
+          hasPermission('applications') &&
+          hasPermission('bills') &&
+          hasPermission('registration')
+        }
+        onClose={() => setShowEditBillModal(false)}
+        onSave={handleSaveEditBill}
+        onToggleCollaborator={handleEditBillCollaboratorToggle}
+        setBillError={setBillError}
+      />
 
-      {/* Bill Upload Modal */}
-      {showBillModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                closeBillUploadModal()
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">
-                    {billModalSourceAssignmentId ? 'Publish bill (approved assignment)' : 'Upload New Bill'}
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => closeBillUploadModal()}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  {billModalSourceAssignmentId && (
-                    <div className="alert alert-info small py-2 mb-3">
-                      This task is marked approved. Finish this form to create an <strong>approved</strong> bill (visible on the
-                      public Bills page). Assignees are pre-selected as collaborators; the doc link is prefilled from the task
-                      when available. Upload the proposal PDF file below for the site (required).
-                    </div>
-                  )}
-                  <div className="mb-3">
-                    <label className="form-label">State <span className="text-danger">*</span></label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="e.g., California, Texas"
-                      value={billForm.state}
-                      onChange={(e) => setBillForm({ ...billForm, state: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Bill Name/Number <span className="text-danger">*</span></label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="e.g., HB 1234, AB 567"
-                      value={billForm.name}
-                      onChange={(e) => setBillForm({ ...billForm, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Position <span className="text-danger">*</span></label>
-                    <select
-                      className="form-select"
-                      value={billForm.position}
-                      onChange={(e) => setBillForm({ ...billForm, position: e.target.value })}
-                      required
-                    >
-                      <option value="Support">Support</option>
-                      <option value="Oppose">Oppose</option>
-                      <option value="Support If Amended">Support If Amended</option>
-                      <option value="Propose">Propose</option>
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Description <span className="text-danger">*</span></label>
-                    <textarea
-                      className="form-control"
-                      rows="4"
-                      placeholder="Describe the bill and SPAN's position..."
-                      value={billForm.description}
-                      onChange={(e) => setBillForm({ ...billForm, description: e.target.value })}
-                      required
-                    ></textarea>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Bill Date <span className="text-danger">*</span></label>
-                    <input
-                      type="date"
-                      className="form-control"
-                      value={billForm.billDate}
-                      onChange={(e) => setBillForm({ ...billForm, billDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">LegiScan Link</label>
-                    <input
-                      type="url"
-                      className="form-control"
-                      placeholder="https://legiscan.com/..."
-                      value={billForm.legiscanLink}
-                      onChange={(e) => setBillForm({ ...billForm, legiscanLink: e.target.value })}
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Proposal link (Google Doc or similar) <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="url"
-                      className="form-control"
-                      placeholder="https://docs.google.com/..."
-                      value={billForm.googleDocLink}
-                      onChange={(e) => setBillForm({ ...billForm, googleDocLink: e.target.value })}
-                    />
-                    <small className="text-muted">Provide a link to the proposal doc so it can be edited.</small>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Proposal PDF <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="file"
-                      className="form-control"
-                      accept=".pdf"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) {
-                          if (file.type !== 'application/pdf') {
-                            setBillError('Please upload a PDF file.')
-                            return
-                          }
-                          setBillPdfFile(file)
-                        }
-                      }}
-                    />
-                    <small className="text-muted">
-                      Stored as {billForm.state || 'state'}/{billForm.name ? billForm.name.replace(/[^a-zA-Z0-9]/g, '_') : 'bill'}.pdf
-                    </small>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Collaborators <span className="text-danger">*</span></label>
-                    <div className="border rounded p-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                      {allMembers.length === 0 ? (
-                        <p className="text-muted small mb-0">Loading members...</p>
-                      ) : (
-                        <div className="d-flex flex-wrap gap-2">
-                          {allMembers.map(m => {
-                            const fullName = `${m.first_name} ${m.last_name}`
-                            const isSelected = billForm.collaborators.includes(fullName)
-                            return (
-                              <button
-                                key={m.member_id}
-                                type="button"
-                                className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-outline-primary'}`}
-                                onClick={() => handleBillCollaboratorToggle(m.member_id)}
-                              >
-                                {fullName}
-                                {isSelected && <i className="bi bi-check ms-1"></i>}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                    <small className="text-muted">Select at least one member who worked on this bill</small>
-                  </div>
-                  {billError && <div className="text-danger mt-2">{billError}</div>}
-                  {billSuccess && <div className="text-success mt-2">{billSuccess}</div>}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => closeBillUploadModal()}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    onClick={handleSaveBill}
-                  >
-                    {billModalSourceAssignmentId ? 'Save & publish bill' : 'Upload Bill'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
-
-      {/* Edit Bill Modal - Dashboard */}
-      {showEditBillModal && selectedBillForEdit && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowEditBillModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Edit Bill</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowEditBillModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <div className="mb-3">
-                    <label className="form-label">State <span className="text-danger">*</span></label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={editBillForm.state}
-                      onChange={(e) => setEditBillForm({ ...editBillForm, state: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Bill Name/Number <span className="text-danger">*</span></label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={editBillForm.name}
-                      onChange={(e) => setEditBillForm({ ...editBillForm, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Position <span className="text-danger">*</span></label>
-                    <select
-                      className="form-select"
-                      value={editBillForm.position}
-                      onChange={(e) => setEditBillForm({ ...editBillForm, position: e.target.value })}
-                      required
-                    >
-                      <option value="Support">Support</option>
-                      <option value="Oppose">Oppose</option>
-                      <option value="Support If Amended">Support If Amended</option>
-                      <option value="Propose">Propose</option>
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Description <span className="text-danger">*</span></label>
-                    <textarea
-                      className="form-control"
-                      rows="4"
-                      value={editBillForm.description}
-                      onChange={(e) => setEditBillForm({ ...editBillForm, description: e.target.value })}
-                      required
-                    ></textarea>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Bill Date <span className="text-danger">*</span></label>
-                    <input
-                      type="date"
-                      className="form-control"
-                      value={editBillForm.billDate}
-                      onChange={(e) => setEditBillForm({ ...editBillForm, billDate: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">LegiScan Link</label>
-                    <input
-                      type="url"
-                      className="form-control"
-                      value={editBillForm.legiscanLink}
-                      onChange={(e) => setEditBillForm({ ...editBillForm, legiscanLink: e.target.value })}
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Proposal link (Google Doc or similar) <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="url"
-                      className="form-control"
-                      placeholder="https://docs.google.com/..."
-                      value={editBillForm.googleDocLink}
-                      onChange={(e) => setEditBillForm({ ...editBillForm, googleDocLink: e.target.value })}
-                    />
-                    <small className="text-muted">Provide a link to the proposal doc so it can be edited.</small>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Proposal PDF <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="file"
-                      className="form-control"
-                      accept=".pdf"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file) {
-                          if (file.type !== 'application/pdf') {
-                            setBillError('Please upload a PDF file.')
-                            return
-                          }
-                          setEditBillPdfFile(file)
-                        }
-                      }}
-                    />
-                    <small className="text-muted">
-                      A PDF must be on file—upload if missing, or upload a new file to replace the existing one.
-                    </small>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Collaborators <span className="text-danger">*</span></label>
-                    <div className="border rounded p-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                      {allMembers.length === 0 ? (
-                        <p className="text-muted small mb-0">Loading members...</p>
-                      ) : (
-                        <div className="d-flex flex-wrap gap-2">
-                          {allMembers.map(m => {
-                            const fullName = `${m.first_name} ${m.last_name}`
-                            const isSelected = editBillForm.collaborators.includes(fullName)
-                            return (
-                              <button
-                                key={m.member_id}
-                                type="button"
-                                className={`btn btn-sm ${isSelected ? 'btn-primary' : 'btn-outline-primary'}`}
-                                onClick={() => handleEditBillCollaboratorToggle(m.member_id)}
-                              >
-                                {fullName}
-                                {isSelected && <i className="bi bi-check ms-1"></i>}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      )}
-                    </div>
-                    <small className="text-muted">Select at least one collaborator</small>
-                  </div>
-                  {(() => {
-                    const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
-                    return isExec ? (
-                      <div className="mb-3 form-check">
-                        <input
-                          type="checkbox"
-                          className="form-check-input"
-                          id="editBillHidden"
-                          checked={!!editBillForm.hidden}
-                          onChange={(e) => setEditBillForm({ ...editBillForm, hidden: e.target.checked })}
-                        />
-                        <label className="form-check-label" htmlFor="editBillHidden">
-                          Hide from public site (approved but not shown on Bills page)
-                        </label>
-                      </div>
-                    ) : null
-                  })()}
-                  {billError && <div className="text-danger mt-2">{billError}</div>}
-                  {billSuccess && <div className="text-success mt-2">{billSuccess}</div>}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowEditBillModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    onClick={handleSaveEditBill}
-                  >
-                    Save Changes
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
-
-      {/* Delete Bill Confirmation Modal - Dashboard */}
-      {showDeleteBillModal && selectedBillForDelete && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowDeleteBillModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title text-danger">Delete Bill</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowDeleteBillModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <p>Are you sure you want to delete <strong>{selectedBillForDelete.state} {selectedBillForDelete.name}</strong>?</p>
-                  <p className="text-muted small mb-0">This will also delete the associated PDF file. This action cannot be undone.</p>
-                  {billError && <div className="text-danger mt-2">{billError}</div>}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowDeleteBillModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    onClick={handleConfirmDeleteBill}
-                  >
-                    Delete Bill
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <DeleteBillModal
+        open={showDeleteBillModal}
+        bill={selectedBillForDelete}
+        billError={billError}
+        onClose={() => setShowDeleteBillModal(false)}
+        onConfirm={handleConfirmDeleteBill}
+      />
 
       {/* Assign bill work — exec only */}
-      {showAssignBillModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                closeAssignBillModal()
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">{editingAssignment ? 'Edit assignment' : 'Assign work'}</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    aria-label="Close"
-                    onClick={() => closeAssignBillModal()}
-                  />
-                </div>
-                <div className="modal-body">
-                  <div className="mb-3">
-                    <label className="form-label">Topic / concept</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={assignBillForm.title}
-                      onChange={(e) => setAssignBillForm({ ...assignBillForm, title: e.target.value })}
-                      placeholder="Short title"
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Goal</label>
-                    <textarea
-                      className="form-control"
-                      rows={3}
-                      value={assignBillForm.goal}
-                      onChange={(e) => setAssignBillForm({ ...assignBillForm, goal: e.target.value })}
-                      placeholder="What should be delivered?"
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Additional info (optional)</label>
-                    <textarea
-                      className="form-control"
-                      rows={2}
-                      value={assignBillForm.additionalInfo}
-                      onChange={(e) => setAssignBillForm({ ...assignBillForm, additionalInfo: e.target.value })}
-                    />
-                  </div>
-                  <div className="border rounded p-3 mb-3 bg-light">
-                    <label className="form-label fw-semibold">Bill prefill (optional)</label>
-                    <p className="small text-muted mb-2">
-                      When you approve this task, the bill form opens with these fields filled; assignees become collaborators.
-                    </p>
-                    <div className="row g-2">
-                      <div className="col-md-4">
-                        <label className="form-label small mb-0">State</label>
-                        <input
-                          type="text"
-                          className="form-control form-control-sm"
-                          placeholder="e.g. OH or Ohio"
-                          value={assignBillForm.prefillState}
-                          onChange={(e) => setAssignBillForm({ ...assignBillForm, prefillState: e.target.value })}
-                        />
-                        <span className="text-muted" style={{ fontSize: '0.7rem' }}>
-                          Saved as full name (CA → California) for grouping.
-                        </span>
-                      </div>
-                      <div className="col-md-4">
-                        <label className="form-label small mb-0">Bill name / number</label>
-                        <input
-                          type="text"
-                          className="form-control form-control-sm"
-                          placeholder="e.g. HB 123"
-                          value={assignBillForm.prefillBillName}
-                          onChange={(e) => setAssignBillForm({ ...assignBillForm, prefillBillName: e.target.value })}
-                        />
-                      </div>
-                      <div className="col-md-4">
-                        <label className="form-label small mb-0">SPAN position</label>
-                        <select
-                          className="form-select form-select-sm"
-                          value={assignBillForm.prefillPosition}
-                          onChange={(e) => setAssignBillForm({ ...assignBillForm, prefillPosition: e.target.value })}
-                        >
-                          <option value="Support">Support</option>
-                          <option value="Oppose">Oppose</option>
-                          <option value="Support If Amended">Support If Amended</option>
-                          <option value="Propose">Propose</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Who is this for?</label>
-                    <div className="form-check mb-2">
-                      <input
-                        className="form-check-input"
-                        type="radio"
-                        name="assignBillMode"
-                        id="assignBillDirect"
-                        checked={!assignBillForm.poolOpen}
-                        onChange={() => setAssignBillForm((f) => ({ ...f, poolOpen: false }))}
-                      />
-                      <label className="form-check-label" htmlFor="assignBillDirect">
-                        Assign to one or more members (shared task)
-                      </label>
-                    </div>
-                    <div className="form-check">
-                      <input
-                        className="form-check-input"
-                        type="radio"
-                        name="assignBillMode"
-                        id="assignBillPool"
-                        checked={assignBillForm.poolOpen}
-                        onChange={() => setAssignBillForm((f) => ({ ...f, poolOpen: true }))}
-                      />
-                      <label className="form-check-label" htmlFor="assignBillPool">
-                        Post as an <strong>open task</strong> — shown under Bill Submission → Open tasks. <strong>One person</strong> can claim it (first come, first served); not a shared assignee list.
-                      </label>
-                    </div>
-                  </div>
-                  {!assignBillForm.poolOpen && (
-                    <div className="mb-3">
-                      <label className="form-label">Assignees</label>
-                      <p className="form-text small text-muted mb-2">
-                        Only members with <strong>Bill</strong> permission. Everyone checked shares the same task; deliverables and status update for all.
-                      </p>
-                      {assigneePickerMembers.length === 0 && assignBillForm.assigneeMemberIds.length === 0 ? (
-                        <div className="alert alert-warning small mb-0 py-2">
-                          No members have Bill permission yet. Enable it in Member Management for at least one member, or choose an open task instead.
-                        </div>
-                      ) : (
-                        <>
-                          {assigneePickerMembers.length > 0 && (
-                            <div className="d-flex flex-wrap gap-2 mb-2">
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-secondary"
-                                onClick={() =>
-                                  setAssignBillForm((f) => {
-                                    const extra = f.assigneeMemberIds.filter(
-                                      (id) => !assigneePickerMembers.some((m) => m.member_id === id)
-                                    )
-                                    return {
-                                      ...f,
-                                      assigneeMemberIds: [
-                                        ...extra,
-                                        ...assigneePickerMembers.map((m) => m.member_id),
-                                      ],
-                                    }
-                                  })
-                                }
-                              >
-                                Select all
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-secondary"
-                                onClick={() => setAssignBillForm((f) => ({ ...f, assigneeMemberIds: [] }))}
-                              >
-                                Clear all
-                              </button>
-                            </div>
-                          )}
-                          <div
-                            className="border rounded p-2 bg-light"
-                            style={{ maxHeight: '240px', overflowY: 'auto' }}
-                          >
-                            {assignBillForm.assigneeMemberIds
-                              .filter((id) => !assigneePickerMembers.some((m) => m.member_id === id))
-                              .map((id) => (
-                                <div key={`extra-${id}`} className="form-check">
-                                  <input
-                                    className="form-check-input"
-                                    type="checkbox"
-                                    id={`assignee-${id}`}
-                                    checked
-                                    onChange={() => {
-                                      setAssignBillForm((f) => ({
-                                        ...f,
-                                        assigneeMemberIds: f.assigneeMemberIds.filter((x) => x !== id),
-                                      }))
-                                    }}
-                                  />
-                                  <label className="form-check-label" htmlFor={`assignee-${id}`}>
-                                    {resolveBillAssignmentMemberName(id)}{' '}
-                                    <span className="text-muted small">(current)</span>
-                                  </label>
-                                </div>
-                              ))}
-                            {assigneePickerMembers.map((m) => {
-                              const mid = m.member_id
-                              const checked = assignBillForm.assigneeMemberIds.includes(mid)
-                              return (
-                                <div key={mid} className="form-check">
-                                  <input
-                                    className="form-check-input"
-                                    type="checkbox"
-                                    id={`assignee-${mid}`}
-                                    checked={checked}
-                                    onChange={() => {
-                                      setAssignBillForm((f) => {
-                                        const next = new Set(f.assigneeMemberIds)
-                                        if (next.has(mid)) next.delete(mid)
-                                        else next.add(mid)
-                                        return { ...f, assigneeMemberIds: [...next] }
-                                      })
-                                    }}
-                                  />
-                                  <label className="form-check-label" htmlFor={`assignee-${mid}`}>
-                                    {m.first_name} {m.last_name}
-                                  </label>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                  <div className="mb-3">
-                    <label className="form-label">Due date (optional)</label>
-                    <input
-                      type="date"
-                      className="form-control"
-                      value={assignBillForm.dueDate}
-                      onChange={(e) => setAssignBillForm({ ...assignBillForm, dueDate: e.target.value })}
-                    />
-                  </div>
-                  {assignBillError && <div className="text-danger small">{assignBillError}</div>}
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-outline-secondary" onClick={() => closeAssignBillModal()}>
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    disabled={
-                      assignBillSaving ||
-                      (!assignBillForm.poolOpen &&
-                        assigneePickerMembers.length === 0 &&
-                        assignBillForm.assigneeMemberIds.length === 0 &&
-                        !editingAssignment)
-                    }
-                    onClick={handleSaveAssignBillModal}
-                  >
-                    {assignBillSaving ? 'Saving…' : editingAssignment ? 'Save changes' : 'Create assignment'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <AssignBillWorkModal
+        open={showAssignBillModal}
+        editingAssignment={editingAssignment}
+        assignBillForm={assignBillForm}
+        setAssignBillForm={setAssignBillForm}
+        assignBillError={assignBillError}
+        assignBillSaving={assignBillSaving}
+        assignPrefillBillChoices={assignPrefillBillChoices}
+        allBills={allBills}
+        assigneePickerMembers={assigneePickerMembers}
+        resolveMemberName={resolveBillAssignmentMemberName}
+        onClose={closeAssignBillModal}
+        onSave={handleSaveAssignBillModal}
+      />
 
-      {/* Delete bill assignment — exec only */}
-      {showDeleteAssignmentModal && assignmentToDelete && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowDeleteAssignmentModal(false)
-                setAssignmentToDelete(null)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title text-danger">Delete assignment</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    aria-label="Close"
-                    onClick={() => {
-                      setShowDeleteAssignmentModal(false)
-                      setAssignmentToDelete(null)
-                    }}
-                  />
-                </div>
-                <div className="modal-body">
-                  <p className="mb-0">
-                    Delete this assignment for <strong>{assignmentToDelete.title}</strong>? Listed members will no longer see it.
-                    This cannot be undone.
-                  </p>
-                  {deleteAssignmentError && <div className="text-danger small mt-2">{deleteAssignmentError}</div>}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    onClick={() => {
-                      setShowDeleteAssignmentModal(false)
-                      setAssignmentToDelete(null)
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    disabled={deleteAssignmentSaving}
-                    onClick={handleConfirmDeleteBillAssignment}
-                  >
-                    {deleteAssignmentSaving ? 'Deleting…' : 'Delete assignment'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <DeleteBillAssignmentModal
+        open={showDeleteAssignmentModal}
+        assignment={assignmentToDelete}
+        error={deleteAssignmentError}
+        saving={deleteAssignmentSaving}
+        onClose={() => {
+          setShowDeleteAssignmentModal(false)
+          setAssignmentToDelete(null)
+        }}
+        onConfirm={handleConfirmDeleteBillAssignment}
+      />
 
-      {/* Bill PDF Preview Modal - Dashboard Bill Management */}
-      {billPdfPreviewBill && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1060 }}
-            onClick={() => setBillPdfPreviewBill(null)}
-          >
-            <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">
-                    {billPdfPreviewBill.state} {billPdfPreviewBill.name} – Proposal PDF
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setBillPdfPreviewBill(null)}
-                    aria-label="Close"
-                  />
-                </div>
-                <div className="modal-body">
-                  <Suspense fallback={<div className="text-center py-5"><div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading PDF...</span></div></div>}>
-                    <PDFViewer url={getBillPdfUrl(billPdfPreviewBill)} />
-                  </Suspense>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }} />
-        </>
-      )}
+      <BillPdfPreviewModal
+        bill={billPdfPreviewBill}
+        onClose={() => setBillPdfPreviewBill(null)}
+        getBillPdfUrl={getBillPdfUrl}
+      />
 
-      {/* Add Member Modal */}
-      {showMemberModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowMemberModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg" style={{ maxWidth: '800px' }}>
-              <div className="modal-content">
-                <div className="modal-header d-flex justify-content-between align-items-center w-100">
-                  <h5 className="modal-title mb-0">{editingMemberId ? 'Edit Member' : 'Add New Member'}</h5>
-                  <div className="d-flex gap-2 align-items-center">
-                    {!editingMemberId && (
-                      <button
-                        type="button"
-                        className="btn btn-outline-primary btn-sm"
-                        onClick={() => setShowImportApplicationModal(true)}
-                      >
-                        <i className="bi bi-download me-1"></i>Import from Application
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className="btn-close"
-                      onClick={() => {
-                        setShowMemberModal(false)
-                        setEditingMemberId(null)
-                      }}
-                    ></button>
-                  </div>
-                </div>
-                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                  {memberError && <div className="alert alert-danger">{memberError}</div>}
-                  {memberSuccess && <div className="alert alert-success">{memberSuccess}</div>}
-                  
-                  <div className="row g-3">
-                    {/* Required Fields */}
-                    <div className="col-md-6">
-                      <label className="form-label">First Name <span className="text-danger">*</span></label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={memberForm.firstName}
-                        onChange={(e) => setMemberForm({ ...memberForm, firstName: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Last Name <span className="text-danger">*</span></label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={memberForm.lastName}
-                        onChange={(e) => setMemberForm({ ...memberForm, lastName: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Email (SPAN Email) <span className="text-danger">*</span></label>
-                      <input
-                        type="email"
-                        className="form-control"
-                        value={memberForm.email}
-                        onChange={(e) => {
-                          emailManuallyEdited.current = true
-                          setMemberForm({ ...memberForm, email: e.target.value })
-                        }}
-                        placeholder="firstname.lastname@spanationwide.org"
-                        required
-                      />
-                      <small className="text-muted">Auto-generated from name, or enter manually</small>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Original Email (Personal Email) <span className="text-danger">*</span></label>
-                      <input
-                        type="email"
-                        className="form-control"
-                        value={memberForm.originalEmail}
-                        onChange={(e) => setMemberForm({ ...memberForm, originalEmail: e.target.value })}
-                        placeholder="personal@example.com"
-                        required
-                      />
-                      <small className="text-muted">Where to forward SPAN emails</small>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Role <span className="text-danger">*</span></label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={memberForm.role}
-                        onChange={(e) => setMemberForm({ ...memberForm, role: e.target.value })}
-                        placeholder="e.g., Content Writer, Advocate, Analyst, etc."
-                        required
-                      />
-                      <small className="text-muted">This is the official role shown in the directory</small>
-                    </div>
-                    {editingMemberId && (
-                      <div className="col-md-6">
-                        <div className="form-check">
-                          <input
-                            type="checkbox"
-                            className="form-check-input"
-                            id="memberFormActive"
-                            checked={memberForm.active !== false}
-                            onChange={(e) => setMemberForm({ ...memberForm, active: e.target.checked })}
-                          />
-                          <label className="form-check-label" htmlFor="memberFormActive">
-                            Active member
-                          </label>
-                        </div>
-                        <small className="text-muted d-block">Uncheck to move member to Inactive; they won’t appear in the directory.</small>
-                      </div>
-                    )}
-                    
-                    {/* Dates */}
-                    <div className="col-md-6">
-                      <label className="form-label">Start Date</label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        value={memberForm.startDate}
-                        onChange={(e) => setMemberForm({ ...memberForm, startDate: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Date of Birth</label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        value={memberForm.dob}
-                        onChange={(e) => setMemberForm({ ...memberForm, dob: e.target.value })}
-                      />
-                    </div>
-                    
-                    {/* Location */}
-                    <div className="col-md-6">
-                      <label className="form-label">City</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={memberForm.city}
-                        onChange={(e) => setMemberForm({ ...memberForm, city: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">State</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={memberForm.state}
-                        onChange={(e) => setMemberForm({ ...memberForm, state: e.target.value })}
-                      />
-                    </div>
-                    
-                    {/* School */}
-                    <div className="col-md-12">
-                      <label className="form-label">School Name</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={memberForm.schoolName}
-                        onChange={(e) => setMemberForm({ ...memberForm, schoolName: e.target.value })}
-                      />
-                    </div>
-                    
-                    {/* Contact */}
-                    <div className="col-md-6">
-                      <label className="form-label">Phone</label>
-                      <input
-                        type="tel"
-                        className="form-control"
-                        value={memberForm.phone}
-                        onChange={(e) => setMemberForm({ ...memberForm, phone: e.target.value })}
-                        placeholder="(123) 456-7890"
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">LinkedIn</label>
-                      <input
-                        type="url"
-                        className="form-control"
-                        value={memberForm.linkedin}
-                        onChange={(e) => setMemberForm({ ...memberForm, linkedin: e.target.value })}
-                        placeholder="https://linkedin.com/in/username"
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Instagram</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={memberForm.instagram}
-                        onChange={(e) => setMemberForm({ ...memberForm, instagram: e.target.value })}
-                        placeholder="@username"
-                      />
-                    </div>
-                    
-                    {/* Bio and Notes */}
-                    <div className="col-md-12">
-                      <label className="form-label">Bio</label>
-                      <textarea
-                        className="form-control"
-                        rows="3"
-                        value={memberForm.bio}
-                        onChange={(e) => setMemberForm({ ...memberForm, bio: e.target.value })}
-                        placeholder="Brief biography..."
-                      />
-                    </div>
-                    <div className="col-md-12">
-                      <label className="form-label">Notes</label>
-                      <textarea
-                        className="form-control"
-                        rows="2"
-                        value={memberForm.notes}
-                        onChange={(e) => setMemberForm({ ...memberForm, notes: e.target.value })}
-                        placeholder="Internal notes..."
-                      />
-                    </div>
-                    
-                    {/* Permissions - only execs can see and edit */}
-                    {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
-                      <div className="col-md-12">
-                        <label className="form-label fw-bold">Permissions</label>
-                        <small className="text-muted d-block mb-2">Select which dashboard functions this member can access</small>
-                        <div className="row g-2">
-                          <div className="col-md-6">
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                checked={memberForm.volunteer}
-                                onChange={(e) => setMemberForm({ ...memberForm, volunteer: e.target.checked })}
-                                id="memberVolunteer"
-                              />
-                              <label className="form-check-label" htmlFor="memberVolunteer">
-                                Volunteer Hours Management
-                              </label>
-                              <small className="text-muted d-block">Can approve/manage volunteer hours</small>
-                            </div>
-                          </div>
-                          <div className="col-md-6">
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                checked={memberForm.applications}
-                                onChange={(e) => setMemberForm({ ...memberForm, applications: e.target.checked })}
-                                id="memberApplications"
-                              />
-                              <label className="form-check-label" htmlFor="memberApplications">
-                                Application Review
-                              </label>
-                              <small className="text-muted d-block">Can review new member applications</small>
-                            </div>
-                          </div>
-                          <div className="col-md-6">
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                checked={memberForm.bills}
-                                onChange={(e) => setMemberForm({ ...memberForm, bills: e.target.checked })}
-                                id="memberBills"
-                              />
-                              <label className="form-check-label" htmlFor="memberBills">
-                                Bill Management
-                              </label>
-                              <small className="text-muted d-block">Can submit bills for review</small>
-                            </div>
-                          </div>
-                          <div className="col-md-6">
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                checked={memberForm.registration}
-                                onChange={(e) => setMemberForm({ ...memberForm, registration: e.target.checked })}
-                                id="memberRegistration"
-                              />
-                              <label className="form-check-label" htmlFor="memberRegistration">
-                                Member Management
-                              </label>
-                              <small className="text-muted d-block">Can add/edit members and manage roles</small>
-                            </div>
-                          </div>
-                          <div className="col-md-6">
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                checked={memberForm.blog}
-                                onChange={(e) => setMemberForm({ ...memberForm, blog: e.target.checked })}
-                                id="memberBlog"
-                              />
-                              <label className="form-check-label" htmlFor="memberBlog">
-                                Medium / blog login
-                              </label>
-                              <small className="text-muted d-block">Can arm OTP forwarding from the dashboard (shared Medium account)</small>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowMemberModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    onClick={handleSaveMember}
-                  >
-                    {editingMemberId ? 'Update Member' : 'Add Member'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <MemberFormModal
+        open={showMemberModal}
+        editingMemberId={editingMemberId}
+        memberForm={memberForm}
+        setMemberForm={setMemberForm}
+        memberError={memberError}
+        memberSuccess={memberSuccess}
+        showPermissionsSection={
+          hasPermission('volunteer') &&
+          hasPermission('applications') &&
+          hasPermission('bills') &&
+          hasPermission('registration')
+        }
+        markEmailAsManuallyEdited={() => {
+          emailManuallyEdited.current = true
+        }}
+        onBackdropClose={() => setShowMemberModal(false)}
+        onHeaderClose={() => {
+          setShowMemberModal(false)
+          setEditingMemberId(null)
+        }}
+        onCancelFooter={() => setShowMemberModal(false)}
+        onImportApplication={() => setShowImportApplicationModal(true)}
+        onSave={handleSaveMember}
+      />
 
-      {/* Application View Modal */}
-      {showApplicationModal && selectedApplication && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                closeApplicationModal()
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg" style={{ maxWidth: '800px' }}>
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Application: {selectedApplication.full_name}</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => closeApplicationModal()}
-                  ></button>
-                </div>
-                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                  <div className="row g-3 mb-3">
-                    <div className="col-md-6">
-                      <strong>Email:</strong>
-                      <p><a href={`mailto:${selectedApplication.email}`}>{selectedApplication.email}</a></p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>Phone:</strong>
-                      <p><a href={`tel:${selectedApplication.phone_number}`}>{selectedApplication.phone_number}</a></p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>Age:</strong>
-                      <p>{selectedApplication.age != null && selectedApplication.age !== '' ? selectedApplication.age : 'Not provided'}</p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>School grade:</strong>
-                      <p>{selectedApplication.grade}</p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>School:</strong>
-                      <p>{selectedApplication.school}</p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>State:</strong>
-                      <p>{selectedApplication.state}</p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>Hours per Week:</strong>
-                      <p>{selectedApplication.hours_per_week}</p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>How they heard about SPAN:</strong>
-                      <p className="mb-0">{selectedApplication.referral_source}</p>
-                      {selectedApplication.referral_friend_name && (
-                        <p className="text-muted small mb-0 mt-1">
-                          Referred by: {selectedApplication.referral_friend_name}
-                        </p>
-                      )}
-                    </div>
-                    {selectedApplication.linkedin_url && (
-                      <div className="col-md-6">
-                        <strong>LinkedIn:</strong>
-                        <p>
-                          <a href={selectedApplication.linkedin_url} target="_blank" rel="noopener noreferrer" className="text-decoration-none">
-                            <i className="bi bi-linkedin me-1"></i>
-                            {selectedApplication.linkedin_url}
-                          </a>
-                        </p>
-                      </div>
-                    )}
-                    {selectedApplication.instagram_url && (
-                      <div className="col-md-6">
-                        <strong>Instagram:</strong>
-                        <p>
-                          <a href={selectedApplication.instagram_url} target="_blank" rel="noopener noreferrer" className="text-decoration-none">
-                            <i className="bi bi-instagram me-1"></i>
-                            {selectedApplication.instagram_url}
-                          </a>
-                        </p>
-                      </div>
-                    )}
-                    {selectedApplication.resume_file && (
-                      <div className="col-12">
-                        <strong>Resume:</strong>
-                        <p>
-                          <a 
-                            href={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/applications-resumes/${selectedApplication.resume_file}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn btn-sm btn-outline-primary"
-                          >
-                            <i className="bi bi-file-earmark-pdf me-1"></i>
-                            View Resume
-                          </a>
-                        </p>
-                      </div>
-                    )}
-                    <div className="col-12">
-                      <strong>Additional Info:</strong>
-                      <p>{selectedApplication.additional_info || 'None provided'}</p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>Submitted:</strong>
-                      <p>{formatDateLong(selectedApplication.submitted_at)}</p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>Status:</strong>
-                      <p>
-                        <span className={`badge ${applicationStatusBadgeClass(selectedApplication.status)}`}>
-                          {applicationStatusLabel(selectedApplication.status)}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
+      <ApplicationViewModal
+        open={showApplicationModal && !!selectedApplication}
+        application={selectedApplication}
+        onClose={closeApplicationModal}
+        formatDateLong={formatDateLong}
+        applicationNumericGrade={applicationNumericGrade}
+        setApplicationNumericGrade={setApplicationNumericGrade}
+        applicationNotes={applicationNotes}
+        setApplicationNotes={setApplicationNotes}
+        onSaveNumericGrade={handleSaveApplicationNumericGrade}
+        onOpenInviteEmail={openInviteEmailPreviewModal}
+        onOpenMetWithDate={openMetWithDateModal}
+        onOpenOnboardEmail={openOnboardScheduleEmailPreviewModal}
+        onAccept={() => {
+          if (
+            window.confirm(
+              `Accept ${selectedApplication.full_name}'s application?\n\nYou'll be able to add them as a member next.`
+            )
+          ) {
+            handleAcceptApplication()
+          }
+        }}
+        onOpenRejectConfirm={() => {
+          setSendRejectionEmail(true)
+          setRejectionEmailReason(applicationNotes)
+          setShowRejectConfirmModal(true)
+        }}
+        onResetToPending={() => {
+          if (window.confirm(`Reset ${selectedApplication.full_name}'s application to pending?`)) {
+            handleUpdateApplicationStatus('pending')
+          }
+        }}
+        onOpenDeleteModal={() => setShowDeleteApplicationModal(true)}
+      />
 
-                  <div className="mb-3">
-                    <label className="form-label" htmlFor="applicationNumericGradeInput">
-                      <strong>Review score</strong>
-                      <span className="text-muted fw-normal ms-1">(internal, e.g. 1, 2, 3, 1.5)</span>
-                    </label>
-                    <div className="d-flex flex-wrap gap-2 align-items-center">
-                      <input
-                        id="applicationNumericGradeInput"
-                        type="number"
-                        className="form-control"
-                        style={{ maxWidth: '140px' }}
-                        step="any"
-                        min="0"
-                        inputMode="decimal"
-                        value={applicationNumericGrade}
-                        onChange={(e) => setApplicationNumericGrade(e.target.value)}
-                        placeholder="—"
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-primary"
-                        onClick={() => handleSaveApplicationNumericGrade()}
-                      >
-                        <i className="bi bi-save me-1"></i>Save review score
-                      </button>
-                    </div>
-                  </div>
+      <ImportApplicationModal
+        open={showImportApplicationModal}
+        applications={applications}
+        formatDateLong={formatDateLong}
+        onClose={() => setShowImportApplicationModal(false)}
+        onImport={handleImportFromApplication}
+      />
 
-                  <div className="mb-3">
-                    <label className="form-label"><strong>Notes:</strong></label>
-                    <textarea
-                      className="form-control"
-                      rows="3"
-                      value={applicationNotes}
-                      onChange={(e) => setApplicationNotes(e.target.value)}
-                      placeholder="Add notes about this application..."
-                    />
-                  </div>
 
-                  {isApplicationPipelineStatus(selectedApplication.status) && (
-                    <div className="alert alert-info">
-                      <i className="bi bi-info-circle me-2"></i>
-                      You can move this application <strong>forward</strong> in the pipeline (skipping stages is OK) or reject
-                      it. Earlier stages (e.g. back to Pending or Invited) are not available once you&apos;ve moved ahead.
-                      Add notes and a review score for your records.
-                    </div>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => closeApplicationModal()}
-                  >
-                    Close
-                  </button>
-                  <div className="d-flex gap-2 flex-wrap">
-                    {isApplicationPipelineStatus(selectedApplication.status) && (
-                      <>
-                        {isAllowedApplicationStatusTransition(selectedApplication.status, 'invited') && (
-                          <button
-                            type="button"
-                            className="btn btn-info"
-                            onClick={() => openInviteEmailPreviewModal()}
-                          >
-                            <i className="bi bi-envelope me-1"></i>Mark Invited (email)
-                          </button>
-                        )}
-                        {isAllowedApplicationStatusTransition(selectedApplication.status, 'met_with') && (
-                          <button
-                            type="button"
-                            className="btn btn-primary"
-                            onClick={() => openMetWithDateModal()}
-                          >
-                            <i className="bi bi-people me-1"></i>Mark Met with
-                          </button>
-                        )}
-                        {isAllowedApplicationStatusTransition(selectedApplication.status, 'onboard') && (
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            onClick={() => openOnboardScheduleEmailPreviewModal()}
-                          >
-                            <i className="bi bi-envelope me-1"></i>Mark Onboard (email)
-                          </button>
-                        )}
-                        {isAllowedApplicationStatusTransition(selectedApplication.status, 'accepted') && (
-                          <button
-                            type="button"
-                            className="btn btn-success"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `Accept ${selectedApplication.full_name}'s application?\n\nYou'll be able to add them as a member next.`
-                                )
-                              ) {
-                                handleAcceptApplication()
-                              }
-                            }}
-                          >
-                            <i className="bi bi-check-circle me-1"></i>Accept & Add Member
-                          </button>
-                        )}
-                        {isAllowedApplicationStatusTransition(selectedApplication.status, 'rejected') && (
-                          <button
-                            type="button"
-                            className="btn btn-danger"
-                            onClick={() => {
-                              setSendRejectionEmail(true)
-                              setRejectionEmailReason(applicationNotes)
-                              setShowRejectConfirmModal(true)
-                            }}
-                          >
-                            <i className="bi bi-x-circle me-1"></i>Reject
-                          </button>
-                        )}
-                      </>
-                    )}
-                    {(selectedApplication.status === 'accepted' || selectedApplication.status === 'rejected') && (
-                      <>
-                        <button
-                          type="button"
-                          className="btn btn-outline-primary"
-                          onClick={() => {
-                            if (window.confirm(`Reset ${selectedApplication.full_name}'s application to pending?`)) {
-                              handleUpdateApplicationStatus('pending')
-                            }
-                          }}
-                        >
-                          Reset to Pending
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-outline-danger"
-                          onClick={() => {
-                            setShowDeleteApplicationModal(true)
-                          }}
-                        >
-                          <i className="bi bi-trash me-1"></i>Delete
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <HrReportSubmitModal
+        open={showHrReportModal}
+        onClose={() => setShowHrReportModal(false)}
+        hrReportForm={hrReportForm}
+        setHrReportForm={setHrReportForm}
+        hrReportError={hrReportError}
+        hrReportSuccess={hrReportSuccess}
+        onSubmit={handleSubmitHrReport}
+      />
 
-      {/* Import Application Modal */}
-      {showImportApplicationModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1065 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowImportApplicationModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Import from Application</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowImportApplicationModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                  <p className="text-muted mb-3">Select an application to import data into the member form:</p>
-                  {applications.filter(app => ['pending', 'invited', 'met_with', 'onboard', 'accepted'].includes(app.status)).length > 0 ? (
-                    <div className="table-responsive">
-                      <table className="table table-hover">
-                        <thead>
-                          <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>School</th>
-                            <th>State</th>
-                            <th>Submitted</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {applications.filter(app => ['pending', 'invited', 'met_with', 'onboard', 'accepted'].includes(app.status)).map(app => (
-                            <tr key={app.application_id}>
-                              <td>{app.full_name}</td>
-                              <td>{app.email}</td>
-                              <td>{app.school || '-'}</td>
-                              <td>{app.state || '-'}</td>
-                              <td>{formatDateLong(app.submitted_at)}</td>
-                              <td>
-                                <span className={`badge ${applicationStatusBadgeClass(app.status)}`}>
-                                  {applicationStatusLabel(app.status)}
-                                </span>
-                              </td>
-                              <td>
-                                <button
-                                  className="btn btn-sm btn-primary"
-                                  onClick={() => handleImportFromApplication(app)}
-                                >
-                                  <i className="bi bi-download me-1"></i>Import
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="text-muted text-center py-4">No applications available to import (pending through onboard, or accepted).</p>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowImportApplicationModal(false)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1060 }}></div>
-        </>
-      )}
+      <HrReportViewModal
+        open={showHrReportViewModal}
+        report={selectedHrReport}
+        onClose={() => setShowHrReportViewModal(false)}
+        formatDateLong={formatDateLong}
+        formatDate={formatDate}
+        showExecStatusControls={
+          hasPermission('volunteer') &&
+          hasPermission('applications') &&
+          hasPermission('bills') &&
+          hasPermission('registration')
+        }
+        onUpdateStatus={handleUpdateHrReportStatus}
+      />
 
-      {/* HR Report Submission Modal */}
-      {showHrReportModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowHrReportModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Submit HR Report</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowHrReportModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  {hrReportError && <div className="alert alert-danger">{hrReportError}</div>}
-                  {hrReportSuccess && <div className="alert alert-success">{hrReportSuccess}</div>}
-                  
-                  <div className="alert alert-info">
-                    <i className="bi bi-info-circle me-2"></i>
-                    All HR reports are confidential and will be reviewed by executive directors. Reports involving an executive director will not be visible to that person.
-                  </div>
+      <DeleteApplicationConfirmModal
+        open={showDeleteApplicationModal && !!selectedApplication}
+        application={selectedApplication}
+        onClose={() => setShowDeleteApplicationModal(false)}
+        onConfirm={handleDeleteApplication}
+      />
 
-                  <div className="row g-3">
-                    <div className="col-md-12">
-                      <label className="form-label">Nature of Complaint <span className="text-danger">*</span></label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={hrReportForm.nature}
-                        onChange={(e) => setHrReportForm({ ...hrReportForm, nature: e.target.value })}
-                        placeholder="e.g., Harassment, Discrimination, Policy Violation, etc."
-                        required
-                      />
-                    </div>
+      <ApplicationInviteEmailPreviewModal
+        open={showInviteEmailModal && !!selectedApplication}
+        application={selectedApplication}
+        inviteEmailPreview={inviteEmailPreview}
+        inviteEmailPreviewLoading={inviteEmailPreviewLoading}
+        inviteEmailSending={inviteEmailSending}
+        onBackdropClose={() => {
+          setShowInviteEmailModal(false)
+          setInviteEmailPreview(null)
+        }}
+        onHeaderClose={() => {
+          if (!inviteEmailSending && !inviteEmailPreviewLoading) {
+            setShowInviteEmailModal(false)
+            setInviteEmailPreview(null)
+          }
+        }}
+        onCancel={() => {
+          if (!inviteEmailSending) {
+            setShowInviteEmailModal(false)
+            setInviteEmailPreview(null)
+          }
+        }}
+        onSend={handleSendInvitationEmailAndMarkInvited}
+      />
 
-                    <div className="col-md-6">
-                      <label className="form-label">Regarding (Member Name)</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={hrReportForm.regardingName}
-                        onChange={(e) => setHrReportForm({ ...hrReportForm, regardingName: e.target.value })}
-                        placeholder="Name of person this report is about (optional)"
-                      />
-                      <small className="text-muted">If this is about a specific member, enter their name</small>
-                    </div>
+      <ApplicationOnboardScheduleEmailPreviewModal
+        open={showOnboardScheduleEmailModal && !!selectedApplication}
+        application={selectedApplication}
+        onboardScheduleWhen2meetUrl={onboardScheduleWhen2meetUrl}
+        setOnboardScheduleWhen2meetUrl={setOnboardScheduleWhen2meetUrl}
+        onboardScheduleDeadlineNote={onboardScheduleDeadlineNote}
+        setOnboardScheduleDeadlineNote={setOnboardScheduleDeadlineNote}
+        onboardScheduleEmailPreview={onboardScheduleEmailPreview}
+        onboardScheduleEmailPreviewLoading={onboardScheduleEmailPreviewLoading}
+        onboardScheduleEmailSending={onboardScheduleEmailSending}
+        onRefreshPreview={() =>
+          loadOnboardScheduleEmailPreview(onboardScheduleWhen2meetUrl, onboardScheduleDeadlineNote)
+        }
+        onBackdropClose={() => {
+          setShowOnboardScheduleEmailModal(false)
+          setOnboardScheduleEmailPreview(null)
+        }}
+        onHeaderClose={() => {
+          if (!onboardScheduleEmailSending && !onboardScheduleEmailPreviewLoading) {
+            setShowOnboardScheduleEmailModal(false)
+            setOnboardScheduleEmailPreview(null)
+          }
+        }}
+        onCancel={() => {
+          if (!onboardScheduleEmailSending) {
+            setShowOnboardScheduleEmailModal(false)
+            setOnboardScheduleEmailPreview(null)
+          }
+        }}
+        onSend={handleSendOnboardingScheduleEmailAndMarkOnboard}
+      />
 
-                    <div className="col-md-6">
-                      <label className="form-label">Date Occurred <span className="text-danger">*</span></label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        value={hrReportForm.dateOccurred}
-                        onChange={(e) => setHrReportForm({ ...hrReportForm, dateOccurred: e.target.value })}
-                        required
-                      />
-                    </div>
+      <ApplicationRejectConfirmModal
+        open={showRejectConfirmModal && !!selectedApplication}
+        application={selectedApplication}
+        sendRejectionEmail={sendRejectionEmail}
+        setSendRejectionEmail={setSendRejectionEmail}
+        rejectionEmailReason={rejectionEmailReason}
+        setRejectionEmailReason={setRejectionEmailReason}
+        rejectionEmailPreview={rejectionEmailPreview}
+        rejectionEmailPreviewLoading={rejectionEmailPreviewLoading}
+        rejectionEmailSending={rejectionEmailSending}
+        onBackdropClose={() => {
+          setShowRejectConfirmModal(false)
+          setRejectionEmailPreview(null)
+          setRejectionEmailPreviewLoading(false)
+          setRejectionEmailReason('')
+        }}
+        onHeaderClose={() => {
+          if (!rejectionEmailSending) {
+            setShowRejectConfirmModal(false)
+            setRejectionEmailPreview(null)
+            setRejectionEmailPreviewLoading(false)
+            setRejectionEmailReason('')
+          }
+        }}
+        onCancel={() => {
+          if (!rejectionEmailSending) {
+            setShowRejectConfirmModal(false)
+            setRejectionEmailPreview(null)
+            setRejectionEmailPreviewLoading(false)
+            setRejectionEmailReason('')
+          }
+        }}
+        onConfirm={handleRejectApplication}
+      />
 
-                    <div className="col-md-12">
-                      <label className="form-label">Details</label>
-                      <textarea
-                        className="form-control"
-                        rows="5"
-                        value={hrReportForm.details}
-                        onChange={(e) => setHrReportForm({ ...hrReportForm, details: e.target.value })}
-                        placeholder="Provide additional details about the incident..."
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowHrReportModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    onClick={handleSubmitHrReport}
-                  >
-                    Submit Report
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
+      <ApplicationMetWithDateModal
+        open={showMetWithDateModal && !!selectedApplication}
+        application={selectedApplication}
+        metWithDate={metWithDateInput}
+        setMetWithDate={setMetWithDateInput}
+        onClose={() => setShowMetWithDateModal(false)}
+        onConfirm={confirmMetWithDate}
+        disableBackdropClose={rejectionEmailSending}
+      />
 
-      {/* HR Report View Modal */}
-      {showHrReportViewModal && selectedHrReport && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1060 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowHrReportViewModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">HR Report Details</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowHrReportViewModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                  <div className="row g-3 mb-3">
-                    <div className="col-md-6">
-                      <strong>Submitted By:</strong>
-                      <p>
-                        {selectedHrReport.submitted_by_member ? (
-                          `${selectedHrReport.submitted_by_member.first_name} ${selectedHrReport.submitted_by_member.last_name}`
-                        ) : 'Unknown'}
-                      </p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>Submitted:</strong>
-                      <p>{formatDateLong(selectedHrReport.created_at)}</p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>Nature of Complaint:</strong>
-                      <p>{selectedHrReport.nature_of_complaint}</p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>Regarding:</strong>
-                      <p>
-                        {selectedHrReport.regarding_member ? (
-                          `${selectedHrReport.regarding_member.first_name} ${selectedHrReport.regarding_member.last_name}`
-                        ) : selectedHrReport.regarding_name || 'N/A'}
-                      </p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>Date Occurred:</strong>
-                      <p>{formatDate(selectedHrReport.date_occurred)}</p>
-                    </div>
-                    <div className="col-md-6">
-                      <strong>Status:</strong>
-                      {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? (
-                        <div className="d-flex flex-wrap gap-2 mt-2">
-                          <button
-                            type="button"
-                            className={`btn btn-sm ${
-                              selectedHrReport.status === 'pending' 
-                                ? 'btn-warning' 
-                                : 'btn-outline-warning'
-                            }`}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              console.log('Pending button clicked', { reportId: selectedHrReport?.report_id })
-                              if (selectedHrReport?.report_id) {
-                                handleUpdateHrReportStatus(selectedHrReport.report_id, 'pending')
-                              } else {
-                                console.error('No report_id found')
-                              }
-                            }}
-                          >
-                            Pending
-                          </button>
-                          <button
-                            type="button"
-                            className={`btn btn-sm ${
-                              selectedHrReport.status === 'reviewed' 
-                                ? 'btn-info' 
-                                : 'btn-outline-info'
-                            }`}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              console.log('Reviewed button clicked', { reportId: selectedHrReport?.report_id })
-                              if (selectedHrReport?.report_id) {
-                                handleUpdateHrReportStatus(selectedHrReport.report_id, 'reviewed')
-                              } else {
-                                console.error('No report_id found')
-                              }
-                            }}
-                          >
-                            Reviewed
-                          </button>
-                          <button
-                            type="button"
-                            className={`btn btn-sm ${
-                              selectedHrReport.status === 'resolved' 
-                                ? 'btn-success' 
-                                : 'btn-outline-success'
-                            }`}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              console.log('Resolved button clicked', { reportId: selectedHrReport?.report_id })
-                              if (selectedHrReport?.report_id) {
-                                handleUpdateHrReportStatus(selectedHrReport.report_id, 'resolved')
-                              } else {
-                                console.error('No report_id found')
-                              }
-                            }}
-                          >
-                            Resolved
-                          </button>
-                          <button
-                            type="button"
-                            className={`btn btn-sm ${
-                              selectedHrReport.status === 'dismissed' 
-                                ? 'btn-secondary' 
-                                : 'btn-outline-secondary'
-                            }`}
-                            onClick={(e) => {
-                              e.preventDefault()
-                              e.stopPropagation()
-                              console.log('Dismissed button clicked', { reportId: selectedHrReport?.report_id })
-                              if (selectedHrReport?.report_id) {
-                                handleUpdateHrReportStatus(selectedHrReport.report_id, 'dismissed')
-                              } else {
-                                console.error('No report_id found')
-                              }
-                            }}
-                          >
-                            Dismissed
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="mt-2">
-                          <span className={`badge ${
-                            selectedHrReport.status === 'pending' ? 'bg-warning text-dark' :
-                            selectedHrReport.status === 'resolved' ? 'bg-success' :
-                            selectedHrReport.status === 'dismissed' ? 'bg-secondary' :
-                            'bg-info'
-                          }`}>
-                            {selectedHrReport.status.charAt(0).toUpperCase() + selectedHrReport.status.slice(1)}
-                          </span>
-                        </p>
-                      )}
-                    </div>
-                    <div className="col-12">
-                      <strong>Details:</strong>
-                      <p style={{ whiteSpace: 'pre-wrap' }}>{selectedHrReport.details || 'No additional details provided.'}</p>
-                    </div>
-                    {selectedHrReport.review_notes && (
-                      <div className="col-12">
-                        <strong>Review Notes:</strong>
-                        <p style={{ whiteSpace: 'pre-wrap' }}>{selectedHrReport.review_notes}</p>
-                      </div>
-                    )}
-                    {selectedHrReport.reviewed_by && selectedHrReport.reviewed_at && (
-                      <div className="col-md-6">
-                        <strong>Reviewed:</strong>
-                        <p>{formatDateLong(selectedHrReport.reviewed_at)}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowHrReportViewModal(false)}
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
-        </>
-      )}
+      <VolunteerVerificationModal
+        open={showVerificationModal && !!verificationMember}
+        verificationMember={verificationMember}
+        verificationPdfUrl={verificationPdfUrl}
+        verificationEntryCount={verificationEntryCount}
+        verificationSending={verificationSending}
+        onDismiss={() => {
+          setShowVerificationModal(false)
+          if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
+          setVerificationPdfUrl(null)
+          setVerificationPdfBase64(null)
+          setVerificationMember(null)
+        }}
+        onSend={handleConfirmSendVerification}
+      />
 
-      {/* Delete Application Confirmation Modal */}
-      {showDeleteApplicationModal && selectedApplication && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1060 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowDeleteApplicationModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title text-danger">Delete Application</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowDeleteApplicationModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <p>Are you sure you want to permanently delete the application from <strong>{selectedApplication.full_name}</strong>?</p>
-                  <p className="text-muted small mb-0">This action cannot be undone.</p>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowDeleteApplicationModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    onClick={() => {
-                      handleDeleteApplication()
-                    }}
-                  >
-                    Delete Application
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }}></div>
-        </>
-      )}
+      <PartnerFormModal
+        open={showPartnerModal}
+        editingPartnerId={editingPartnerId}
+        partnerForm={partnerForm}
+        setPartnerForm={setPartnerForm}
+        partnerError={partnerError}
+        partnerSuccess={partnerSuccess}
+        currentLogoPreviewUrl={
+          editingPartnerId
+            ? (() => {
+                const fn = partners.find((p) => p.partner_id === editingPartnerId)?.partner_logo
+                return fn ? `${PARTNERS_IMAGES_BASE_URL}/${fn}` : null
+              })()
+            : null
+        }
+        setPartnerLogoFile={setPartnerLogoFile}
+        onClose={() => setShowPartnerModal(false)}
+        onSave={handleSavePartner}
+      />
 
-      {/* Interview invitation: preview + confirm send (Resend); then mark invited */}
-      {showInviteEmailModal && selectedApplication && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1075 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show') && !inviteEmailSending && !inviteEmailPreviewLoading) {
-                setShowInviteEmailModal(false)
-                setInviteEmailPreview(null)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">
-                    <i className="bi bi-envelope-check me-2"></i>
-                    Send interview invitation
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => {
-                      if (!inviteEmailSending && !inviteEmailPreviewLoading) {
-                        setShowInviteEmailModal(false)
-                        setInviteEmailPreview(null)
-                      }
-                    }}
-                    disabled={inviteEmailSending || inviteEmailPreviewLoading}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <p className="text-muted small">
-                    Review the message below. When you confirm, the email is sent via Resend and the application is set
-                    to <strong>Invited</strong>.
-                  </p>
-                  {inviteEmailPreviewLoading && (
-                    <div className="text-center py-5 text-muted">
-                      <div className="spinner-border text-primary" role="status">
-                        <span className="visually-hidden">Loading preview…</span>
-                      </div>
-                    </div>
-                  )}
-                  {!inviteEmailPreviewLoading && inviteEmailPreview && (
-                    <>
-                      <dl className="row small mb-3">
-                        <dt className="col-sm-2">From</dt>
-                        <dd className="col-sm-10 text-break">{inviteEmailPreview.from}</dd>
-                        <dt className="col-sm-2">To</dt>
-                        <dd className="col-sm-10 text-break">{inviteEmailPreview.to?.join(', ')}</dd>
-                        <dt className="col-sm-2">Cc</dt>
-                        <dd className="col-sm-10 text-break">{inviteEmailPreview.cc?.join(', ') || '—'}</dd>
-                        <dt className="col-sm-2">Subject</dt>
-                        <dd className="col-sm-10 text-break">{inviteEmailPreview.subject}</dd>
-                      </dl>
-                      <label className="form-label small text-muted">Preview</label>
-                      <div
-                        className="border rounded bg-white overflow-auto"
-                        style={{ maxHeight: 'min(50vh, 420px)', backgroundColor: '#fff' }}
-                        dangerouslySetInnerHTML={{ __html: inviteEmailPreview.html }}
-                      />
-                    </>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => {
-                      if (!inviteEmailSending) {
-                        setShowInviteEmailModal(false)
-                        setInviteEmailPreview(null)
-                      }
-                    }}
-                    disabled={inviteEmailSending || inviteEmailPreviewLoading}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-info"
-                    onClick={() => handleSendInvitationEmailAndMarkInvited()}
-                    disabled={inviteEmailSending || inviteEmailPreviewLoading || !inviteEmailPreview}
-                  >
-                    {inviteEmailSending ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Sending…
-                      </>
-                    ) : (
-                      <>
-                        <i className="bi bi-send me-1"></i>
-                        Send email &amp; mark Invited
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1070 }}></div>
-        </>
-      )}
+      <SchoolFormModal
+        open={showSchoolModal}
+        editingSchoolId={editingSchoolId}
+        schoolForm={schoolForm}
+        setSchoolForm={setSchoolForm}
+        schoolError={schoolError}
+        schoolSuccess={schoolSuccess}
+        currentLogoPreviewUrl={
+          editingSchoolId
+            ? (() => {
+                const row = schools.find((x) => (x.school_id ?? x.id) === editingSchoolId)
+                const fn = row?.school_image
+                return fn ? `${SCHOOLS_IMAGES_BASE_URL}/${fn}` : null
+              })()
+            : null
+        }
+        setSchoolLogoFile={setSchoolLogoFile}
+        onClose={() => setShowSchoolModal(false)}
+        onSave={handleSaveSchool}
+      />
 
-      {/* Onboarding scheduling email: preview + send (Resend); then mark onboard */}
-      {showOnboardScheduleEmailModal && selectedApplication && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1075 }}
-            onClick={(e) => {
-              if (
-                e.target.className.includes('modal fade show') &&
-                !onboardScheduleEmailSending &&
-                !onboardScheduleEmailPreviewLoading
-              ) {
-                setShowOnboardScheduleEmailModal(false)
-                setOnboardScheduleEmailPreview(null)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">
-                    <i className="bi bi-envelope-check me-2"></i>
-                    Send onboarding scheduling email
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => {
-                      if (!onboardScheduleEmailSending && !onboardScheduleEmailPreviewLoading) {
-                        setShowOnboardScheduleEmailModal(false)
-                        setOnboardScheduleEmailPreview(null)
-                      }
-                    }}
-                    disabled={onboardScheduleEmailSending || onboardScheduleEmailPreviewLoading}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <p className="text-muted small">
-                    Letterhead-style email with congratulations and scheduling instructions. Optionally add a{' '}
-                    <strong>when2meet</strong> (or other) <strong>https</strong> link and a short deadline line; leave
-                    blank to ask them to reply with availability only. Click <strong>Refresh preview</strong> after
-                    editing. Sending uses Resend and sets the application to <strong>Onboard</strong>.
-                  </p>
-                  <div className="row g-2 mb-3">
-                    <div className="col-12">
-                      <label className="form-label small mb-0">Scheduling link (optional)</label>
-                      <input
-                        type="url"
-                        className="form-control form-control-sm"
-                        placeholder="https://www.when2meet.com/?…"
-                        value={onboardScheduleWhen2meetUrl}
-                        onChange={(e) => setOnboardScheduleWhen2meetUrl(e.target.value)}
-                        disabled={onboardScheduleEmailSending || onboardScheduleEmailPreviewLoading}
-                        autoComplete="off"
-                      />
-                    </div>
-                    <div className="col-12">
-                      <label className="form-label small mb-0">Deadline note (optional)</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        placeholder='e.g. Wednesday, April 1st'
-                        value={onboardScheduleDeadlineNote}
-                        onChange={(e) => setOnboardScheduleDeadlineNote(e.target.value)}
-                        disabled={onboardScheduleEmailSending || onboardScheduleEmailPreviewLoading}
-                        autoComplete="off"
-                      />
-                    </div>
-                    <div className="col-12">
-                      <button
-                        type="button"
-                        className="btn btn-outline-secondary btn-sm"
-                        onClick={() =>
-                          loadOnboardScheduleEmailPreview(
-                            onboardScheduleWhen2meetUrl,
-                            onboardScheduleDeadlineNote
-                          )
-                        }
-                        disabled={
-                          onboardScheduleEmailSending ||
-                          onboardScheduleEmailPreviewLoading ||
-                          !selectedApplication
-                        }
-                      >
-                        <i className="bi bi-arrow-clockwise me-1"></i>
-                        Refresh preview
-                      </button>
-                    </div>
-                  </div>
-                  {onboardScheduleEmailPreviewLoading && (
-                    <div className="text-center py-5 text-muted">
-                      <div className="spinner-border text-primary" role="status">
-                        <span className="visually-hidden">Loading preview…</span>
-                      </div>
-                    </div>
-                  )}
-                  {!onboardScheduleEmailPreviewLoading && onboardScheduleEmailPreview && (
-                    <>
-                      <dl className="row small mb-3">
-                        <dt className="col-sm-2">From</dt>
-                        <dd className="col-sm-10 text-break">{onboardScheduleEmailPreview.from}</dd>
-                        <dt className="col-sm-2">To</dt>
-                        <dd className="col-sm-10 text-break">{onboardScheduleEmailPreview.to?.join(', ')}</dd>
-                        <dt className="col-sm-2">Cc</dt>
-                        <dd className="col-sm-10 text-break">{onboardScheduleEmailPreview.cc?.join(', ') || '—'}</dd>
-                        <dt className="col-sm-2">Subject</dt>
-                        <dd className="col-sm-10 text-break">{onboardScheduleEmailPreview.subject}</dd>
-                      </dl>
-                      <label className="form-label small text-muted">Preview</label>
-                      <div
-                        className="border rounded bg-white overflow-auto"
-                        style={{ maxHeight: 'min(50vh, 420px)', backgroundColor: '#fff' }}
-                        dangerouslySetInnerHTML={{ __html: onboardScheduleEmailPreview.html }}
-                      />
-                    </>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => {
-                      if (!onboardScheduleEmailSending) {
-                        setShowOnboardScheduleEmailModal(false)
-                        setOnboardScheduleEmailPreview(null)
-                      }
-                    }}
-                    disabled={onboardScheduleEmailSending || onboardScheduleEmailPreviewLoading}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => handleSendOnboardingScheduleEmailAndMarkOnboard()}
-                    disabled={
-                      onboardScheduleEmailSending ||
-                      onboardScheduleEmailPreviewLoading ||
-                      !onboardScheduleEmailPreview
-                    }
-                  >
-                    {onboardScheduleEmailSending ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Sending…
-                      </>
-                    ) : (
-                      <>
-                        <i className="bi bi-send me-1"></i>
-                        Send email &amp; mark Onboard
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1070 }}></div>
-        </>
-      )}
 
-      {/* Rejection Confirmation Modal */}
-      {showRejectConfirmModal && selectedApplication && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1065 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show') && !rejectionEmailSending) {
-                setShowRejectConfirmModal(false)
-                setRejectionEmailPreview(null)
-                setRejectionEmailPreviewLoading(false)
-                setRejectionEmailReason('')
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title text-danger">Reject Application</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => {
-                      if (!rejectionEmailSending) {
-                        setShowRejectConfirmModal(false)
-                        setRejectionEmailPreview(null)
-                        setRejectionEmailPreviewLoading(false)
-                        setRejectionEmailReason('')
-                      }
-                    }}
-                    disabled={rejectionEmailSending}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <p>
-                    Are you sure you want to reject the application from{' '}
-                    <strong>{selectedApplication.full_name}</strong>?
-                  </p>
-                  <div className="form-check mt-3">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="sendRejectionEmailCheck"
-                      checked={sendRejectionEmail}
-                      onChange={(e) => setSendRejectionEmail(e.target.checked)}
-                      disabled={rejectionEmailSending}
-                    />
-                    <label className="form-check-label" htmlFor="sendRejectionEmailCheck">
-                      Send rejection email to{' '}
-                      <strong>{selectedApplication.email || '—'}</strong>
-                    </label>
-                  </div>
-                  {sendRejectionEmail && (
-                    <div className="mt-3">
-                      <label className="form-label small text-muted" htmlFor="rejectionEmailReasonInput">
-                        Rejection reason (optional, included in email)
-                      </label>
-                      <textarea
-                        id="rejectionEmailReasonInput"
-                        className="form-control"
-                        rows="3"
-                        value={rejectionEmailReason}
-                        onChange={(e) => setRejectionEmailReason(e.target.value)}
-                        placeholder="Add a short reason the applicant can understand (optional)..."
-                        disabled={rejectionEmailSending}
-                      />
-                    </div>
-                  )}
-                  {sendRejectionEmail && (selectedApplication.email || '').trim() && (
-                    <div className="mt-3">
-                      <p className="text-muted small mb-2">
-                        Preview the message below. When you confirm, the application is marked{' '}
-                        <strong>Rejected</strong> and this email is sent via Resend.
-                      </p>
-                      {rejectionEmailPreviewLoading && (
-                        <div className="text-center py-4 text-muted">
-                          <div className="spinner-border text-primary" role="status">
-                            <span className="visually-hidden">Loading preview…</span>
-                          </div>
-                        </div>
-                      )}
-                      {!rejectionEmailPreviewLoading && rejectionEmailPreview && (
-                        <>
-                          <dl className="row small mb-3">
-                            <dt className="col-sm-2">From</dt>
-                            <dd className="col-sm-10 text-break">{rejectionEmailPreview.from}</dd>
-                            <dt className="col-sm-2">To</dt>
-                            <dd className="col-sm-10 text-break">{rejectionEmailPreview.to?.join(', ')}</dd>
-                            <dt className="col-sm-2">Cc</dt>
-                            <dd className="col-sm-10 text-break">{rejectionEmailPreview.cc?.join(', ') || '—'}</dd>
-                            <dt className="col-sm-2">Subject</dt>
-                            <dd className="col-sm-10 text-break">{rejectionEmailPreview.subject}</dd>
-                          </dl>
-                          <label className="form-label small text-muted">Preview</label>
-                          <div
-                            className="border rounded bg-white overflow-auto"
-                            style={{ maxHeight: 'min(50vh, 420px)', backgroundColor: '#fff' }}
-                            dangerouslySetInnerHTML={{ __html: rejectionEmailPreview.html }}
-                          />
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => {
-                      if (!rejectionEmailSending) {
-                        setShowRejectConfirmModal(false)
-                        setRejectionEmailPreview(null)
-                        setRejectionEmailPreviewLoading(false)
-                        setRejectionEmailReason('')
-                      }
-                    }}
-                    disabled={rejectionEmailSending}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    onClick={() => handleRejectApplication()}
-                    disabled={
-                      rejectionEmailSending ||
-                      (sendRejectionEmail &&
-                        !!(selectedApplication.email || '').trim() &&
-                        (rejectionEmailPreviewLoading || !rejectionEmailPreview))
-                    }
-                  >
-                    {rejectionEmailSending ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Sending email...
-                      </>
-                    ) : (
-                      <>Reject{sendRejectionEmail ? ' & Send Email' : ''}</>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1060 }}></div>
-        </>
-      )}
-
-      {/* Met With Date Modal */}
-      {showMetWithDateModal && selectedApplication && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1065 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show') && !rejectionEmailSending) {
-                setShowMetWithDateModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Met with date</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowMetWithDateModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  <p className="text-muted small mb-3">
-                    Choose the date this applicant was met with. This will set the status to <strong>Met with</strong>.
-                  </p>
-                  <label className="form-label" htmlFor="metWithDateInput">
-                    Date
-                  </label>
-                  <input
-                    id="metWithDateInput"
-                    type="date"
-                    className="form-control"
-                    value={metWithDateInput}
-                    onChange={(e) => setMetWithDateInput(e.target.value)}
-                  />
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-outline-dark" onClick={() => setShowMetWithDateModal(false)}>
-                    Cancel
-                  </button>
-                  <button type="button" className="btn btn-primary" onClick={() => confirmMetWithDate()}>
-                    Save &amp; mark Met with
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1060 }}></div>
-        </>
-      )}
-
-      {/* Volunteer Verification PDF Preview Modal */}
-      {showVerificationModal && verificationMember && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1065 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show') && !verificationSending) {
-                setShowVerificationModal(false)
-                if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
-                setVerificationPdfUrl(null)
-                setVerificationPdfBase64(null)
-                setVerificationMember(null)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-xl">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">
-                    <i className="bi bi-file-earmark-pdf me-2"></i>
-                    Volunteer Verification Letter
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => {
-                      setShowVerificationModal(false)
-                      if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
-                      setVerificationPdfUrl(null)
-                      setVerificationPdfBase64(null)
-                      setVerificationMember(null)
-                    }}
-                    disabled={verificationSending}
-                  ></button>
-                </div>
-                <div className="modal-body p-0" style={{ height: '70vh' }}>
-                  <div className="d-flex flex-column h-100">
-                    <div className="px-3 py-2 bg-light border-bottom d-flex justify-content-between align-items-center">
-                      <span>
-                        <strong>{verificationMember.first_name} {verificationMember.last_name}</strong>
-                        <span className="text-muted ms-2">
-                          {verificationEntryCount} approved entr{verificationEntryCount === 1 ? 'y' : 'ies'}
-                        </span>
-                      </span>
-                      <span className="text-muted small">
-                        Will send to: <strong>{verificationMember.original_email || verificationMember.email}</strong>
-                      </span>
-                    </div>
-                    <div className="flex-grow-1">
-                      {verificationPdfUrl ? (
-                        <iframe
-                          src={verificationPdfUrl}
-                          title="Verification Letter Preview"
-                          width="100%"
-                          height="100%"
-                          style={{ border: 'none' }}
-                        />
-                      ) : (
-                        <div className="d-flex justify-content-center align-items-center h-100">
-                          <span className="spinner-border" role="status"></span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => {
-                      setShowVerificationModal(false)
-                      if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
-                      setVerificationPdfUrl(null)
-                      setVerificationPdfBase64(null)
-                      setVerificationMember(null)
-                    }}
-                    disabled={verificationSending}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    onClick={handleConfirmSendVerification}
-                    disabled={verificationSending}
-                  >
-                    {verificationSending ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Sending...
-                      </>
-                    ) : (
-                      <>
-                        <i className="bi bi-envelope-paper me-1"></i>
-                        Send Verification Email
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1060 }}></div>
-        </>
-      )}
-
-      {/* Partner Add/Edit Modal */}
-      {showPartnerModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowPartnerModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">{editingPartnerId ? 'Edit Partner' : 'Add Partner'}</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowPartnerModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  {partnerError && <div className="alert alert-danger">{partnerError}</div>}
-                  {partnerSuccess && <div className="alert alert-success">{partnerSuccess}</div>}
-
-                  <div className="row g-3">
-                    <div className="col-md-12">
-                      <label className="form-label">Partner Name <span className="text-danger">*</span></label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={partnerForm.partnerName}
-                        onChange={(e) => setPartnerForm({ ...partnerForm, partnerName: e.target.value })}
-                        placeholder="e.g., Beyond Partisan"
-                        required
-                      />
-                    </div>
-
-                    <div className="col-md-12">
-                      <label className="form-label">Website URL (Optional)</label>
-                      <input
-                        type="url"
-                        className="form-control"
-                        value={partnerForm.websiteUrl}
-                        onChange={(e) => setPartnerForm({ ...partnerForm, websiteUrl: e.target.value })}
-                        placeholder="https://example.org"
-                      />
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label">Display Order</label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        value={partnerForm.displayOrder}
-                        onChange={(e) => setPartnerForm({ ...partnerForm, displayOrder: parseInt(e.target.value) || 999 })}
-                        placeholder="999"
-                      />
-                      <small className="text-muted">Lower numbers appear first</small>
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label">Status</label>
-                      <select
-                        className="form-select"
-                        value={partnerForm.active ? 'true' : 'false'}
-                        onChange={(e) => setPartnerForm({ ...partnerForm, active: e.target.value === 'true' })}
-                      >
-                        <option value="true">Active</option>
-                        <option value="false">Inactive</option>
-                      </select>
-                    </div>
-
-                    <div className="col-md-12">
-                      <label className="form-label">
-                        Logo {!editingPartnerId && <span className="text-danger">*</span>}
-                      </label>
-                      <input
-                        type="file"
-                        className="form-control"
-                        accept="image/*"
-                        onChange={(e) => setPartnerLogoFile(e.target.files[0] || null)}
-                      />
-                      <small className="text-muted">
-                        {editingPartnerId ? 'Leave empty to keep current logo' : 'Upload partner organization logo'}
-                      </small>
-                      {editingPartnerId && partners.find(p => p.partner_id === editingPartnerId)?.partner_logo && (
-                        <div className="mt-2">
-                          <p className="small mb-1">Current logo:</p>
-                          <img
-                            src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/partners-images/${partners.find(p => p.partner_id === editingPartnerId)?.partner_logo}`}
-                            alt="Current logo"
-                            style={{ maxHeight: '100px', maxWidth: '200px', objectFit: 'contain' }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowPartnerModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    onClick={handleSavePartner}
-                  >
-                    {editingPartnerId ? 'Update Partner' : 'Add Partner'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
-
-      {/* School Add/Edit Modal */}
-      {showSchoolModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: 'block', zIndex: 1055 }}
-            onClick={(e) => {
-              if (e.target.className.includes('modal fade show')) {
-                setShowSchoolModal(false)
-              }
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">{editingSchoolId ? 'Edit School' : 'Add School'}</h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowSchoolModal(false)}
-                  ></button>
-                </div>
-                <div className="modal-body">
-                  {schoolError && <div className="alert alert-danger">{schoolError}</div>}
-                  {schoolSuccess && <div className="alert alert-success">{schoolSuccess}</div>}
-
-                  <div className="row g-3">
-                    <div className="col-md-12">
-                      <label className="form-label">School Name <span className="text-danger">*</span></label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={schoolForm.schoolName}
-                        onChange={(e) => setSchoolForm({ ...schoolForm, schoolName: e.target.value })}
-                        placeholder="e.g., Rice University"
-                        required
-                      />
-                    </div>
-
-                    <div className="col-md-12">
-                      <div className="form-check">
-                        <input
-                          type="checkbox"
-                          className="form-check-input"
-                          id="schoolActive"
-                          checked={schoolForm.active !== false}
-                          onChange={(e) => setSchoolForm({ ...schoolForm, active: e.target.checked })}
-                        />
-                        <label className="form-check-label" htmlFor="schoolActive">
-                          Active (show on homepage carousel)
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className="col-md-12">
-                      <label className="form-label">
-                        Logo {!editingSchoolId && <span className="text-danger">*</span>}
-                      </label>
-                      <input
-                        type="file"
-                        className="form-control"
-                        accept="image/*"
-                        onChange={(e) => setSchoolLogoFile(e.target.files[0] || null)}
-                      />
-                      <small className="text-muted">
-                        {editingSchoolId ? 'Leave empty to keep current logo' : 'Upload school logo'}
-                      </small>
-                      {editingSchoolId && schools.find(s => (s.school_id ?? s.id) === editingSchoolId)?.school_image && (
-                        <div className="mt-2">
-                          <p className="small mb-1">Current logo:</p>
-                          <img
-                            src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/schools-images/${schools.find(s => (s.school_id ?? s.id) === editingSchoolId)?.school_image}`}
-                            alt="Current logo"
-                            style={{ maxHeight: '100px', maxWidth: '200px', objectFit: 'contain' }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-outline-dark"
-                    onClick={() => setShowSchoolModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    onClick={handleSaveSchool}
-                  >
-                    {editingSchoolId ? 'Update School' : 'Add School'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" style={{ zIndex: 1050 }}></div>
-        </>
-      )}
     </div>
   )
 }

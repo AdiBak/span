@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { SCHOOLS_IMAGES_BASE_URL } from '../lib/supabasePublicUrls'
 import './SchoolsCarousel.css'
 
 function SchoolsCarousel() {
@@ -142,7 +143,7 @@ function SchoolsCarousel() {
       schoolItems.push(
         <div key={`${i}-${school.school_name}`} className="school-logo-item">
           <img
-            src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/schools-images/${school.school_image}`}
+            src={`${SCHOOLS_IMAGES_BASE_URL}/${school.school_image}`}
             alt={school.school_name}
             className="school-logo"
             title={`View ${school.school_name} members`}

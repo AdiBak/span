@@ -45,9 +45,3 @@ End-to-end flow on one bills surface:
 - **Gaps to validate against live API:** whether **`getBill`** alone is enough for “who to contact” (sponsors are strong v1); full **committee membership** lists may require additional LegiScan endpoints or manual add — confirm in API docs / sample payloads.  
 - **RLS:** exec-only writes; align with existing **`bills`** permission model. Email automation remains optional (like application invitation).
 
----
-
-## Changelog
-
-- **2026-01-23** — Outreach: **approved bills only** (Joel). Data: **LegiScan `getBill`** as primary source for sponsors/history; implementation notes updated.  
-- **2025-01-24** — Doc created from Aditya’s call notes and Joel’s written replies; image brief summarized above.

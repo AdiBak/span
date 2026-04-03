@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { PARTNERS_IMAGES_BASE_URL } from '../lib/supabasePublicUrls'
 import './PartnersCarousel.css'
-
-const PARTNERS_IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/partners-images'
 
 function PartnersCarousel() {
   const [partners, setPartners] = useState([])
@@ -123,7 +122,7 @@ function PartnersCarousel() {
               {partner.website_url ? (
                 <a href={partner.website_url} target="_blank" rel="noopener noreferrer" className="text-decoration-none">
                   <img 
-                    src={`${PARTNERS_IMAGE_BASE_URL}/${partner.partner_logo}`}
+                    src={`${PARTNERS_IMAGES_BASE_URL}/${partner.partner_logo}`}
                     alt={partner.partner_name} 
                     className="img-fluid partner-logo"
                     style={{ maxHeight: '80px', objectFit: 'contain' }}
@@ -133,7 +132,7 @@ function PartnersCarousel() {
                 </a>
               ) : (
                 <img 
-                  src={`${PARTNERS_IMAGE_BASE_URL}/${partner.partner_logo}`}
+                  src={`${PARTNERS_IMAGES_BASE_URL}/${partner.partner_logo}`}
                   alt={partner.partner_name} 
                   className="img-fluid partner-logo"
                   style={{ maxHeight: '120px', objectFit: 'contain' }}

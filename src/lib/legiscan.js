@@ -975,6 +975,15 @@ function mapSearchRow(row) {
   }
 }
 
+/**
+ * True if text looks like a chamber bill id (e.g. SB1210, H.B.1) suitable for LegiScan getSearch.
+ */
+export function isLegiscanBillNumberShape(text) {
+  const compact = String(text || '').replace(/\s+/g, '')
+  if (!compact) return false
+  return /^[A-Za-z]{1,6}[-.]?\d[A-Za-z0-9-]*$/.test(compact)
+}
+
 function splitUnifiedLegiscanQuery(input) {
   const raw = String(input || '').trim()
   if (!raw) return { state: null, bill: '', keywords: '' }

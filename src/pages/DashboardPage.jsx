@@ -6,6 +6,7 @@ import BillResearchPanel from '../components/BillResearchPanel'
 import BillOutreachPanel from '../components/BillOutreachPanel'
 import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import { billStateGroupKey, canonicalUSStateName } from '../lib/usStateCanonical'
+import { fetchLegiscanBillBySearch, isLegiscanBillNumberShape } from '../lib/legiscan'
 import { isAllowedApplicationStatusTransition } from './dashboard/applications'
 import AssignBillWorkModal from './dashboard/AssignBillWorkModal'
 import BillAssignmentsExecPanel from './dashboard/BillAssignmentsExecPanel'
@@ -168,6 +169,10 @@ function DashboardPage() {
   const [editingMemberId, setEditingMemberId] = useState(null)
   const [allMembersForManagement, setAllMembersForManagement] = useState([])
   const emailManuallyEdited = useRef(false)
+  /** Invalidates in-flight LegiScan prefill when publish modal is opened again. */
+  const publishModalLegiscanAutofillRef = useRef(0)
+  /** idle | pending | filled | skipped — publish-from-assignment LegiScan URL lookup */
+  const [publishLegiscanLookup, setPublishLegiscanLookup] = useState('idle')
   const [memberForm, setMemberForm] = useState({
     firstName: '',
     lastName: '',
@@ -2284,12 +2289,21 @@ function DashboardPage() {
     const today = new Date().toISOString().slice(0, 10)
     const position = normalizeBillFormPosition(a.prefill_position)
 
+    const stateForLegiscan = canonicalUSStateName(a.prefill_state) || (a.prefill_state || '').trim()
+    const prefillBillRaw = (a.prefill_bill_name || '').trim()
+    const titleRaw = (a.title || '').trim()
+    const billNumForLegiscan =
+      (prefillBillRaw && isLegiscanBillNumberShape(prefillBillRaw) && prefillBillRaw) ||
+      (titleRaw && isLegiscanBillNumberShape(titleRaw) ? titleRaw : '')
+
+    const autofillToken = ++publishModalLegiscanAutofillRef.current
+
     setBillModalSourceAssignmentId(a.assignment_id)
     setBillError('')
     setBillSuccess('')
     setBillPdfFile(null)
     setBillForm({
-      state: canonicalUSStateName(a.prefill_state) || (a.prefill_state || '').trim(),
+      state: stateForLegiscan,
       name: ((a.prefill_bill_name || a.title) || '').trim(),
       position,
       description,
@@ -2298,7 +2312,34 @@ function DashboardPage() {
       googleDocLink: (a.deliverable_doc_link || '').trim(),
       collaborators: collaboratorNames.length ? collaboratorNames : [],
     })
+    setPublishLegiscanLookup(billNumForLegiscan && stateForLegiscan ? 'pending' : 'skipped')
     setShowBillModal(true)
+
+    if (!billNumForLegiscan || !stateForLegiscan) return
+
+    const compactBill = billNumForLegiscan.replace(/\s/g, '')
+    fetchLegiscanBillBySearch(stateForLegiscan, compactBill)
+      .then((res) => {
+        if (autofillToken !== publishModalLegiscanAutofillRef.current) return
+        if (!res.ok || !res.detail?.url) {
+          setPublishLegiscanLookup('skipped')
+          return
+        }
+        const url = String(res.detail.url).trim()
+        if (!url) {
+          setPublishLegiscanLookup('skipped')
+          return
+        }
+        setBillForm((prev) => ({
+          ...prev,
+          legiscanLink: (prev.legiscanLink || '').trim() ? prev.legiscanLink : url,
+        }))
+        setPublishLegiscanLookup('filled')
+      })
+      .catch(() => {
+        if (autofillToken !== publishModalLegiscanAutofillRef.current) return
+        setPublishLegiscanLookup('skipped')
+      })
   }
 
   /** Approve assigned work and open bill upload prefilled for execs (bill is auto-approved on save). */
@@ -2398,11 +2439,13 @@ function DashboardPage() {
   const closeBillUploadModal = () => {
     setShowBillModal(false)
     setBillModalSourceAssignmentId(null)
+    setPublishLegiscanLookup('idle')
   }
 
   // Bill upload management
   const handleAddBill = () => {
     setBillModalSourceAssignmentId(null)
+    setPublishLegiscanLookup('idle')
     setBillForm({
       state: '',
       name: '',
@@ -5285,6 +5328,7 @@ function DashboardPage() {
       <BillUploadModal
         open={showBillModal}
         billModalSourceAssignmentId={billModalSourceAssignmentId}
+        publishLegiscanLookup={publishLegiscanLookup}
         billForm={billForm}
         setBillForm={setBillForm}
         setBillPdfFile={setBillPdfFile}

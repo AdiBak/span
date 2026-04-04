@@ -156,7 +156,7 @@ function PartnersCarousel() {
     partners.forEach((partner) => {
       const logoElement = (
         <img
-          src={`${PARTNERS_IMAGE_BASE_URL}/${partner.partner_logo}`}
+          src={`${PARTNERS_IMAGES_BASE_URL}/${partner.partner_logo}`}
           alt={partner.partner_name}
           className="partner-logo"
           style={{ maxHeight: '80px', objectFit: 'contain' }}

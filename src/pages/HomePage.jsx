@@ -60,7 +60,7 @@ function HomePage() {
           <h3 className="text-primary fw-bold">About</h3>
           <img className="mb-3" src="/images/index/logo-wide-dark.svg" alt="SPAN logo dark" height="50" decoding="async" />
           <p className="lead">
-            <b>Students for Patient Advocacy Nationwide (SPAN)</b> is a student-led 501(c)(3) nonprofit that organizes students to engage directly in healthcare policy advocacy. Founded in response to a Texas bill that threatened medical education standards, SPAN brings together high school, undergraduate, and medical students to research legislation and communicate with state and federal lawmakers. Members have worked on healthcare bills in multiple state legislatures and in Congress: supporting, amending, and opposing proposals with direct implications for patient care. Through this work, SPAN empowers tomorrow's healthcare advocates to fight for patients today.
+            <b>Students for Patient Advocacy Nationwide (SPAN)</b> is a student-led nonprofit that organizes students to engage directly in healthcare policy advocacy. Founded in response to a Texas bill that threatened medical education standards, SPAN brings together high school, undergraduate, and medical students to research legislation and communicate with state and federal lawmakers. Members have worked on healthcare bills in multiple state legislatures and in Congress: supporting, amending, and opposing proposals with direct implications for patient care. Through this work, SPAN empowers tomorrow's healthcare advocates to fight for patients today.
           </p>
           <div className="mt-4">
             <a href="#impact" className="btn btn-outline-dark me-2">See Our Impact</a>

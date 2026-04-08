@@ -138,6 +138,10 @@ function buildOnboardingScheduleEmailHtml(
           <p style="${p}">
             This is a remarkable group, and we can&apos;t wait to see what we accomplish together. You were selected because we believe in what you bring to the organization, and we&apos;re thrilled to have you on board!
           </p>
+          <p style="${p}">
+            Please join the SPAN Slack workspace here:
+            <a href="https://span-nhi9797.slack.com/join/shared_invite/zt-3m31djuer-w9OaPInrVZWeHYoipfoIYQ" style="color: #0b6ef9; text-decoration: underline; word-break: break-all;">https://span-nhi9797.slack.com/join/shared_invite/zt-3m31djuer-w9OaPInrVZWeHYoipfoIYQ</a>
+          </p>
           ${actionBlock}
           <p style="${p}">
             Please feel free to be in touch if you have any questions.

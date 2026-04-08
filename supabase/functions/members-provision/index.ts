@@ -338,7 +338,7 @@ async function sendEmailViaResend({
               </li>
               <li>
                 <strong>Join Slack:</strong><br>
-                Hop into our <a href="https://join.slack.com/t/span-nhi9797/shared_invite/zt-3f7aqyhh2-qm4D6ZSgQkQIYL_rKa0pXA" style="color:#0b6ef9; text-decoration:none;">team workspace</a> for ongoing updates.
+                Hop into our <a href="https://span-nhi9797.slack.com/join/shared_invite/zt-3m31djuer-w9OaPInrVZWeHYoipfoIYQ" style="color:#0b6ef9; text-decoration:none;">team workspace</a> for ongoing updates.
               </li>
             </ol>
 

@@ -35,11 +35,24 @@ export default function SuggestionViewModal({
             <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
               {showMemberBlock && (
                 <div className="mb-3">
-                  <strong>Member:</strong>
+                  <strong>{suggestion._source === 'public_bill' ? 'Submitter (public):' : 'Member:'}</strong>
                   <p className="mb-0 mt-1">
-                    {suggestion.member ? `${suggestion.member.first_name} ${suggestion.member.last_name}` : 'Unknown'}
-                    {suggestion.member?.email && (
-                      <span className="text-muted d-block small">{suggestion.member.email}</span>
+                    {suggestion._source === 'public_bill' ? (
+                      <>
+                        {suggestion.submitter_name || '—'}
+                        {suggestion.submitter_email && (
+                          <span className="text-muted d-block small">{suggestion.submitter_email}</span>
+                        )}
+                      </>
+                    ) : suggestion.member ? (
+                      <>
+                        {`${suggestion.member.first_name} ${suggestion.member.last_name}`}
+                        {suggestion.member.email && (
+                          <span className="text-muted d-block small">{suggestion.member.email}</span>
+                        )}
+                      </>
+                    ) : (
+                      'Unknown'
                     )}
                   </p>
                 </div>
@@ -47,15 +60,28 @@ export default function SuggestionViewModal({
               <div className="mb-3">
                 <strong>Type:</strong>
                 <p className="mb-0 mt-1">
-                  <span className="badge bg-secondary">
-                    {suggestion.type === 'bill_idea'
-                      ? 'Bill idea'
-                      : suggestion.type === 'general_interest'
-                        ? 'General interest'
-                        : 'Web / feature suggestion'}
-                  </span>
+                  {suggestion._source === 'public_bill' ? (
+                    <span className="d-inline-flex flex-wrap gap-1 align-items-center">
+                      <span className="badge bg-secondary">Bill / issue</span>
+                      <span className="badge bg-info text-dark">Public</span>
+                    </span>
+                  ) : (
+                    <span className="badge bg-secondary">
+                      {suggestion.type === 'bill_idea'
+                        ? 'Bill idea'
+                        : suggestion.type === 'general_interest'
+                          ? 'General interest'
+                          : 'Web / feature suggestion'}
+                    </span>
+                  )}
                 </p>
               </div>
+              {suggestion._source === 'public_bill' && suggestion.state && (
+                <div className="mb-3">
+                  <strong>State:</strong>
+                  <p className="mb-0 mt-1">{suggestion.state}</p>
+                </div>
+              )}
               <div className="mb-3">
                 <strong>Title:</strong>
                 <p className="mb-0 mt-1">{suggestion.title}</p>

@@ -4,6 +4,7 @@ import { canonicalUSStateName } from '../lib/usStateCanonical'
 import BillCard from '../components/BillCard'
 import Pagination from '../components/Pagination'
 import CollaboratorModal from '../components/CollaboratorModal'
+import PublicBillRecommendationForm from '../components/PublicBillRecommendationForm'
 import '../pages/BillsPage.css'
 
 const ITEMS_PER_PAGE = 6
@@ -40,6 +41,7 @@ function BillsPage() {
   const [editBillPdfFile, setEditBillPdfFile] = useState(null)
   const [billError, setBillError] = useState('')
   const [billSuccess, setBillSuccess] = useState('')
+  const [showPublicBillForm, setShowPublicBillForm] = useState(false)
 
   // Fetch bills and members on mount
   useEffect(() => {
@@ -545,12 +547,12 @@ function BillsPage() {
 
       <main className="p-3 p-md-5 m-md-3 bg-light">
         <div className="container py-5">
-          {/* Filter and Search Section */}
-          <div className="row mb-4">
+          {/* Filter, search, and public suggestion toggle */}
+          <div className="row mb-3">
             <div className="col-12">
-              <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
+              <div className="d-flex flex-column flex-lg-row align-items-stretch align-items-lg-center gap-3">
                 {/* Filter Buttons - Desktop */}
-                <div className="btn-group btn-filter-group d-none d-md-flex" role="group">
+                <div className="btn-group btn-filter-group d-none d-lg-flex flex-shrink-0" role="group">
                   {['All', 'Support', 'Support If Amended', 'Oppose', 'Propose'].map(filter => (
                     <button
                       key={filter}
@@ -563,9 +565,9 @@ function BillsPage() {
                     </button>
                   ))}
                 </div>
-                {/* Filter Dropdown - Mobile */}
+                {/* Filter Dropdown - Mobile / tablet */}
                 <select
-                  className="form-select d-md-none filter-select"
+                  className="form-select d-lg-none filter-select"
                   value={currentFilter}
                   onChange={(e) => setCurrentFilter(e.target.value)}
                   aria-label="Filter bills by position"
@@ -576,21 +578,38 @@ function BillsPage() {
                     </option>
                   ))}
                 </select>
-                {/* Search Bar */}
-                <div className="col-12 col-md-4 px-0">
+                {/* Search + suggest (inline on large screens) */}
+                <div className="d-flex flex-column flex-sm-row gap-2 flex-grow-1 align-items-stretch align-items-sm-center ms-lg-auto">
                   <input
                     type="text"
                     id="billSearch"
-                    className="form-control"
+                    className="form-control flex-grow-1"
+                    style={{ minWidth: 0, maxWidth: '100%' }}
                     placeholder="Search bills..."
                     aria-label="Search bills"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                  <button
+                    type="button"
+                    className={`btn flex-shrink-0 text-nowrap ${showPublicBillForm ? 'btn-dark' : 'btn-outline-dark'}`}
+                    onClick={() => setShowPublicBillForm((v) => !v)}
+                    aria-expanded={showPublicBillForm}
+                    aria-controls="public-bill-suggestion-panel"
+                    id="toggle-public-bill-form"
+                  >
+                    {showPublicBillForm ? 'Hide form' : 'Suggest a bill or issue'}
+                  </button>
                 </div>
               </div>
             </div>
           </div>
+
+          {showPublicBillForm && (
+            <div id="public-bill-suggestion-panel" className="mb-4">
+              <PublicBillRecommendationForm onClose={() => setShowPublicBillForm(false)} />
+            </div>
+          )}
 
           {/* Results Count */}
           {!loading && filteredBills.length > 0 && (

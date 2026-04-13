@@ -11,6 +11,8 @@ export default function IdeasSuggestionsSection({
   onSubmitSuggestion,
   suggestionFilter,
   setSuggestionFilter,
+  suggestionSourceFilter,
+  setSuggestionSourceFilter,
   allSuggestions,
   effectiveSuggestions,
   formatDateLong,
@@ -73,9 +75,10 @@ export default function IdeasSuggestionsSection({
         </div>
       )}
 
-      <div className="d-flex align-items-center gap-2 mb-3">
-        {isExec && !viewAsData && (
-          <div className="btn-group" role="group">
+      {isExec && !viewAsData && (
+        <div className="d-flex flex-wrap align-items-center gap-2 gap-md-3 mb-3">
+          <span className="small text-muted text-nowrap">Status</span>
+          <div className="btn-group" role="group" aria-label="Filter by status">
             <button
               type="button"
               className={`btn btn-sm ${suggestionFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
@@ -112,8 +115,33 @@ export default function IdeasSuggestionsSection({
               Declined ({allSuggestions.filter((s) => s.status === 'declined').length})
             </button>
           </div>
-        )}
-      </div>
+          <span className="vr align-self-stretch d-none d-sm-block flex-shrink-0 my-1 opacity-25" aria-hidden="true" />
+          <span className="small text-muted text-nowrap">Source</span>
+          <div className="btn-group" role="group" aria-label="Filter by source">
+            <button
+              type="button"
+              className={`btn btn-sm ${suggestionSourceFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+              onClick={() => setSuggestionSourceFilter('all')}
+            >
+              All ({allSuggestions.length})
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${suggestionSourceFilter === 'public' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setSuggestionSourceFilter('public')}
+            >
+              Public ({allSuggestions.filter((s) => s._source === 'public_bill').length})
+            </button>
+            <button
+              type="button"
+              className={`btn btn-sm ${suggestionSourceFilter === 'internal' ? 'btn-secondary' : 'btn-outline-secondary'}`}
+              onClick={() => setSuggestionSourceFilter('internal')}
+            >
+              Internal ({allSuggestions.filter((s) => s._source !== 'public_bill').length})
+            </button>
+          </div>
+        </div>
+      )}
 
       {effectiveSuggestions.length > 0 ? (
         <div className="table-responsive" style={{ maxHeight: '400px', overflowY: 'auto' }}>
@@ -130,21 +158,41 @@ export default function IdeasSuggestionsSection({
             </thead>
             <tbody>
               {effectiveSuggestions.map((s) => (
-                <tr key={s.suggestion_id}>
+                <tr key={`${s._source || 'member'}-${s.suggestion_id}`}>
                   {isExec && !viewAsData && (
                     <td>
-                      {s.member ? `${s.member.first_name} ${s.member.last_name}` : 'Unknown'}
-                      {s.member?.email && <div className="small text-muted">{s.member.email}</div>}
+                      {s._source === 'public_bill' ? (
+                        <>
+                          {s.submitter_name || '—'}
+                          {s.submitter_email && (
+                            <div className="small text-muted">{s.submitter_email}</div>
+                          )}
+                        </>
+                      ) : s.member ? (
+                        <>
+                          {`${s.member.first_name} ${s.member.last_name}`}
+                          {s.member.email && <div className="small text-muted">{s.member.email}</div>}
+                        </>
+                      ) : (
+                        'Unknown'
+                      )}
                     </td>
                   )}
                   <td>
-                    <span className="badge bg-secondary">
-                      {s.type === 'bill_idea'
-                        ? 'Bill idea'
-                        : s.type === 'general_interest'
-                          ? 'General interest'
-                          : 'Web / feature'}
-                    </span>
+                    {s._source === 'public_bill' ? (
+                      <span className="d-inline-flex flex-wrap gap-1 align-items-center">
+                        <span className="badge bg-secondary">Bill / issue</span>
+                        <span className="badge bg-info text-dark">Public</span>
+                      </span>
+                    ) : (
+                      <span className="badge bg-secondary">
+                        {s.type === 'bill_idea'
+                          ? 'Bill idea'
+                          : s.type === 'general_interest'
+                            ? 'General interest'
+                            : 'Web / feature'}
+                      </span>
+                    )}
                   </td>
                   <td>{s.title}</td>
                   <td>

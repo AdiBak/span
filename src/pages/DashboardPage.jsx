@@ -265,6 +265,8 @@ function DashboardPage() {
   const [mySuggestions, setMySuggestions] = useState([])
   const [allSuggestions, setAllSuggestions] = useState([])
   const [suggestionFilter, setSuggestionFilter] = useState('pending') // 'all' | 'pending' | 'under_review' | 'approved' | 'declined'
+  /** Exec: filter by submission channel — public website vs internal member ideas */
+  const [suggestionSourceFilter, setSuggestionSourceFilter] = useState('all') // 'all' | 'public' | 'internal'
   const [volunteerFilter, setVolunteerFilter] = useState('pending') // 'all' | 'pending' (waiting) | 'approved' | 'declined' (denied)
   const [suggestionForm, setSuggestionForm] = useState({ type: 'bill_idea', title: '', description: '' })
   const [suggestionError, setSuggestionError] = useState('')
@@ -909,9 +911,10 @@ function DashboardPage() {
       setAllSuggestions([])
       return
     }
-    if (data && data.length > 0) {
-      const memberIds = [...new Set(data.map(s => s.member_id))]
-      const reviewerIds = [...new Set(data.map(s => s.reviewed_by).filter(Boolean))]
+    const memberRows = data || []
+    if (memberRows.length > 0) {
+      const memberIds = [...new Set(memberRows.map(s => s.member_id))]
+      const reviewerIds = [...new Set(memberRows.map(s => s.reviewed_by).filter(Boolean))]
       const allIds = [...new Set([...memberIds, ...reviewerIds])]
       const { data: membersData } = await supabase
         .from('members')
@@ -919,12 +922,55 @@ function DashboardPage() {
         .in('member_id', allIds)
       const membersMap = {}
       if (membersData) membersData.forEach(m => { membersMap[m.member_id] = m })
-      data.forEach(s => {
+      memberRows.forEach(s => {
+        s._source = 'member'
         s.member = membersMap[s.member_id]
         s.reviewed_by_member = s.reviewed_by ? membersMap[s.reviewed_by] : null
       })
     }
-    setAllSuggestions(data || [])
+
+    const isExecUser =
+      hasPermission('volunteer') &&
+      hasPermission('applications') &&
+      hasPermission('bills') &&
+      hasPermission('registration')
+    if (!isExecUser) {
+      setAllSuggestions(memberRows)
+      return
+    }
+
+    const { data: pubData, error: pubErr } = await supabase
+      .from('public_bill_recommendations')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (pubErr) {
+      console.error('Error loading public bill recommendations:', pubErr)
+      setAllSuggestions(memberRows)
+      return
+    }
+    const publicRows = pubData || []
+    if (publicRows.length > 0) {
+      const reviewerIds = [...new Set(publicRows.map((r) => r.reviewed_by).filter(Boolean))]
+      let reviewersMap = {}
+      if (reviewerIds.length > 0) {
+        const { data: revData } = await supabase
+          .from('members')
+          .select('member_id, first_name, last_name, email')
+          .in('member_id', reviewerIds)
+        if (revData) revData.forEach((m) => { reviewersMap[m.member_id] = m })
+      }
+      publicRows.forEach((r) => {
+        r._source = 'public_bill'
+        r.suggestion_id = r.recommendation_id
+        r.type = 'public_bill_website'
+        r.reviewed_by_member = r.reviewed_by ? reviewersMap[r.reviewed_by] : null
+      })
+    }
+
+    const merged = [...memberRows, ...publicRows].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+    setAllSuggestions(merged)
   }
 
   // HR Report handlers
@@ -1269,10 +1315,16 @@ function DashboardPage() {
         payload.reviewed_by = member.member_id
         payload.reviewed_at = new Date().toISOString()
       }
-      const { error } = await supabase
-        .from('member_suggestions')
-        .update(payload)
-        .eq('suggestion_id', selectedSuggestionForView.suggestion_id)
+      const isPublic = selectedSuggestionForView._source === 'public_bill'
+      const { error } = isPublic
+        ? await supabase
+            .from('public_bill_recommendations')
+            .update(payload)
+            .eq('recommendation_id', selectedSuggestionForView.recommendation_id)
+        : await supabase
+            .from('member_suggestions')
+            .update(payload)
+            .eq('suggestion_id', selectedSuggestionForView.suggestion_id)
       if (error) throw error
       setShowSuggestionViewModal(false)
       setSelectedSuggestionForView(null)
@@ -1289,9 +1341,11 @@ function DashboardPage() {
     return r.status === memberRequestFilter
   })
 
-  const filteredSuggestions = allSuggestions.filter(s => {
-    if (suggestionFilter === 'all') return true
-    return s.status === suggestionFilter
+  const filteredSuggestions = allSuggestions.filter((s) => {
+    if (suggestionFilter !== 'all' && s.status !== suggestionFilter) return false
+    if (suggestionSourceFilter === 'all') return true
+    if (suggestionSourceFilter === 'public') return s._source === 'public_bill'
+    return s._source !== 'public_bill'
   })
 
   const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
@@ -4726,6 +4780,8 @@ function DashboardPage() {
           onSubmitSuggestion={handleSubmitSuggestion}
           suggestionFilter={suggestionFilter}
           setSuggestionFilter={setSuggestionFilter}
+          suggestionSourceFilter={suggestionSourceFilter}
+          setSuggestionSourceFilter={setSuggestionSourceFilter}
           allSuggestions={allSuggestions}
           effectiveSuggestions={effectiveSuggestions}
           formatDateLong={formatDateLong}

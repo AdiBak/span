@@ -68,6 +68,13 @@ function validateCommitteeId(id: unknown): string | null {
   return s
 }
 
+function validatePersonId(id: unknown): string | null {
+  const s = typeof id === "string" ? id.trim() : ""
+  if (!s.startsWith("ocd-person/")) return null
+  if (/[\s?#]/.test(s) || s.includes("..")) return null
+  return s
+}
+
 function buildCommitteesQuery(params: {
   jurisdiction: string
   page: number
@@ -198,6 +205,56 @@ serve(async (req) => {
       const enc = encodeURIComponent(committeeId)
       // Memberships are omitted unless explicitly included (OpenAPI default include=[]).
       const url = openStatesUrl(`/committees/${enc}?include=memberships`)
+      const resp = await fetch(url, {
+        headers: {
+          "X-API-KEY": OPENSTATES_API_KEY,
+          Accept: "application/json",
+        },
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: openStatesUserErrorMessage(resp.status, data),
+            upstreamStatus: resp.status,
+            upstreamDetail: data,
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        )
+      }
+      return new Response(JSON.stringify({ ok: true, data }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
+
+    /** Batch GET /people?id=...&id=... (max 25) for full person records (email, links, contact_details). */
+    if (op === "people_by_ids") {
+      const raw = body.person_ids
+      if (!Array.isArray(raw) || raw.length === 0) {
+        return new Response(JSON.stringify({ error: "person_ids must be a non-empty array" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      const ids: string[] = []
+      for (const x of raw) {
+        const v = validatePersonId(x)
+        if (v && !ids.includes(v)) ids.push(v)
+        if (ids.length >= 25) break
+      }
+      if (ids.length === 0) {
+        return new Response(JSON.stringify({ error: "No valid ocd-person ids" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      const q = new URLSearchParams()
+      for (const id of ids) {
+        q.append("id", id)
+      }
+      const url = openStatesUrl(`/people?${q.toString()}`)
       const resp = await fetch(url, {
         headers: {
           "X-API-KEY": OPENSTATES_API_KEY,

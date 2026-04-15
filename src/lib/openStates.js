@@ -101,6 +101,92 @@ export function extractCommitteeDetailRecord(apiPayload) {
 }
 
 /**
+ * @param {unknown} apiPayload — raw `data` from openstates-proxy for GET /people
+ * @returns {object[]}
+ */
+export function extractPeopleList(apiPayload) {
+  const root = apiPayload && typeof apiPayload === 'object' ? apiPayload : {}
+  const r = /** @type {Record<string, unknown>} */ (root)
+  if (Array.isArray(r.results)) return r.results
+  if (Array.isArray(r.items)) return r.items
+  return []
+}
+
+const PEOPLE_BY_IDS_BATCH = 25
+
+/**
+ * Committee membership embeds often omit email/links; fetch full person rows via /people?id=…
+ * @param {{ personId: string | null, sponsorKey: string, name: string, party: string | null, role: string | null, email: string | null, webmailUrl: string | null, phone: string | null }[]} baseMembers
+ * @returns {Promise<typeof baseMembers>}
+ */
+export async function enrichCommitteeMembersWithPeopleDetails(baseMembers) {
+  const ids = [
+    ...new Set(baseMembers.map((m) => String(m.personId || '').trim()).filter((id) => id.startsWith('ocd-person/'))),
+  ]
+  if (!ids.length) return baseMembers
+
+  /** @type {Map<string, Record<string, unknown>>} */
+  const peopleById = new Map()
+  for (let i = 0; i < ids.length; i += PEOPLE_BY_IDS_BATCH) {
+    const batch = ids.slice(i, i + PEOPLE_BY_IDS_BATCH)
+    const res = await invokeOpenStatesProxy({ op: 'people_by_ids', person_ids: batch })
+    if (!res.ok) continue
+    for (const p of extractPeopleList(res.data)) {
+      if (p && typeof p === 'object' && typeof p.id === 'string') {
+        peopleById.set(p.id, /** @type {Record<string, unknown>} */ (p))
+      }
+    }
+  }
+
+  return baseMembers.map((m) => {
+    const pid = String(m.personId || '').trim()
+    if (!pid) return m
+    const full = peopleById.get(pid)
+    if (!full) return m
+    const ch = extractPersonContactChannels(full)
+    return {
+      ...m,
+      email: m.email || ch.email,
+      webmailUrl: m.webmailUrl || ch.webmailUrl,
+      phone: m.phone || ch.phone,
+    }
+  })
+}
+
+/** Normalize display names for cross-source matching (LegiScan ↔ Open States). */
+export function normalizeOutreachDisplayName(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+/**
+ * Build matching keys that tolerate common display variants:
+ * - "First Last"
+ * - "Last, First"
+ * - optional middle names/initials
+ * @param {string | null | undefined} s
+ * @returns {string[]}
+ */
+export function outreachNameMatchKeys(s) {
+  const raw = String(s || '').trim()
+  const normalized = normalizeOutreachDisplayName(raw)
+  if (!normalized) return []
+
+  const keys = new Set([normalized])
+  const parts = normalized.split(' ').filter(Boolean)
+  if (parts.length >= 2) {
+    const first = parts[0]
+    const last = parts[parts.length - 1]
+    keys.add(`${first} ${last}`.trim())
+    keys.add(`${last} ${first}`.trim())
+  }
+  return [...keys]
+}
+
+/**
  * Stable row key for DB when Open States has no person id (name+role within committee).
  * @param {string} committeeId
  * @param {string} name
@@ -114,9 +200,72 @@ export function openStatesNameRoleSponsorKey(committeeId, name, role) {
 }
 
 /**
+ * Best-effort email / web / phone from Open States person (committee detail embed).
+ * @param {Record<string, unknown> | null} person
+ * @returns {{ email: string | null, webmailUrl: string | null, phone: string | null }}
+ */
+export function extractPersonContactChannels(person) {
+  if (!person || typeof person !== 'object') {
+    return { email: null, webmailUrl: null, phone: null }
+  }
+  let email = null
+  const top = String(person.email || '').trim()
+  if (top.includes('@')) email = top
+
+  const details = Array.isArray(person.contact_details) ? person.contact_details : []
+  for (const d of details) {
+    if (!d || typeof d !== 'object') continue
+    const row = /** @type {Record<string, unknown>} */ (d)
+    if (!email) {
+      const em = String(row.email || '').trim()
+      if (em.includes('@')) {
+        email = em
+        break
+      }
+      const type = String(row.type || '').toLowerCase()
+      const val = String(row.value || '').trim()
+      if (type === 'email' && val.includes('@')) {
+        email = val
+        break
+      }
+    }
+  }
+
+  let webmailUrl = null
+  const links = Array.isArray(person.links) ? person.links : []
+  for (const l of links) {
+    if (!l || typeof l !== 'object') continue
+    const url = String(/** @type {Record<string, unknown>} */ (l).url || '').trim()
+    if (/^https?:\/\//i.test(url)) {
+      webmailUrl = url
+      break
+    }
+  }
+
+  let phone = null
+  for (const d of details) {
+    if (!d || typeof d !== 'object') continue
+    const row = /** @type {Record<string, unknown>} */ (d)
+    const voice = String(row.voice || '').trim()
+    if (voice) {
+      phone = voice.replace(/\s+/g, ' ')
+      break
+    }
+    const type = String(row.type || '').toLowerCase()
+    const val = String(row.value || '').trim()
+    if ((type === 'voice' || type === 'tel') && val) {
+      phone = val.replace(/\s+/g, ' ')
+      break
+    }
+  }
+
+  return { email, webmailUrl, phone }
+}
+
+/**
  * @param {Record<string, unknown> | null} committeeObj
  * @param {string} [committeeId] — used for name-only membership keys
- * @returns {{ personId: string | null, sponsorKey: string, name: string, party: string | null, role: string | null }[]}
+ * @returns {{ personId: string | null, sponsorKey: string, name: string, party: string | null, role: string | null, email: string | null, webmailUrl: string | null, phone: string | null }[]}
  */
 export function membershipsFromCommittee(committeeObj, committeeId = '') {
   if (!committeeObj) return []
@@ -139,12 +288,16 @@ export function membershipsFromCommittee(committeeObj, committeeId = '') {
       : openStatesNameRoleSponsorKey(cid, name, role)
     if (!sponsorKey || seen.has(sponsorKey)) continue
     seen.add(sponsorKey)
+    const channels = extractPersonContactChannels(person)
     out.push({
       personId: personIdRaw || null,
       sponsorKey,
       name,
       party,
       role,
+      email: channels.email,
+      webmailUrl: channels.webmailUrl,
+      phone: channels.phone,
     })
   }
   return out

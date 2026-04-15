@@ -15,6 +15,7 @@ const LEGISCAN_API_BASE = 'https://api.legiscan.com/'
 const CACHE_PREFIX = 'legiscan_bill_'
 const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
 const PERSON_CACHE_PREFIX = 'legiscan_person_'
+const SESSION_PEOPLE_CACHE_PREFIX = 'legiscan_session_people_'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
 
@@ -61,6 +62,28 @@ async function fetchLegiscanPersonContactViaEdge(peopleId) {
   }
 }
 
+async function fetchLegiscanSessionPeopleViaEdge(stateCode) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const token = sessionData?.session?.access_token
+  if (!token || !SUPABASE_URL) return { ok: false, people: [], error: 'missing_session' }
+
+  const resp = await fetch(`${SUPABASE_URL}/functions/v1/fetch-legiscan-person-contact`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ op: 'session_people', state: String(stateCode) }),
+  })
+  const data = await resp.json().catch(() => ({}))
+  if (!resp.ok) {
+    return { ok: false, people: [], error: data?.error || 'edge_error' }
+  }
+  const rows = Array.isArray(data?.people) ? data.people : []
+  return { ok: true, people: rows, error: null }
+}
+
 function getCachedLegiscanPersonContact(cacheKey) {
   try {
     const cached = sessionStorage.getItem(`${PERSON_CACHE_PREFIX}${cacheKey}`)
@@ -84,6 +107,32 @@ function cacheLegiscanPersonContact(cacheKey, data) {
     )
   } catch {
     // Ignore storage errors (quota exceeded, etc.)
+  }
+}
+
+function getCachedSessionPeople(stateCode) {
+  try {
+    const cached = sessionStorage.getItem(`${SESSION_PEOPLE_CACHE_PREFIX}${stateCode}`)
+    if (!cached) return null
+    const { data, timestamp } = JSON.parse(cached)
+    if (Date.now() - timestamp > CACHE_DURATION) {
+      sessionStorage.removeItem(`${SESSION_PEOPLE_CACHE_PREFIX}${stateCode}`)
+      return null
+    }
+    return Array.isArray(data) ? data : null
+  } catch {
+    return null
+  }
+}
+
+function cacheSessionPeople(stateCode, data) {
+  try {
+    sessionStorage.setItem(
+      `${SESSION_PEOPLE_CACHE_PREFIX}${stateCode}`,
+      JSON.stringify({ data, timestamp: Date.now() })
+    )
+  } catch {
+    // Ignore storage errors
   }
 }
 
@@ -427,6 +476,68 @@ function normalizeStateCode(state) {
   return stateMap[normalized] || state.toUpperCase()
 }
 
+function normalizeLegiscanPersonNameForLookup(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+function legiscanPersonNameKeys(personOrName) {
+  const text =
+    typeof personOrName === 'string'
+      ? personOrName
+      : [
+          personOrName?.first_name,
+          personOrName?.middle_name,
+          personOrName?.last_name,
+          personOrName?.name,
+        ]
+          .filter(Boolean)
+          .join(' ')
+  const normalized = normalizeLegiscanPersonNameForLookup(text)
+  if (!normalized) return []
+  const keys = new Set([normalized])
+  const parts = normalized.split(' ').filter(Boolean)
+  if (parts.length >= 2) {
+    const first = parts[0]
+    const last = parts[parts.length - 1]
+    keys.add(`${first} ${last}`)
+    keys.add(`${last} ${first}`)
+  }
+  return [...keys]
+}
+
+function normalizeSessionPeopleRows(payload) {
+  if (!payload) return []
+  if (Array.isArray(payload)) return payload.filter(Boolean)
+  if (Array.isArray(payload.people)) return payload.people.filter(Boolean)
+  if (Array.isArray(payload.sessionpeople)) return payload.sessionpeople.filter(Boolean)
+  if (typeof payload === 'object') {
+    return Object.values(payload).filter((v) => v && typeof v === 'object')
+  }
+  return []
+}
+
+async function fetchLegiscanSessionPeople(stateRaw) {
+  const stateCode = normalizeStateCode(stateRaw)
+  if (!stateCode || stateCode.length !== 2) return []
+  const cached = getCachedSessionPeople(stateCode)
+  if (cached) return cached
+
+  try {
+    const edgeRes = await fetchLegiscanSessionPeopleViaEdge(stateCode)
+    if (!edgeRes?.ok) return []
+    const rows = normalizeSessionPeopleRows(edgeRes.people)
+    cacheSessionPeople(stateCode, rows)
+    return rows
+  } catch (err) {
+    console.error('fetchLegiscanSessionPeople:', err)
+    return []
+  }
+}
+
 /**
  * Get bill details including status and last action.
  * @param {number} billId - LegiScan bill_id
@@ -610,6 +721,7 @@ function sponsorContactFromLegiscan(p) {
 function sponsorPersonIdFromLegiscan(p) {
   if (!p || typeof p !== 'object') return null
   return (
+    p.id ??
     p.people_id ??
     p.person_id ??
     p.legiscan_people_id ??
@@ -693,40 +805,24 @@ async function fetchLegiscanPersonContact(peopleId) {
   const cached = getCachedLegiscanPersonContact(cacheKey)
   if (cached) return { ok: Boolean(cached?.email || cached?.phone), contact: cached, error: null }
 
-  // Avoid browser CORS noise: use Edge proxy first.
+  // Use Edge proxy only; direct browser calls to api.legiscan.com hit CORS in local dev.
   try {
     const edgeRes = await fetchLegiscanPersonContactViaEdge(peopleId)
     if (edgeRes?.ok && (edgeRes.contact?.email || edgeRes.contact?.phone || edgeRes.contact?.webmailUrl)) {
       cacheLegiscanPersonContact(cacheKey, edgeRes.contact)
       return edgeRes
     }
-    // If edge isn't configured (missing session/secret/deploy), fall back to direct API (may CORS).
-    if (edgeRes?.error && edgeRes.error !== 'missing_session') {
-      // keep going to browser attempt
-    } else if (edgeRes?.error === 'missing_session') {
-      // keep going to browser attempt
-    } else {
-      // edge returned ok:false but no explicit error; keep going
+    return edgeRes || {
+      ok: false,
+      contact: { email: '', phone: '', webmailUrl: '' },
+      error: 'edge_error',
     }
   } catch (edgeErr) {
     console.error('fetchLegiscanPersonContact edge error:', edgeErr)
-  }
-
-  try {
-    const data = await callLegiscanApi('getPerson', { people_id: String(peopleId) })
-    if (data?.status !== 'OK' && data?.status !== undefined) {
-      if (data?.status !== 'OK') throw new Error(`getPerson failed: ${data?.status}`)
-    }
-    const person = data?.person || data?.data?.person || data?.people || data?.person_data || data
-    const contact = extractContactFromLegiscanPerson(person)
-    cacheLegiscanPersonContact(cacheKey, contact)
-    return { ok: Boolean(contact.email || contact.phone || contact.webmailUrl), contact, error: null }
-  } catch (err) {
-    console.error('fetchLegiscanPersonContact browser error:', err)
     return {
       ok: false,
       contact: { email: '', phone: '', webmailUrl: '' },
-      error: err?.message || 'getPerson_failed',
+      error: edgeErr?.message || 'edge_exception',
     }
   }
 }
@@ -903,6 +999,51 @@ export async function fetchLegiscanSponsorsForSpanBill(bill) {
   }
 
   return { ok: true, sponsors, detail: result.detail, meta }
+}
+
+/**
+ * Lookup a legislator generally (not bill-sponsor specific) by state+name and return contact.
+ * Uses getSessionPeople -> getPerson fallback flow.
+ * @param {string} stateRaw
+ * @param {string} displayName
+ * @returns {Promise<{ ok: boolean, contact: { email: string, phone: string, webmailUrl: string }, matchedName?: string }>}
+ */
+export async function fetchLegiscanPersonContactByName(stateRaw, displayName) {
+  const keys = legiscanPersonNameKeys(displayName)
+  if (!keys.length) {
+    return { ok: false, contact: { email: '', phone: '', webmailUrl: '' } }
+  }
+  const people = await fetchLegiscanSessionPeople(stateRaw)
+  if (!people.length) {
+    return { ok: false, contact: { email: '', phone: '', webmailUrl: '' } }
+  }
+
+  let match = null
+  for (const p of people) {
+    const pKeys = legiscanPersonNameKeys(p)
+    if (pKeys.some((k) => keys.includes(k))) {
+      match = p
+      break
+    }
+  }
+  if (!match) {
+    return { ok: false, contact: { email: '', phone: '', webmailUrl: '' } }
+  }
+
+  const peopleId = sponsorPersonIdFromLegiscan(match)
+  if (peopleId) {
+    const res = await fetchLegiscanPersonContact(peopleId)
+    if (res?.ok) {
+      return { ok: true, contact: res.contact, matchedName: String(match.name || '').trim() || undefined }
+    }
+  }
+
+  const fallback = extractContactFromLegiscanPerson(match)
+  return {
+    ok: Boolean(fallback.email || fallback.phone || fallback.webmailUrl),
+    contact: fallback,
+    matchedName: String(match.name || '').trim() || undefined,
+  }
 }
 
 export async function fetchLegiscanBillBySearch(state, billNumber) {

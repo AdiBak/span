@@ -27,12 +27,15 @@ function escapeContactString(s: unknown): string {
 
 function extractContact(person: unknown): { email: string; phone: string; webmailUrl: string } {
   const p = (person && typeof person === "object" ? person : {}) as Record<string, unknown>
+  const bio = (p.bio && typeof p.bio === "object" ? p.bio : {}) as Record<string, unknown>
+  const bioSocial = (bio.social && typeof bio.social === "object" ? bio.social : {}) as Record<string, unknown>
   const emailRaw =
     p.email ||
     p.contact_email ||
     p.office_email ||
     p.work_email ||
     p.public_email ||
+    bioSocial.email ||
     ""
   const phoneRaw =
     p.phone ||
@@ -40,6 +43,9 @@ function extractContact(person: unknown): { email: string; phone: string; webmai
     p.office_phone ||
     p.capitol_phone ||
     p.contact_phone ||
+    bioSocial.capitol_phone ||
+    bioSocial.district_phone ||
+    bioSocial.phone ||
     ""
   const webmailRaw =
     p.webmail ||
@@ -49,12 +55,20 @@ function extractContact(person: unknown): { email: string; phone: string; webmai
     p.contact_url ||
     p.contact_form_url ||
     p.contact_form ||
+    bioSocial.webmail ||
+    bioSocial.website ||
     ""
 
   const email = escapeContactString(emailRaw)
   const phone = escapeContactString(phoneRaw).replace(/\s+/g, " ")
   const webmailUrl = escapeContactString(webmailRaw)
   return { email, phone, webmailUrl }
+}
+
+function normalizeStateCode(state: unknown): string | null {
+  const s = String(state ?? "").trim().toUpperCase()
+  if (/^[A-Z]{2}$/.test(s)) return s
+  return null
 }
 
 serve(async (req) => {
@@ -70,14 +84,8 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json() as { people_id?: string | number }
-    const { people_id } = body
-    if (!people_id) {
-      return new Response(JSON.stringify({ error: "people_id is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      })
-    }
+    const body = await req.json() as { people_id?: string | number; op?: string; state?: string }
+    const op = body?.op === "session_people" ? "session_people" : "get_person"
 
     if (!LEGISCAN_API_KEY) {
       return new Response(JSON.stringify({ error: "LEGISCAN_API_KEY is not configured" }), {
@@ -124,8 +132,97 @@ serve(async (req) => {
       })
     }
 
+    if (op === "session_people") {
+      const state = normalizeStateCode(body?.state)
+      if (!state) {
+        return new Response(JSON.stringify({ error: "state (2-letter code) is required for session_people" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+
+      const sessionsUrl = `https://api.legiscan.com/?key=${encodeURIComponent(
+        LEGISCAN_API_KEY
+      )}&op=getSessionList&state=${encodeURIComponent(state)}`
+      const sessionsResp = await fetch(sessionsUrl)
+      if (!sessionsResp.ok) {
+        return new Response(JSON.stringify({ error: `LegiScan getSessionList failed: HTTP ${sessionsResp.status}` }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      const sessionsData = await sessionsResp.json()
+      if (sessionsData?.status && sessionsData.status !== "OK") {
+        return new Response(JSON.stringify({ error: `LegiScan getSessionList returned ${sessionsData.status}` }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      const rawSessions = Array.isArray(sessionsData?.sessions)
+        ? sessionsData.sessions
+        : Object.values((sessionsData?.sessions || {}) as Record<string, unknown>)
+      const sessions = rawSessions.filter((x) => x && typeof x === "object") as Record<string, unknown>[]
+      if (!sessions.length) {
+        return new Response(JSON.stringify({ ok: true, people: [] }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      const sorted = [...sessions].sort((a, b) => {
+        const aCurrent = Number(Boolean(a?.current))
+        const bCurrent = Number(Boolean(b?.current))
+        if (aCurrent !== bCurrent) return bCurrent - aCurrent
+        const aYear = Number(a?.year_start || 0)
+        const bYear = Number(b?.year_start || 0)
+        if (aYear !== bYear) return bYear - aYear
+        return Number(b?.session_id || 0) - Number(a?.session_id || 0)
+      })
+      const sessionId = sorted[0]?.session_id
+      if (!sessionId) {
+        return new Response(JSON.stringify({ ok: true, people: [] }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+
+      const peopleUrl = `https://api.legiscan.com/?key=${encodeURIComponent(
+        LEGISCAN_API_KEY
+      )}&op=getSessionPeople&id=${encodeURIComponent(String(sessionId))}`
+      const peopleResp = await fetch(peopleUrl)
+      if (!peopleResp.ok) {
+        return new Response(JSON.stringify({ error: `LegiScan getSessionPeople failed: HTTP ${peopleResp.status}` }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      const peopleData = await peopleResp.json()
+      if (peopleData?.status && peopleData.status !== "OK") {
+        return new Response(JSON.stringify({ error: `LegiScan getSessionPeople returned ${peopleData.status}` }), {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      const rawPeople = peopleData?.sessionpeople || peopleData?.people || peopleData?.data || peopleData
+      const people = Array.isArray(rawPeople)
+        ? rawPeople.filter(Boolean)
+        : Object.values((rawPeople || {}) as Record<string, unknown>).filter((x) => x && typeof x === "object")
+
+      return new Response(JSON.stringify({ ok: true, people }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
+
+    const people_id = body?.people_id
+    if (!people_id) {
+      return new Response(JSON.stringify({ error: "people_id is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
+
     // Fetch person from LegiScan (server-side: no CORS).
-    const url = `https://api.legiscan.com/?key=${encodeURIComponent(LEGISCAN_API_KEY)}&op=getPerson&people_id=${encodeURIComponent(
+    const url = `https://api.legiscan.com/?key=${encodeURIComponent(LEGISCAN_API_KEY)}&op=getPerson&id=${encodeURIComponent(
       String(people_id)
     )}&cachebust=${encodeURIComponent(PERSON_CACHE_BUSTER)}`
 
@@ -138,6 +235,12 @@ serve(async (req) => {
     }
 
     const data = await resp.json()
+    if (data?.status && data.status !== "OK") {
+      return new Response(JSON.stringify({ error: `LegiScan getPerson returned ${data.status}` }), {
+        status: 502,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
     const person =
       data?.person ||
       data?.data?.person ||

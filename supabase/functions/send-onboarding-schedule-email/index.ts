@@ -60,8 +60,8 @@ function sanitizeSchedulingUrl(raw: string | undefined): string | null {
   }
 }
 
-/** Wide logo (PNG) — better support in email clients than SVG */
-const LOGO_IMG_SRC = "https://i.ibb.co/yn6WY2M2/logo-wide-dark.png"
+/** Wide logo (PNG) — hosted on production site for reliable loading in email clients */
+const LOGO_IMG_SRC = "https://spanationwide.org/images/index/logo-wide-dark.png"
 
 function buildOnboardingScheduleEmailHtml(
   applicantName: string,

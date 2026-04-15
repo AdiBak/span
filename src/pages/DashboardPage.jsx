@@ -1322,9 +1322,9 @@ function DashboardPage() {
             .update(payload)
             .eq('recommendation_id', selectedSuggestionForView.recommendation_id)
         : await supabase
-            .from('member_suggestions')
-            .update(payload)
-            .eq('suggestion_id', selectedSuggestionForView.suggestion_id)
+        .from('member_suggestions')
+        .update(payload)
+        .eq('suggestion_id', selectedSuggestionForView.suggestion_id)
       if (error) throw error
       setShowSuggestionViewModal(false)
       setSelectedSuggestionForView(null)
@@ -4812,8 +4812,8 @@ function DashboardPage() {
           onCommentEntry={handleCommentEntry}
           onRequestDeleteEntry={(id) => {
             setSelectedEntryId(id)
-            setShowDeleteModal(true)
-          }}
+                                          setShowDeleteModal(true)
+                                        }}
           onSendVerification={handleSendVerification}
         />
 
@@ -4839,11 +4839,11 @@ function DashboardPage() {
             setResearchBillSearchKeywords={setResearchBillSearchKeywords}
             researchBillStatusFilter={researchBillStatusFilter}
             setResearchBillStatusFilter={setResearchBillStatusFilter}
-            allMembers={allMembers}
-            getBillPdfUrl={getBillPdfUrl}
-            formatDate={formatDate}
+                allMembers={allMembers}
+                getBillPdfUrl={getBillPdfUrl}
+                formatDate={formatDate}
             loadResearchBills={loadResearchBills}
-            getStateFileName={getStateFileName}
+                getStateFileName={getStateFileName}
             billFilter={billFilter}
             setBillFilter={setBillFilter}
             effectiveBills={effectiveBills}
@@ -4872,10 +4872,10 @@ function DashboardPage() {
             onReopenPublish={handleReopenPublishBillFromAssignment}
             onEditAssignment={handleOpenEditAssignmentModal}
             onRequestDeleteAssignment={(a) => {
-              setAssignmentToDelete(a)
-              setDeleteAssignmentError('')
-              setShowDeleteAssignmentModal(true)
-            }}
+                                          setAssignmentToDelete(a)
+                                          setDeleteAssignmentError('')
+                                          setShowDeleteAssignmentModal(true)
+                                        }}
           />
         )}
 
@@ -4904,11 +4904,11 @@ function DashboardPage() {
             setResearchBillSearchKeywords={setResearchBillSearchKeywords}
             researchBillStatusFilter={researchBillStatusFilter}
             setResearchBillStatusFilter={setResearchBillStatusFilter}
-            allMembers={allMembers}
-            getBillPdfUrl={getBillPdfUrl}
-            formatDate={formatDate}
+                allMembers={allMembers}
+                getBillPdfUrl={getBillPdfUrl}
+                formatDate={formatDate}
             loadResearchBills={loadResearchBills}
-            getStateFileName={getStateFileName}
+                getStateFileName={getStateFileName}
             billAssignments={billAssignments}
             handleClaimBillAssignment={handleClaimBillAssignment}
             resolveBillAssignmentMemberName={resolveBillAssignmentMemberName}
@@ -5184,21 +5184,21 @@ function DashboardPage() {
           formatDateLong={formatDateLong}
           formatDate={formatDate}
           onOpenSubmitHrReport={() => {
-            setHrReportForm({
-              nature: '',
-              regardingMemberId: '',
-              regardingName: '',
-              dateOccurred: '',
+                  setHrReportForm({
+                    nature: '',
+                    regardingMemberId: '',
+                    regardingName: '',
+                    dateOccurred: '',
               details: '',
-            })
-            setHrReportError('')
-            setHrReportSuccess('')
-            setShowHrReportModal(true)
+                  })
+                  setHrReportError('')
+                  setHrReportSuccess('')
+                  setShowHrReportModal(true)
           }}
           onViewReport={(report) => {
-            setSelectedHrReport(report)
-            setShowHrReportViewModal(true)
-          }}
+                                setSelectedHrReport(report)
+                                setShowHrReportViewModal(true)
+                              }}
         />
 
         {!viewAsData && member && (member.blog === true || member.blog === 'true') && (
@@ -5322,9 +5322,9 @@ function DashboardPage() {
         requestReviewNotes={requestReviewNotes}
         setRequestReviewNotes={setRequestReviewNotes}
         onClose={() => {
-          setShowRequestReviewModal(false)
-          setSelectedRequestForReview(null)
-          setRequestReviewNotes('')
+                setShowRequestReviewModal(false)
+                setSelectedRequestForReview(null)
+                setRequestReviewNotes('')
         }}
         onConfirm={handleRequestReviewSubmit}
       />
@@ -5333,8 +5333,8 @@ function DashboardPage() {
         open={showRequestViewModal}
         request={selectedRequestForView}
         onClose={() => {
-          setShowRequestViewModal(false)
-          setSelectedRequestForView(null)
+                setShowRequestViewModal(false)
+                setSelectedRequestForView(null)
         }}
         formatDate={formatDate}
         formatDateLong={formatDateLong}
@@ -5356,8 +5356,8 @@ function DashboardPage() {
         open={showSuggestionViewModal}
         suggestion={selectedSuggestionForView}
         onClose={() => {
-          setShowSuggestionViewModal(false)
-          setSelectedSuggestionForView(null)
+                setShowSuggestionViewModal(false)
+                setSelectedSuggestionForView(null)
         }}
         formatDateLong={formatDateLong}
         showMemberBlock={isExec}
@@ -5447,8 +5447,8 @@ function DashboardPage() {
         error={deleteAssignmentError}
         saving={deleteAssignmentSaving}
         onClose={() => {
-          setShowDeleteAssignmentModal(false)
-          setAssignmentToDelete(null)
+                setShowDeleteAssignmentModal(false)
+                setAssignmentToDelete(null)
         }}
         onConfirm={handleConfirmDeleteBillAssignment}
       />
@@ -5477,9 +5477,9 @@ function DashboardPage() {
         }}
         onBackdropClose={() => setShowMemberModal(false)}
         onHeaderClose={() => {
-          setShowMemberModal(false)
-          setEditingMemberId(null)
-        }}
+                        setShowMemberModal(false)
+                        setEditingMemberId(null)
+                      }}
         onCancelFooter={() => setShowMemberModal(false)}
         onImportApplication={() => setShowImportApplicationModal(true)}
         onSave={handleSaveMember}
@@ -5499,24 +5499,24 @@ function DashboardPage() {
         onOpenMetWithDate={openMetWithDateModal}
         onOpenOnboardEmail={openOnboardScheduleEmailPreviewModal}
         onAccept={() => {
-          if (
-            window.confirm(
-              `Accept ${selectedApplication.full_name}'s application?\n\nYou'll be able to add them as a member next.`
-            )
-          ) {
-            handleAcceptApplication()
-          }
-        }}
+                              if (
+                                window.confirm(
+                                  `Accept ${selectedApplication.full_name}'s application?\n\nYou'll be able to add them as a member next.`
+                                )
+                              ) {
+                                handleAcceptApplication()
+                              }
+                            }}
         onOpenRejectConfirm={() => {
-          setSendRejectionEmail(true)
-          setRejectionEmailReason(applicationNotes)
-          setShowRejectConfirmModal(true)
-        }}
+                              setSendRejectionEmail(true)
+                              setRejectionEmailReason(applicationNotes)
+                              setShowRejectConfirmModal(true)
+                            }}
         onResetToPending={() => {
-          if (window.confirm(`Reset ${selectedApplication.full_name}'s application to pending?`)) {
-            handleUpdateApplicationStatus('pending')
-          }
-        }}
+                            if (window.confirm(`Reset ${selectedApplication.full_name}'s application to pending?`)) {
+                              handleUpdateApplicationStatus('pending')
+                            }
+                          }}
         onOpenDeleteModal={() => setShowDeleteApplicationModal(true)}
       />
 
@@ -5568,21 +5568,21 @@ function DashboardPage() {
         inviteEmailPreviewLoading={inviteEmailPreviewLoading}
         inviteEmailSending={inviteEmailSending}
         onBackdropClose={() => {
-          setShowInviteEmailModal(false)
-          setInviteEmailPreview(null)
+                setShowInviteEmailModal(false)
+                setInviteEmailPreview(null)
         }}
         onHeaderClose={() => {
-          if (!inviteEmailSending && !inviteEmailPreviewLoading) {
-            setShowInviteEmailModal(false)
-            setInviteEmailPreview(null)
-          }
-        }}
+                      if (!inviteEmailSending && !inviteEmailPreviewLoading) {
+                        setShowInviteEmailModal(false)
+                        setInviteEmailPreview(null)
+                      }
+                    }}
         onCancel={() => {
-          if (!inviteEmailSending) {
-            setShowInviteEmailModal(false)
-            setInviteEmailPreview(null)
-          }
-        }}
+                      if (!inviteEmailSending) {
+                        setShowInviteEmailModal(false)
+                        setInviteEmailPreview(null)
+                      }
+                    }}
         onSend={handleSendInvitationEmailAndMarkInvited}
       />
 
@@ -5600,21 +5600,21 @@ function DashboardPage() {
           loadOnboardScheduleEmailPreview(onboardScheduleWhen2meetUrl, onboardScheduleDeadlineNote)
         }
         onBackdropClose={() => {
-          setShowOnboardScheduleEmailModal(false)
-          setOnboardScheduleEmailPreview(null)
+                setShowOnboardScheduleEmailModal(false)
+                setOnboardScheduleEmailPreview(null)
         }}
         onHeaderClose={() => {
-          if (!onboardScheduleEmailSending && !onboardScheduleEmailPreviewLoading) {
-            setShowOnboardScheduleEmailModal(false)
-            setOnboardScheduleEmailPreview(null)
-          }
-        }}
+                      if (!onboardScheduleEmailSending && !onboardScheduleEmailPreviewLoading) {
+                        setShowOnboardScheduleEmailModal(false)
+                        setOnboardScheduleEmailPreview(null)
+                      }
+                    }}
         onCancel={() => {
-          if (!onboardScheduleEmailSending) {
-            setShowOnboardScheduleEmailModal(false)
-            setOnboardScheduleEmailPreview(null)
-          }
-        }}
+                      if (!onboardScheduleEmailSending) {
+                        setShowOnboardScheduleEmailModal(false)
+                        setOnboardScheduleEmailPreview(null)
+                      }
+                    }}
         onSend={handleSendOnboardingScheduleEmailAndMarkOnboard}
       />
 
@@ -5629,27 +5629,27 @@ function DashboardPage() {
         rejectionEmailPreviewLoading={rejectionEmailPreviewLoading}
         rejectionEmailSending={rejectionEmailSending}
         onBackdropClose={() => {
-          setShowRejectConfirmModal(false)
-          setRejectionEmailPreview(null)
-          setRejectionEmailPreviewLoading(false)
-          setRejectionEmailReason('')
+                setShowRejectConfirmModal(false)
+                setRejectionEmailPreview(null)
+                setRejectionEmailPreviewLoading(false)
+                setRejectionEmailReason('')
         }}
         onHeaderClose={() => {
-          if (!rejectionEmailSending) {
-            setShowRejectConfirmModal(false)
-            setRejectionEmailPreview(null)
-            setRejectionEmailPreviewLoading(false)
-            setRejectionEmailReason('')
-          }
-        }}
+                      if (!rejectionEmailSending) {
+                        setShowRejectConfirmModal(false)
+                        setRejectionEmailPreview(null)
+                        setRejectionEmailPreviewLoading(false)
+                        setRejectionEmailReason('')
+                      }
+                    }}
         onCancel={() => {
-          if (!rejectionEmailSending) {
-            setShowRejectConfirmModal(false)
-            setRejectionEmailPreview(null)
-            setRejectionEmailPreviewLoading(false)
-            setRejectionEmailReason('')
-          }
-        }}
+                      if (!rejectionEmailSending) {
+                        setShowRejectConfirmModal(false)
+                        setRejectionEmailPreview(null)
+                        setRejectionEmailPreviewLoading(false)
+                        setRejectionEmailReason('')
+                      }
+                    }}
         onConfirm={handleRejectApplication}
       />
 
@@ -5670,11 +5670,11 @@ function DashboardPage() {
         verificationEntryCount={verificationEntryCount}
         verificationSending={verificationSending}
         onDismiss={() => {
-          setShowVerificationModal(false)
-          if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
-          setVerificationPdfUrl(null)
-          setVerificationPdfBase64(null)
-          setVerificationMember(null)
+                setShowVerificationModal(false)
+                if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
+                setVerificationPdfUrl(null)
+                setVerificationPdfBase64(null)
+                setVerificationMember(null)
         }}
         onSend={handleConfirmSendVerification}
       />

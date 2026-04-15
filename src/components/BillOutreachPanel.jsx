@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { fetchLegiscanSponsorsForSpanBill, legiscanSponsorStorageKey } from '../lib/legiscan'
+import OutreachContactModal from './OutreachContactModal'
+import {
+  fetchLegiscanPersonContactByName,
+  fetchLegiscanSponsorsForSpanBill,
+  legiscanSponsorStorageKey,
+} from '../lib/legiscan'
 import {
   billStateToOpenStatesJurisdiction,
   extractCommitteeDetailRecord,
   extractCommitteesList,
   invokeOpenStatesProxy,
   membershipsFromCommittee,
+  outreachNameMatchKeys,
 } from '../lib/openStates'
 
 const STATUS_OPTIONS = [
@@ -29,7 +35,17 @@ function isProspectTarget(t) {
   return t.target_source === 'openstates_committee' || t.target_source === 'openstates_bill'
 }
 
-function OutreachTargetsTable({ targets, patchTarget }) {
+/** First trimmed non-empty string, else null. */
+function firstNonEmptyContact(...vals) {
+  for (const v of vals) {
+    if (v == null) continue
+    const s = String(v).trim()
+    if (s) return s
+  }
+  return null
+}
+
+function OutreachTargetsTable({ targets, patchTarget, onOpenContact, showProspectDelete, onDeleteProspect }) {
   if (!targets.length) return null
   return (
     <div className="table-responsive">
@@ -40,8 +56,11 @@ function OutreachTargetsTable({ targets, patchTarget }) {
             <th scope="col">Source</th>
             <th scope="col">Party</th>
             <th scope="col">Role</th>
+            <th scope="col">Email</th>
             <th scope="col">Webmail</th>
             <th scope="col">Phone</th>
+            <th scope="col">Contact</th>
+            {showProspectDelete && <th scope="col" className="text-nowrap"> </th>}
             <th scope="col">Status</th>
             <th scope="col">Notes</th>
           </tr>
@@ -53,6 +72,23 @@ function OutreachTargetsTable({ targets, patchTarget }) {
               <td className="text-muted small">{targetSourceLabel(t.target_source)}</td>
               <td className="text-muted small">{t.party || '—'}</td>
               <td className="text-muted small">{t.sponsor_role || '—'}</td>
+              <td style={{ minWidth: '160px' }}>
+                <input
+                  type="email"
+                  className="form-control form-control-sm"
+                  placeholder="Email"
+                  autoComplete="off"
+                  aria-label={`Email for ${t.display_name}`}
+                  defaultValue={t.contact_email || ''}
+                  key={`${t.target_id}-em-${t.contact_email ?? ''}`}
+                  onBlur={(e) => {
+                    const next = e.target.value.trim()
+                    const prev = (t.contact_email || '').trim()
+                    if (next === prev) return
+                    patchTarget(t.target_id, { contact_email: next || null })
+                  }}
+                />
+              </td>
               <td style={{ minWidth: '160px' }}>
                 {(t.contact_webmail_url || '').trim() ? (
                   <a
@@ -83,6 +119,32 @@ function OutreachTargetsTable({ targets, patchTarget }) {
                   }}
                 />
               </td>
+              <td>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-primary text-nowrap"
+                  onClick={() => onOpenContact(t)}
+                >
+                  Compose
+                </button>
+              </td>
+              {showProspectDelete && (
+                <td>
+                  {isProspectTarget(t) && typeof onDeleteProspect === 'function' ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-danger"
+                      title="Remove this prospect row"
+                      aria-label={`Remove prospect ${t.display_name}`}
+                      onClick={() => onDeleteProspect(t)}
+                    >
+                      <i className="bi bi-trash" aria-hidden="true" />
+                    </button>
+                  ) : (
+                    <span className="text-muted small">—</span>
+                  )}
+                </td>
+              )}
               <td style={{ minWidth: '140px' }}>
                 <select
                   className="form-select form-select-sm"
@@ -144,6 +206,8 @@ export default function BillOutreachPanel({ bills, member }) {
   const [osDetailLoading, setOsDetailLoading] = useState(false)
   const [osDetailError, setOsDetailError] = useState('')
   const [osImporting, setOsImporting] = useState(false)
+  const [prospectLegiscanMatching, setProspectLegiscanMatching] = useState(false)
+  const [contactTarget, setContactTarget] = useState(null)
 
   const sortedBills = useMemo(() => {
     return [...(bills || [])].sort((a, b) => {
@@ -296,6 +360,78 @@ export default function BillOutreachPanel({ bills, member }) {
     }
   }
 
+  const handleFillProspectsFromLegiScanMatches = async () => {
+    if (!selectedBillId || !legiscanTargets.length || !prospectTargets.length) return
+    setProspectLegiscanMatching(true)
+    setRefreshMessage('')
+    setLoadError('')
+    try {
+      /** @type {Map<string, (typeof targets)[0]>} */
+      const byName = new Map()
+      for (const t of legiscanTargets) {
+        for (const k of outreachNameMatchKeys(t.display_name)) {
+          if (k && !byName.has(k)) byName.set(k, t)
+        }
+      }
+      let n = 0
+      for (const p of prospectTargets) {
+        const leg = outreachNameMatchKeys(p.display_name).map((k) => byName.get(k)).find(Boolean)
+        let fallbackContact = null
+        if (!leg && selectedBill?.state) {
+          const byNameRes = await fetchLegiscanPersonContactByName(selectedBill.state, p.display_name)
+          if (byNameRes?.ok) fallbackContact = byNameRes.contact
+        }
+        if (!leg && !fallbackContact) continue
+        /** @type {Record<string, unknown>} */
+        const patch = {}
+        const sourceEmail = String(leg?.contact_email || fallbackContact?.email || '').trim()
+        const sourceWebmail = String(leg?.contact_webmail_url || fallbackContact?.webmailUrl || '').trim()
+        const sourcePhone = String(leg?.contact_phone || fallbackContact?.phone || '').trim()
+        if (!(p.contact_email || '').trim() && sourceEmail) {
+          patch.contact_email = sourceEmail
+        }
+        if (!(p.contact_webmail_url || '').trim() && sourceWebmail) {
+          patch.contact_webmail_url = sourceWebmail
+        }
+        if (!(p.contact_phone || '').trim() && sourcePhone) {
+          patch.contact_phone = sourcePhone
+        }
+        if (!Object.keys(patch).length) continue
+        await patchTarget(p.target_id, patch)
+        n += 1
+      }
+      await loadTargets()
+      setRefreshMessage(
+        n
+          ? `Filled empty contact fields for ${n} prospect row(s) from LegiScan where the normalized name matched.`
+          : 'No empty prospect fields matched a LegiScan row by normalized name (refresh sponsors first if needed).'
+      )
+    } catch (e) {
+      setLoadError(e.message || 'Could not match LegiScan contacts.')
+    } finally {
+      setProspectLegiscanMatching(false)
+    }
+  }
+
+  const handleDeleteProspect = async (t) => {
+    if (!t?.target_id) return
+    if (!isProspectTarget(t)) return
+    const ok = window.confirm(`Remove prospect “${t.display_name}” from this bill’s outreach list?`)
+    if (!ok) return
+    const prevScrollY = window.scrollY
+    setLoadError('')
+    try {
+      const { error } = await supabase.from('bill_outreach_targets').delete().eq('target_id', t.target_id)
+      if (error) throw error
+      await loadTargets()
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: prevScrollY, behavior: 'auto' })
+      })
+    } catch (e) {
+      setLoadError(e.message || 'Could not delete prospect.')
+    }
+  }
+
   const importCommitteeMembers = async () => {
     if (!selectedBill || !osPick?.id || !osMembers.length) return
     setOsImporting(true)
@@ -311,24 +447,31 @@ export default function BillOutreachPanel({ bills, member }) {
       if (existingRes.error) throw existingRes.error
 
       const existingByKey = new Map((existingRes.data || []).map((r) => [r.sponsor_key, r]))
+      const legiscanByName = new Map()
+      for (const t of legiscanTargets) {
+        for (const k of outreachNameMatchKeys(t.display_name)) {
+          if (k && !legiscanByName.has(k)) legiscanByName.set(k, t)
+        }
+      }
       const committeeId = String(osPick.id)
       const rows = []
       for (const m of osMembers) {
         const sponsorKey = m.sponsorKey
         if (!sponsorKey) continue
         const existing = existingByKey.get(sponsorKey)
-        const nextPhone =
-          existing?.contact_phone != null && String(existing.contact_phone).trim()
-            ? existing.contact_phone
-            : null
-        const nextEmail =
-          existing?.contact_email != null && String(existing.contact_email).trim()
-            ? existing.contact_email
-            : null
-        const nextWebmail =
-          existing?.contact_webmail_url != null && String(existing.contact_webmail_url).trim()
-            ? existing.contact_webmail_url
-            : null
+        const leg = outreachNameMatchKeys(m.name).map((k) => legiscanByName.get(k)).find(Boolean)
+        let fallbackContact = null
+        if (!leg && selectedBill?.state) {
+          const byNameRes = await fetchLegiscanPersonContactByName(selectedBill.state, m.name)
+          if (byNameRes?.ok) fallbackContact = byNameRes.contact
+        }
+        const nextPhone = firstNonEmptyContact(existing?.contact_phone, leg?.contact_phone, fallbackContact?.phone)
+        const nextEmail = firstNonEmptyContact(existing?.contact_email, leg?.contact_email, fallbackContact?.email)
+        const nextWebmail = firstNonEmptyContact(
+          existing?.contact_webmail_url,
+          leg?.contact_webmail_url,
+          fallbackContact?.webmailUrl
+        )
         rows.push({
           bill_id: selectedBill.bill_id,
           sponsor_key: sponsorKey,
@@ -487,6 +630,10 @@ export default function BillOutreachPanel({ bills, member }) {
     setTargets((prev) => prev.map((t) => (t.target_id === targetId ? { ...t, ...body } : t)))
   }
 
+  const openContactComposer = (t) => {
+    setContactTarget(t)
+  }
+
   if (!sortedBills.length) {
     return (
       <div className="card border-0 shadow-sm">
@@ -504,9 +651,15 @@ export default function BillOutreachPanel({ bills, member }) {
     <div className="card border-0 shadow-sm">
       <div className="card-body">
         <p className="text-muted small mb-3">
-          <strong>On record</strong> rows come from LegiScan when you refresh. <strong>Prospects</strong> are
-          people you import from an Open States committee (useful before a bill is linked in LegiScan). Status
-          and notes are preserved on refresh and re-import.
+          <strong>On record</strong> rows come from LegiScan when you refresh (official sponsors and best-effort
+          contact fields). <strong>Prospects</strong> are roster rows from an Open States committee, and contact
+          fields for prospects are populated only from LegiScan data (bill sponsor matches first, then statewide
+          legislator lookup by name) or manual entry, not from Open States. For people who are both a sponsor and a
+          committee member, use{' '}
+          <strong>Fill from LegiScan matches</strong> under prospects to copy empty contact fields from the
+          matching LegiScan row. Status and notes are preserved on refresh and re-import. Use{' '}
+          <strong>Compose</strong> to draft an email (preview with letterhead, copy for webmail, or send via SPAN
+          when an email address is present).
         </p>
 
         <div className="row g-2 align-items-end flex-wrap mb-3">
@@ -597,22 +750,68 @@ export default function BillOutreachPanel({ bills, member }) {
           <div>
             <h6 className="text-muted small text-uppercase mb-2">On record (LegiScan)</h6>
             {legiscanTargets.length ? (
-              <OutreachTargetsTable targets={legiscanTargets} patchTarget={patchTarget} />
+              <OutreachTargetsTable
+                targets={legiscanTargets}
+                patchTarget={patchTarget}
+                onOpenContact={openContactComposer}
+              />
             ) : (
               <p className="text-muted small mb-3">
                 None yet — add a LegiScan link and refresh, or add prospects below.
               </p>
             )}
 
-            <h6 className="text-muted small text-uppercase mb-2 mt-4">Prospects (Open States)</h6>
+            <div className="d-flex flex-wrap align-items-center gap-2 mb-2 mt-4">
+              <h6 className="text-muted small text-uppercase mb-0">Prospects (Open States)</h6>
+              {prospectTargets.length > 0 && legiscanTargets.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  disabled={prospectLegiscanMatching}
+                  onClick={handleFillProspectsFromLegiScanMatches}
+                  title="Copy email, webmail, and phone from LegiScan rows when the normalized display name matches and the prospect field is empty."
+                >
+                  {prospectLegiscanMatching ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-1" role="status" />
+                      Matching…
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-link-45deg me-1" aria-hidden="true" />
+                      Fill from LegiScan matches
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
             {prospectTargets.length ? (
-              <OutreachTargetsTable targets={prospectTargets} patchTarget={patchTarget} />
+              <OutreachTargetsTable
+                targets={prospectTargets}
+                patchTarget={patchTarget}
+                onOpenContact={openContactComposer}
+                showProspectDelete
+                onDeleteProspect={handleDeleteProspect}
+              />
             ) : (
               <p className="text-muted small mb-0">None yet — use Import from committee.</p>
             )}
           </div>
         )}
       </div>
+
+      <OutreachContactModal
+        open={contactTarget != null}
+        onClose={() => setContactTarget(null)}
+        bill={selectedBill}
+        target={contactTarget}
+        member={member}
+        onMarkContacted={async () => {
+          if (contactTarget) {
+            await patchTarget(contactTarget.target_id, { status: 'contacted' })
+          }
+        }}
+      />
 
       {osModalOpen && (
         <>
@@ -701,9 +900,9 @@ export default function BillOutreachPanel({ bills, member }) {
                       )}
                       {osCommittees.length > 0 && (
                         <div className="mb-2">
-                          <input
+                      <input
                             type="search"
-                            className="form-control form-control-sm"
+                        className="form-control form-control-sm"
                             placeholder="Filter committees by name…"
                             value={osSearch}
                             onChange={(e) => setOsSearch(e.target.value)}
@@ -763,16 +962,16 @@ export default function BillOutreachPanel({ bills, member }) {
                                 </thead>
                                 <tbody>
                                   {osMembers.map((m) => (
-                                    <tr key={m.personId}>
+                                    <tr key={m.sponsorKey}>
                                       <td>{m.name}</td>
                                       <td className="text-muted small">{m.party || '—'}</td>
                                       <td className="text-muted small">{m.role || '—'}</td>
                                     </tr>
                                   ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
+              </tbody>
+            </table>
+          </div>
+        )}
                         </>
                       )}
                     </>
@@ -802,7 +1001,7 @@ export default function BillOutreachPanel({ bills, member }) {
                 </div>
               </div>
             </div>
-          </div>
+      </div>
         </>
       )}
     </div>

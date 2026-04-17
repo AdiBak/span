@@ -31,14 +31,83 @@ const PROPOSALS_PUBLIC_PREFIX =
 
 const MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024
 
+/** Comma-separated override; defaults to Joel + Vishank (reference copies + CC on direct outreach). */
+function referenceLogRecipients(): string[] {
+  const raw = Deno.env.get("OUTREACH_REFERENCE_RECIPIENTS")?.trim()
+  if (raw) {
+    return raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => isValidEmail(s))
+  }
+  return ["joel.blessan@spanationwide.org", "vishank.panchbhavi@spanationwide.org"]
+}
+
+/** Leadership CC for primary sends; omits `to` if it matches (avoids duplicate with legislator). */
+function leadershipCcForPrimary(toAddress: string): string[] {
+  const t = toAddress.trim().toLowerCase()
+  return referenceLogRecipients().filter((e) => e.toLowerCase() !== t)
+}
+
 function fromAddress(): string {
   return Deno.env.get("OUTREACH_FROM")?.trim() || Deno.env.get("INVITATION_FROM")?.trim() || DEFAULT_FROM
+}
+
+/** Prefer member.email; else first.last@spanationwide.org when first/last are present (matches src/lib/outreachEmail.js). */
+function submitterSpanEmail(member: Record<string, unknown> | null): string {
+  if (!member) return ""
+  const direct = String(member.email ?? "").trim()
+  if (direct && isValidEmail(direct)) return direct
+  const f = String(member.first_name ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z]/g, "")
+  const l = String(member.last_name ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z]/g, "")
+  if (f && l) {
+    const built = `${f}.${l}@spanationwide.org`
+    return isValidEmail(built) ? built : ""
+  }
+  return ""
+}
+
+function submitterDisplayName(member: Record<string, unknown> | null): string {
+  if (!member) return "SPAN"
+  const n = `${String(member.first_name ?? "").trim()} ${String(member.last_name ?? "").trim()}`.trim()
+  return n || "SPAN"
+}
+
+/** RFC 5322-style From for Resend: "Name" <addr@domain>. */
+function formatFromHeader(displayName: string, email: string): string {
+  const escaped = displayName.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+  const needsQuotes = /[",;<>\(\)\[\]:@]/.test(displayName) || displayName !== displayName.trim()
+  const namePart = needsQuotes ? `"${escaped}"` : displayName
+  return `${namePart} <${email}>`
+}
+
+/** Direct / reference outreach appears from the caller's SPAN address when derivable; else env default. */
+function outreachFromHeader(member: Record<string, unknown> | null): string {
+  const addr = submitterSpanEmail(member)
+  if (!addr) return fromAddress()
+  return formatFromHeader(submitterDisplayName(member), addr)
 }
 
 function isExec(member: Record<string, unknown> | null): boolean {
   if (!member) return false
   const v = (x: unknown) => x === true || x === "true"
   return v(member.volunteer) && v(member.applications) && v(member.bills) && v(member.registration)
+}
+
+function hasBillsPermission(member: Record<string, unknown> | null): boolean {
+  if (!member) return false
+  const v = (x: unknown) => x === true || x === "true"
+  return v(member.bills)
+}
+
+function canUseOutreachEmail(member: Record<string, unknown> | null): boolean {
+  return isExec(member) || hasBillsPermission(member)
 }
 
 function isValidEmail(s: string): boolean {
@@ -69,22 +138,40 @@ serve(async (req) => {
       html?: string
       text?: string
       attachment_url?: string | null
+      /** When set, sends to leadership only (Joel/Vishank) for webmail reference logging. */
+      mode?: string
     }
 
+    const mode = String(body.mode ?? "primary").trim()
     const to = String(body.to ?? "").trim()
-    const subject = String(body.subject ?? "").trim()
+    const subjectRaw = String(body.subject ?? "").trim()
     const html = String(body.html ?? "").trim()
     const text = body.text != null ? String(body.text) : ""
     const attachmentUrl = body.attachment_url != null ? String(body.attachment_url).trim() : ""
 
-    if (!to || !isValidEmail(to)) {
+    if (mode !== "primary" && mode !== "reference_log") {
+      return new Response(JSON.stringify({ error: "Invalid mode." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
+
+    if (mode === "primary" && (!to || !isValidEmail(to))) {
       return new Response(JSON.stringify({ error: "Valid recipient email (to) is required." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
     }
-    if (!subject || subject.length > 500) {
-      return new Response(JSON.stringify({ error: "Subject is required (max 500 chars)." }), {
+
+    const subject =
+      mode === "reference_log"
+        ? subjectRaw.startsWith("[Outreach reference]")
+          ? subjectRaw
+          : `[Outreach reference] ${subjectRaw}`
+        : subjectRaw
+
+    if (!subject || subject.length > 550) {
+      return new Response(JSON.stringify({ error: "Subject is required (max ~550 chars, including reference prefix)." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
@@ -126,9 +213,9 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle()
 
-    if (!isExec(callerMember)) {
+    if (!canUseOutreachEmail(callerMember)) {
       return new Response(
-        JSON.stringify({ error: "Only executive directors can send outreach emails" }),
+        JSON.stringify({ error: "Bills permission required to send outreach emails" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       )
     }
@@ -140,7 +227,17 @@ serve(async (req) => {
       })
     }
 
-    const from = fromAddress()
+    const from = outreachFromHeader(callerMember)
+
+    const recipients =
+      mode === "reference_log" ? referenceLogRecipients() : [to]
+
+    if (mode === "reference_log" && recipients.length === 0) {
+      return new Response(JSON.stringify({ error: "Reference recipients are not configured." }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
 
     type Attachment = { filename: string; content: string }
     let attachments: Attachment[] | undefined
@@ -174,9 +271,15 @@ serve(async (req) => {
 
     const resendBody: Record<string, unknown> = {
       from,
-      to: [to],
+      to: recipients,
       subject,
       html,
+    }
+    if (mode === "primary") {
+      const cc = leadershipCcForPrimary(to)
+      if (cc.length) {
+        resendBody.cc = cc
+      }
     }
     if (text.trim()) {
       resendBody.text = text
@@ -204,7 +307,16 @@ serve(async (req) => {
     }
 
     const resendData = await resendResponse.json()
-    console.log("Outreach email sent:", resendData.id, "to:", to)
+    const ccLog = mode === "primary" && Array.isArray(resendBody.cc) ? (resendBody.cc as string[]).join(",") : ""
+    console.log(
+      "Outreach email sent:",
+      resendData.id,
+      "mode:",
+      mode,
+      "to:",
+      recipients.join(","),
+      ccLog ? `cc:${ccLog}` : "",
+    )
 
     return new Response(
       JSON.stringify({ ok: true, email_id: resendData.id }),

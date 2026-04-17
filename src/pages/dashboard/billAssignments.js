@@ -1,4 +1,4 @@
-import { canonicalUSStateName } from '../../lib/usStateCanonical'
+import { canonicalUSStateName, usStateAbbreviation } from '../../lib/usStateCanonical'
 import { BILL_ASSIGNMENT_STATUS_LABELS, BILL_FORM_POSITION_VALUES } from './constants'
 
 export function billAssignmentStatusLabel(status) {
@@ -36,9 +36,9 @@ export function normalizeBillFormPosition(value) {
   return BILL_FORM_POSITION_VALUES.includes(v) ? v : 'Support'
 }
 
-/** Assign work modal: dropdown option text — state · bill # · topic (description). */
+/** Assign work modal: dropdown option text — state abbrev · bill # · topic (description). */
 export function assignTaskPrefillBillOptionLabel(bill) {
-  const st = canonicalUSStateName(bill.state) || String(bill.state || '').trim() || '?'
+  const st = usStateAbbreviation(bill.state) || String(bill.state || '').trim() || '?'
   const num = String(bill.name || '').trim() || '(no number)'
   const desc = String(bill.description || '').trim().replace(/\s+/g, ' ')
   const topic = desc.length > 72 ? `${desc.slice(0, 69)}…` : desc
@@ -71,7 +71,8 @@ export function billIdMatchingAssignmentPrefill(allBills, prefillState, prefillB
  */
 export function billAssignmentDisplayTitle(a) {
   const topic = String(a?.title || '').trim()
-  const st = String(a?.prefill_state || '').trim()
+  const stRaw = String(a?.prefill_state || '').trim()
+  const st = stRaw ? usStateAbbreviation(stRaw) || stRaw : ''
   const bn = String(a?.prefill_bill_name || '').trim()
   const prefixParts = []
   if (st) prefixParts.push(st)

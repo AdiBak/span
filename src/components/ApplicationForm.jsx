@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { COUNTRY_SUGGESTIONS } from '../data/countryOptions'
 
 // Create an anonymous client for public application submissions
 // This ensures we never use an authenticated session
@@ -21,6 +22,7 @@ function ApplicationForm() {
     grade: '',
     gradeOther: '',
     school: '',
+    country: 'United States',
     state: '',
     hoursPerWeek: '',
     additionalInfo: '',
@@ -60,9 +62,18 @@ function ApplicationForm() {
     const referralValue = formData.referralSource === 'Other' ? formData.referralSourceOther : formData.referralSource
 
     // Validation
+    const countryTrim = formData.country.trim()
+    const isUnitedStates = /^united states$/i.test(countryTrim)
+
     if (!formData.email || !formData.phoneNumber || !formData.fullName || !formData.age ||
-        !formData.grade || !formData.school || !formData.state || !formData.hoursPerWeek || !formData.referralSource) {
+        !formData.grade || !formData.school || !countryTrim || !formData.hoursPerWeek || !formData.referralSource) {
       setSubmitError('Please fill in all required fields.')
+      setSubmitting(false)
+      return
+    }
+
+    if (isUnitedStates && !formData.state.trim()) {
+      setSubmitError('Please enter your U.S. state.')
       setSubmitting(false)
       return
     }
@@ -126,6 +137,8 @@ function ApplicationForm() {
       }
 
       // Use anonymous client to ensure no authenticated session is used
+      const stateValue = isUnitedStates ? formData.state.trim() : (formData.state.trim() || null)
+
       const { data, error } = await anonymousSupabase
         .from('applications')
         .insert([{
@@ -135,7 +148,8 @@ function ApplicationForm() {
           age: ageNum,
           grade: gradeValue.trim(),
           school: formData.school.trim(),
-          state: formData.state.trim(),
+          country: countryTrim,
+          state: stateValue,
           hours_per_week: formData.hoursPerWeek,
           additional_info: formData.additionalInfo.trim() || null,
           referral_source: referralValue.trim(),
@@ -166,6 +180,7 @@ function ApplicationForm() {
         grade: '',
         gradeOther: '',
         school: '',
+        country: 'United States',
         state: '',
         hoursPerWeek: '',
         additionalInfo: '',
@@ -358,10 +373,45 @@ function ApplicationForm() {
               />
             </div>
 
-            {/* State */}
+            {/* Country */}
+            <div>
+              <label htmlFor="country" className="form-label">
+                Country / region <span className="text-danger">*</span>
+              </label>
+              <input
+                type="text"
+                className="form-control"
+                id="country"
+                name="country"
+                list="application-country-suggestions"
+                autoComplete="country-name"
+                value={formData.country}
+                onChange={handleChange}
+                placeholder="e.g. United States, Canada, India"
+                required
+              />
+              <datalist id="application-country-suggestions">
+                {COUNTRY_SUGGESTIONS.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+              <small className="text-muted">Type to search; you can enter any country or territory.</small>
+            </div>
+
+            {/* State / province */}
             <div>
               <label htmlFor="state" className="form-label">
-                State <span className="text-danger">*</span>
+                {/^united states$/i.test((formData.country || '').trim())
+                  ? (
+                    <>
+                      State <span className="text-danger">*</span>
+                    </>
+                  )
+                  : (
+                    <>
+                      State / province / region <span className="text-muted">(optional)</span>
+                    </>
+                  )}
               </label>
               <input
                 type="text"
@@ -370,7 +420,12 @@ function ApplicationForm() {
                 name="state"
                 value={formData.state}
                 onChange={handleChange}
-                required
+                placeholder={
+                  /^united states$/i.test((formData.country || '').trim())
+                    ? 'e.g. OH, California'
+                    : 'If applicable'
+                }
+                required={/^united states$/i.test((formData.country || '').trim())}
               />
             </div>
 

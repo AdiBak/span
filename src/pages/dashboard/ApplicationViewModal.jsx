@@ -72,8 +72,12 @@ export default function ApplicationViewModal({
                   <p>{application.school}</p>
                 </div>
                 <div className="col-md-6">
-                  <strong>State:</strong>
-                  <p>{application.state}</p>
+                  <strong>Country / region:</strong>
+                  <p>{application.country || '—'}</p>
+                </div>
+                <div className="col-md-6">
+                  <strong>State / province / region:</strong>
+                  <p>{application.state || '—'}</p>
                 </div>
                 <div className="col-md-6">
                   <strong>Hours per Week:</strong>

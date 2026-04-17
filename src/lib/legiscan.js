@@ -15,7 +15,7 @@ const LEGISCAN_API_BASE = 'https://api.legiscan.com/'
 const CACHE_PREFIX = 'legiscan_bill_'
 const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours
 const PERSON_CACHE_PREFIX = 'legiscan_person_'
-const SESSION_PEOPLE_CACHE_PREFIX = 'legiscan_session_people_'
+const SESSION_PEOPLE_CACHE_PREFIX = 'legiscan_session_people_v2_'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
 
@@ -507,6 +507,192 @@ function legiscanPersonNameKeys(personOrName) {
     keys.add(`${last} ${first}`)
   }
   return [...keys]
+}
+
+function normalizeProspectPersonName(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+function nameFirstLastKey(s) {
+  const parts = normalizeProspectPersonName(s).split(' ').filter(Boolean)
+  if (parts.length < 2) return ''
+  return `${parts[0]} ${parts[parts.length - 1]}`.trim()
+}
+
+function sponsorNameConfidenceScore(prospectName, sponsorName) {
+  const a = normalizeProspectPersonName(prospectName)
+  const b = normalizeProspectPersonName(sponsorName)
+  if (!a || !b) return 0
+  if (a === b) return 100
+
+  const afl = nameFirstLastKey(a)
+  const bfl = nameFirstLastKey(b)
+  if (afl && bfl && afl === bfl) return 90
+
+  const aParts = new Set(a.split(' ').filter(Boolean))
+  const bParts = new Set(b.split(' ').filter(Boolean))
+  const overlap = [...aParts].filter((x) => bParts.has(x)).length
+  if (overlap >= 2) return 70
+  if (overlap === 1) return 40
+  return 0
+}
+
+async function fetchLegiscanPersonContactByNameViaSearch(stateRaw, displayName) {
+  const stateCode = normalizeStateCode(stateRaw)
+  if (!stateCode || stateCode.length !== 2) {
+    return {
+      ok: false,
+      contact: { email: '', phone: '', webmailUrl: '' },
+      matchedName: undefined,
+      meta: { reason: 'search_invalid_state', searchedBills: 0, sponsorCandidates: 0, bestScore: 0 },
+    }
+  }
+
+  try {
+    const query = String(displayName || '').trim()
+    /** Include current/default plus recent windows to mimic "Recent sessions". */
+    const searchArgs = [
+      { state: stateCode, query, page: '1' }, // default/current
+      { state: stateCode, query, year: '2', page: '1' }, // recent
+      { state: stateCode, query, year: '4', page: '1' }, // wider recent
+    ]
+    const allRows = []
+    for (const args of searchArgs) {
+      try {
+        const data = await callLegiscanApi('getSearch', args)
+        if (data?.status !== 'OK') continue
+        allRows.push(...extractSearchRows(data?.searchresult))
+      } catch {
+        // keep going; one failed search window should not block others
+      }
+    }
+    if (!allRows.length) {
+      return {
+        ok: false,
+        contact: { email: '', phone: '', webmailUrl: '' },
+        matchedName: undefined,
+        meta: { reason: 'search_api_error', searchedBills: 0, sponsorCandidates: 0, bestScore: 0 },
+      }
+    }
+    const rows = allRows.slice(0, 24)
+    const billIds = [...new Set(rows.map((r) => Number(r?.bill_id)).filter((id) => Number.isFinite(id) && id > 0))].slice(0, 8)
+    if (!billIds.length) {
+      return {
+        ok: false,
+        contact: { email: '', phone: '', webmailUrl: '' },
+        matchedName: undefined,
+        meta: { reason: 'search_no_bills', searchedBills: 0, sponsorCandidates: 0, bestScore: 0 },
+      }
+    }
+
+    /** @type {Map<string, {name: string, peopleId: unknown, score: number, hits: number, contact: {email:string,phone:string,webmailUrl:string}}>} */
+    const candidates = new Map()
+    for (const billId of billIds) {
+      const detailRes = await fetchLegiscanBillDetailById(billId)
+      if (!detailRes?.ok || !detailRes?.detail) continue
+      const sponsors = Array.isArray(detailRes.detail.sponsors) ? detailRes.detail.sponsors : []
+      for (const s of sponsors) {
+        const score = sponsorNameConfidenceScore(displayName, s?.name)
+        if (score < 70) continue
+        const key = String(s?.peopleId ?? '').trim() || normalizeProspectPersonName(s?.name)
+        if (!key) continue
+        const prev = candidates.get(key)
+        if (!prev) {
+          candidates.set(key, {
+            name: String(s?.name || '').trim(),
+            peopleId: s?.peopleId ?? null,
+            score,
+            hits: 1,
+            contact: {
+              email: String(s?.email || '').trim(),
+              phone: String(s?.phone || '').trim(),
+              webmailUrl: String(s?.webmailUrl || '').trim(),
+            },
+          })
+        } else {
+          prev.score = Math.max(prev.score, score)
+          prev.hits += 1
+          if (!prev.contact.email && s?.email) prev.contact.email = String(s.email).trim()
+          if (!prev.contact.phone && s?.phone) prev.contact.phone = String(s.phone).trim()
+          if (!prev.contact.webmailUrl && s?.webmailUrl) prev.contact.webmailUrl = String(s.webmailUrl).trim()
+        }
+      }
+    }
+
+    const ranked = [...candidates.values()].sort((x, y) => {
+      if (y.score !== x.score) return y.score - x.score
+      return y.hits - x.hits
+    })
+    if (!ranked.length) {
+      return {
+        ok: false,
+        contact: { email: '', phone: '', webmailUrl: '' },
+        matchedName: undefined,
+        meta: { reason: 'search_no_sponsor_match', searchedBills: billIds.length, sponsorCandidates: 0, bestScore: 0 },
+      }
+    }
+    const best = ranked[0]
+    const second = ranked[1] || null
+    if (second && best.score - second.score <= 5 && best.hits === second.hits) {
+      return {
+        ok: false,
+        contact: { email: '', phone: '', webmailUrl: '' },
+        matchedName: best.name || undefined,
+        meta: {
+          reason: 'search_ambiguous',
+          searchedBills: billIds.length,
+          sponsorCandidates: ranked.length,
+          bestScore: best.score,
+        },
+      }
+    }
+    if (best.score < 80) {
+      return {
+        ok: false,
+        contact: { email: '', phone: '', webmailUrl: '' },
+        matchedName: best.name || undefined,
+        meta: {
+          reason: 'search_low_confidence',
+          searchedBills: billIds.length,
+          sponsorCandidates: ranked.length,
+          bestScore: best.score,
+        },
+      }
+    }
+
+    let contact = best.contact
+    if (!(contact.email || contact.phone || contact.webmailUrl) && best.peopleId != null && String(best.peopleId).trim()) {
+      const personRes = await fetchLegiscanPersonContact(best.peopleId)
+      if (personRes?.ok && personRes?.contact) {
+        contact = personRes.contact
+      }
+    }
+
+    const ok = Boolean(contact.email || contact.phone || contact.webmailUrl)
+    return {
+      ok,
+      contact,
+      matchedName: best.name || undefined,
+      meta: {
+        reason: ok ? 'search_sponsor_inference' : 'search_no_contact',
+        searchedBills: billIds.length,
+        sponsorCandidates: ranked.length,
+        bestScore: best.score,
+      },
+    }
+  } catch (err) {
+    console.error('fetchLegiscanPersonContactByNameViaSearch:', err)
+    return {
+      ok: false,
+      contact: { email: '', phone: '', webmailUrl: '' },
+      matchedName: undefined,
+      meta: { reason: 'search_exception', searchedBills: 0, sponsorCandidates: 0, bestScore: 0 },
+    }
+  }
 }
 
 function normalizeSessionPeopleRows(payload) {
@@ -1004,18 +1190,64 @@ export async function fetchLegiscanSponsorsForSpanBill(bill) {
 /**
  * Lookup a legislator generally (not bill-sponsor specific) by state+name and return contact.
  * Uses getSessionPeople -> getPerson fallback flow.
+ * `meta` is always present for debugging (console / UI summaries).
  * @param {string} stateRaw
  * @param {string} displayName
- * @returns {Promise<{ ok: boolean, contact: { email: string, phone: string, webmailUrl: string }, matchedName?: string }>}
+ * @returns {Promise<{
+ *   ok: boolean,
+ *   contact: { email: string, phone: string, webmailUrl: string },
+ *   matchedName?: string,
+ *   meta: {
+ *     reason: string,
+ *     sessionPeopleCount: number,
+ *     nameMatched: boolean,
+ *     peopleId: number | null,
+ *     getPersonAttempted: boolean,
+ *     getPersonReturnedContact: boolean,
+ *     embedHadContact: boolean,
+ *     searchFallbackUsed: boolean,
+ *     searchedBills: number,
+ *     sponsorCandidates: number,
+ *     bestScore: number,
+ *   }
+ * }>}
  */
 export async function fetchLegiscanPersonContactByName(stateRaw, displayName) {
+  const empty = { email: '', phone: '', webmailUrl: '' }
+  /** @type {{ reason: string, sessionPeopleCount: number, nameMatched: boolean, peopleId: number | null, getPersonAttempted: boolean, getPersonReturnedContact: boolean, embedHadContact: boolean }} */
+  const meta = {
+    reason: 'init',
+    sessionPeopleCount: 0,
+    nameMatched: false,
+    peopleId: null,
+    getPersonAttempted: false,
+    getPersonReturnedContact: false,
+    embedHadContact: false,
+    searchFallbackUsed: false,
+    searchedBills: 0,
+    sponsorCandidates: 0,
+    bestScore: 0,
+  }
+
   const keys = legiscanPersonNameKeys(displayName)
   if (!keys.length) {
-    return { ok: false, contact: { email: '', phone: '', webmailUrl: '' } }
+    meta.reason = 'no_name_keys'
+    return { ok: false, contact: empty, meta }
   }
+
   const people = await fetchLegiscanSessionPeople(stateRaw)
+  meta.sessionPeopleCount = people.length
   if (!people.length) {
-    return { ok: false, contact: { email: '', phone: '', webmailUrl: '' } }
+    const viaSearch = await fetchLegiscanPersonContactByNameViaSearch(stateRaw, displayName)
+    meta.searchFallbackUsed = true
+    meta.searchedBills = Number(viaSearch?.meta?.searchedBills || 0)
+    meta.sponsorCandidates = Number(viaSearch?.meta?.sponsorCandidates || 0)
+    meta.bestScore = Number(viaSearch?.meta?.bestScore || 0)
+    meta.reason = viaSearch?.meta?.reason || 'no_session_people'
+    if (viaSearch?.ok) {
+      return { ok: true, contact: viaSearch.contact, matchedName: viaSearch.matchedName, meta }
+    }
+    return { ok: false, contact: empty, meta }
   }
 
   let match = null
@@ -1027,22 +1259,65 @@ export async function fetchLegiscanPersonContactByName(stateRaw, displayName) {
     }
   }
   if (!match) {
-    return { ok: false, contact: { email: '', phone: '', webmailUrl: '' } }
+    const viaSearch = await fetchLegiscanPersonContactByNameViaSearch(stateRaw, displayName)
+    meta.searchFallbackUsed = true
+    meta.searchedBills = Number(viaSearch?.meta?.searchedBills || 0)
+    meta.sponsorCandidates = Number(viaSearch?.meta?.sponsorCandidates || 0)
+    meta.bestScore = Number(viaSearch?.meta?.bestScore || 0)
+    meta.reason = viaSearch?.meta?.reason || 'name_not_in_session_roster'
+    if (viaSearch?.ok) {
+      return { ok: true, contact: viaSearch.contact, matchedName: viaSearch.matchedName, meta }
+    }
+    return { ok: false, contact: empty, meta }
   }
 
+  meta.nameMatched = true
   const peopleId = sponsorPersonIdFromLegiscan(match)
-  if (peopleId) {
+  meta.peopleId = peopleId != null && peopleId !== '' ? Number(peopleId) : null
+  if (Number.isNaN(meta.peopleId)) meta.peopleId = null
+
+  const embedContact = extractContactFromLegiscanPerson(match)
+  meta.embedHadContact = Boolean(
+    embedContact.email || embedContact.phone || embedContact.webmailUrl
+  )
+
+  const matchedName = String(match.name || '').trim() || undefined
+
+  if (peopleId != null && peopleId !== '') {
+    meta.getPersonAttempted = true
     const res = await fetchLegiscanPersonContact(peopleId)
-    if (res?.ok) {
-      return { ok: true, contact: res.contact, matchedName: String(match.name || '').trim() || undefined }
+    const hasAny =
+      res?.contact &&
+      (String(res.contact.email || '').trim() ||
+        String(res.contact.phone || '').trim() ||
+        String(res.contact.webmailUrl || '').trim())
+    meta.getPersonReturnedContact = Boolean(res?.ok && hasAny)
+    if (res?.ok && hasAny) {
+      meta.reason = 'getPerson'
+      return { ok: true, contact: res.contact, matchedName, meta }
     }
   }
 
-  const fallback = extractContactFromLegiscanPerson(match)
+  const fallback = embedContact
+  const ok = Boolean(fallback.email || fallback.phone || fallback.webmailUrl)
+  meta.reason = ok ? 'session_embed_only' : 'no_contact_in_legiscan'
+  if (!ok) {
+    const viaSearch = await fetchLegiscanPersonContactByNameViaSearch(stateRaw, displayName)
+    meta.searchFallbackUsed = true
+    meta.searchedBills = Number(viaSearch?.meta?.searchedBills || 0)
+    meta.sponsorCandidates = Number(viaSearch?.meta?.sponsorCandidates || 0)
+    meta.bestScore = Number(viaSearch?.meta?.bestScore || 0)
+    if (viaSearch?.ok) {
+      meta.reason = viaSearch?.meta?.reason || 'search_sponsor_inference'
+      return { ok: true, contact: viaSearch.contact, matchedName: viaSearch.matchedName, meta }
+    }
+    meta.reason = viaSearch?.meta?.reason || meta.reason
+  }
   return {
-    ok: Boolean(fallback.email || fallback.phone || fallback.webmailUrl),
+    ok,
     contact: fallback,
-    matchedName: String(match.name || '').trim() || undefined,
+    matchedName,
+    meta,
   }
 }
 

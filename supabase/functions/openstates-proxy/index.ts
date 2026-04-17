@@ -49,6 +49,16 @@ function isExec(member: Record<string, unknown> | null): boolean {
   return v(member.volunteer) && v(member.applications) && v(member.bills) && v(member.registration)
 }
 
+function hasBillsPermission(member: Record<string, unknown> | null): boolean {
+  if (!member) return false
+  const v = (x: unknown) => x === true || x === "true"
+  return v(member.bills)
+}
+
+function canUseOutreachFeatures(member: Record<string, unknown> | null): boolean {
+  return isExec(member) || hasBillsPermission(member)
+}
+
 /** Allow US state + DC Open States jurisdiction strings only (no arbitrary URLs). */
 function validateJurisdiction(j: unknown): string | null {
   const s = typeof j === "string" ? j.trim() : ""
@@ -145,8 +155,8 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle()
 
-    if (!isExec(callerMember)) {
-      return new Response(JSON.stringify({ error: "Only executive directors can use Open States proxy" }), {
+    if (!canUseOutreachFeatures(callerMember)) {
+      return new Response(JSON.stringify({ error: "Bills permission required to use Open States from outreach" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })

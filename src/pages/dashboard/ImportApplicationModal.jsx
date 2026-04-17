@@ -41,7 +41,8 @@ export default function ImportApplicationModal({
                         <th>Name</th>
                         <th>Email</th>
                         <th>School</th>
-                        <th>State</th>
+                        <th>Country</th>
+                        <th>State / region</th>
                         <th>Submitted</th>
                         <th>Status</th>
                         <th>Action</th>
@@ -53,6 +54,7 @@ export default function ImportApplicationModal({
                           <td>{app.full_name}</td>
                           <td>{app.email}</td>
                           <td>{app.school || '-'}</td>
+                          <td>{app.country || '—'}</td>
                           <td>{app.state || '-'}</td>
                           <td>{formatDateLong(app.submitted_at)}</td>
                           <td>

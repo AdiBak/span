@@ -2,7 +2,7 @@ import React from 'react'
 import BillOutreachPanel from '../../components/BillOutreachPanel'
 import BillResearchPanel from '../../components/BillResearchPanel'
 import BillAssignmentsExecPanel from './BillAssignmentsExecPanel'
-import { billStateGroupKey } from '../../lib/usStateCanonical'
+import { billStateGroupKey, usStateAbbreviation } from '../../lib/usStateCanonical'
 
 export default function ExecBillManagementSection({
   sectionOrder,
@@ -216,6 +216,8 @@ export default function ExecBillManagementSection({
                 {sortedStatesFiltered.map((state) => {
                   const stateBills = billsByStateFiltered[state]
                   const stateFileName = getStateFileName(state)
+                  const stateHeading =
+                    state === 'Unknown' ? 'Unknown' : usStateAbbreviation(state) || state
 
                   return (
                     <div key={state} className="accordion mb-3 shadow-sm border rounded">
@@ -236,7 +238,7 @@ export default function ExecBillManagementSection({
                                 e.target.src = '/images/states/United States.svg'
                               }}
                             />
-                            <span>{state}</span>
+                            <span>{stateHeading}</span>
                             <span className="fw-bold ms-2 text-muted">
                               ({stateBills.length} {stateBills.length === 1 ? 'bill' : 'bills'})
                             </span>

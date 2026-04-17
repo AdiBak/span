@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase'
 import QRCode from 'qrcode'
 import RegistrationForm from '../components/RegistrationForm'
 import BillResearchPanel from '../components/BillResearchPanel'
-import BillOutreachPanel from '../components/BillOutreachPanel'
 import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import { billStateGroupKey, canonicalUSStateName } from '../lib/usStateCanonical'
 import { fetchLegiscanBillBySearch, isLegiscanBillNumberShape } from '../lib/legiscan'
@@ -108,7 +107,6 @@ function DashboardPage() {
   const [billSuccess, setBillSuccess] = useState('')
   const [allMembers, setAllMembers] = useState([])
   const [allBills, setAllBills] = useState([])
-  const [mySubmittedBills, setMySubmittedBills] = useState([])
   const [billAssignments, setBillAssignments] = useState([])
   const [execBillSectionTab, setExecBillSectionTab] = useState('review_queue')
   const [memberBillSectionTab, setMemberBillSectionTab] = useState('my_bills')
@@ -406,15 +404,8 @@ function DashboardPage() {
   useEffect(() => {
     if (member) {
       // Load bills based on permissions
-      const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
-      if (isExec) {
-        // Execs see all bills
-        loadAllBills()
-      } else if (hasPermission('bills')) {
-        // Members with bills permission see only their submitted bills
-        loadMySubmittedBills()
-      }
       if (hasPermission('bills')) {
+        loadAllBills()
         loadBillAssignments()
         loadResearchBills()
       }
@@ -594,28 +585,6 @@ function DashboardPage() {
     return `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${st.replace(/[^a-zA-Z0-9]/g, '_')}/${nm.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
   }
 
-
-  // Load bills submitted by current user
-  const loadMySubmittedBills = async () => {
-    if (!member?.member_id) return
-
-    const { data: billsData, error } = await supabase
-      .from('bills')
-      .select('*')
-      .eq('submitted_by', member.member_id)
-      .order('submitted_at', { ascending: false })
-
-    if (error) {
-      console.error('Error loading my submitted bills:', error)
-      return
-    }
-
-    const billsWithPDF = await Promise.all((billsData || []).map(async (bill) => {
-      const { exists, url } = await checkBillPdfExists(bill.state, bill.name)
-      return { ...bill, pdfExists: exists, pdfUrl: url || undefined }
-    }))
-    setMySubmittedBills(billsWithPDF)
-  }
 
   const loadBillAssignments = async () => {
     const { data: rows, error } = await supabase
@@ -1010,7 +979,33 @@ function DashboardPage() {
         return
       }
 
-      setHrReportSuccess('HR report submitted successfully. Executive directors have been notified.')
+      let leadershipEmailed = false
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        const base = import.meta.env.VITE_SUPABASE_URL
+        if (session?.access_token && data?.report_id && base) {
+          const resp = await fetch(`${base.replace(/\/$/, '')}/functions/v1/notify-hr-report`, {
+            method: 'POST',
+            headers: supabaseInvokeHeaders(session.access_token),
+            body: JSON.stringify({ report_id: data.report_id }),
+          })
+          leadershipEmailed = resp.ok
+          if (!resp.ok) {
+            const errBody = await resp.json().catch(() => ({}))
+            console.warn('HR report notify email failed:', resp.status, errBody)
+          }
+        }
+      } catch (notifyErr) {
+        console.warn('HR report notify email error:', notifyErr)
+      }
+
+      setHrReportSuccess(
+        leadershipEmailed
+          ? 'HR report submitted successfully. Leadership has been emailed with the details.'
+          : 'HR report submitted successfully.'
+      )
       setHrReportForm({
         nature: '',
         regardingMemberId: '',
@@ -2860,7 +2855,6 @@ function DashboardPage() {
       if (error) throw error
 
       await loadAllBills()
-      await loadMySubmittedBills()
     } catch (err) {
       console.error('Error rejecting bill:', err)
       alert('Failed to reject bill: ' + err.message)
@@ -2939,6 +2933,13 @@ function DashboardPage() {
     const spanEmail = generateSpanEmail(firstName, lastName)
     
     // Prefill form with application data
+    const baseNotes = (application.additional_info || '').trim()
+    const countryNote =
+      application.country && String(application.country).trim()
+        ? `Country (from application): ${String(application.country).trim()}`
+        : ''
+    const mergedNotes = [baseNotes, countryNote].filter(Boolean).join('\n\n')
+
     setMemberForm({
       firstName: firstName,
       lastName: lastName,
@@ -2954,7 +2955,7 @@ function DashboardPage() {
       phone: application.phone_number || '',
       linkedin: application.linkedin_url || '',
       instagram: application.instagram_url || '',
-      notes: application.additional_info || '',
+      notes: mergedNotes,
       bio: '',
       volunteer: false,
       applications: false,
@@ -4322,7 +4323,7 @@ function DashboardPage() {
     ? effectiveVolunteerEntries
     : effectiveVolunteerEntries.filter(e => e.approved === approvedToFilter())
 
-  const effectiveBills = viewAsData ? (viewAsData.bills ?? []) : (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? allBills : mySubmittedBills)
+  const effectiveBills = viewAsData ? (viewAsData.bills ?? []) : hasPermission('bills') ? allBills : []
   /** Under review, approved, or modified (plus legacy unset); LegiScan optional — Outreach + Open States prospects. */
   const execOutreachBills = effectiveBills.filter((b) => {
     if (b.status === 'rejected') return false
@@ -4817,10 +4818,10 @@ function DashboardPage() {
           onSendVerification={handleSendVerification}
         />
 
-        {/* Bill Management Section - Execs Only (all 4 permissions) */}
+        {/* Bill Management Section - full exec tools (all 4 permissions) */}
         {(() => {
-          const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
-          return isExec
+          const isExecUser = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
+          return isExecUser
         })() && (
           <ExecBillManagementSection
             sectionOrder={dashboardOrder.billManagement}
@@ -4922,6 +4923,8 @@ function DashboardPage() {
             effectiveBills={effectiveBills}
             setBillPdfPreviewBill={setBillPdfPreviewBill}
             formatDateLong={formatDateLong}
+            outreachBills={execOutreachBills}
+            member={member}
           />
         )}
 

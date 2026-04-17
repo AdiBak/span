@@ -21,6 +21,16 @@ function isExec(member: Record<string, unknown> | null): boolean {
   return v(member.volunteer) && v(member.applications) && v(member.bills) && v(member.registration)
 }
 
+function hasBillsPermission(member: Record<string, unknown> | null): boolean {
+  if (!member) return false
+  const v = (x: unknown) => x === true || x === "true"
+  return v(member.bills)
+}
+
+function canUseOutreachFeatures(member: Record<string, unknown> | null): boolean {
+  return isExec(member) || hasBillsPermission(member)
+}
+
 function escapeContactString(s: unknown): string {
   return String(s ?? "").trim()
 }
@@ -71,6 +81,16 @@ function normalizeStateCode(state: unknown): string | null {
   return null
 }
 
+function objectRows(v: unknown): Record<string, unknown>[] {
+  if (Array.isArray(v)) return v.filter((x) => x && typeof x === "object") as Record<string, unknown>[]
+  if (v && typeof v === "object") {
+    return Object.values(v as Record<string, unknown>).filter(
+      (x) => x && typeof x === "object"
+    ) as Record<string, unknown>[]
+  }
+  return []
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders })
@@ -94,7 +114,7 @@ serve(async (req) => {
       })
     }
 
-    // Verify caller is an exec
+    // Verify caller has bills access (bill team or exec)
     const authHeader = req.headers.get("Authorization")
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -125,8 +145,8 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .maybeSingle()
 
-    if (!isExec(callerMember)) {
-      return new Response(JSON.stringify({ error: "Only executive directors can fetch contact info" }), {
+    if (!canUseOutreachFeatures(callerMember)) {
+      return new Response(JSON.stringify({ error: "Bills permission required to fetch legislator contact info" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
@@ -158,13 +178,17 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         })
       }
-      const rawSessions = Array.isArray(sessionsData?.sessions)
-        ? sessionsData.sessions
-        : Object.values((sessionsData?.sessions || {}) as Record<string, unknown>)
-      const sessions = rawSessions.filter((x) => x && typeof x === "object") as Record<string, unknown>[]
+      // LegiScan has used different keys/wrappers across API variants.
+      const sessions = [
+        ...objectRows(sessionsData?.sessions),
+        ...objectRows(sessionsData?.sessionlist),
+        ...objectRows(sessionsData?.data?.sessions),
+        ...objectRows(sessionsData?.data?.sessionlist),
+      ].filter((s) => s && (s.session_id != null || s.session_name != null || s.year_start != null))
       if (!sessions.length) {
-        return new Response(JSON.stringify({ ok: true, people: [] }), {
-          status: 200,
+        const keys = sessionsData && typeof sessionsData === "object" ? Object.keys(sessionsData).slice(0, 12) : []
+        return new Response(JSON.stringify({ error: `No sessions returned for ${state}`, detail: { keys } }), {
+          status: 502,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         })
       }
@@ -177,37 +201,48 @@ serve(async (req) => {
         if (aYear !== bYear) return bYear - aYear
         return Number(b?.session_id || 0) - Number(a?.session_id || 0)
       })
-      const sessionId = sorted[0]?.session_id
-      if (!sessionId) {
+
+      // Some states expose "current" special/interim sessions with tiny rosters.
+      // Merge people across several recent sessions to avoid false no-match outcomes.
+      const sessionIds = sorted
+        .map((s) => s?.session_id)
+        .filter((id) => id != null)
+        .slice(0, 6)
+
+      if (!sessionIds.length) {
         return new Response(JSON.stringify({ ok: true, people: [] }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         })
       }
 
-      const peopleUrl = `https://api.legiscan.com/?key=${encodeURIComponent(
-        LEGISCAN_API_KEY
-      )}&op=getSessionPeople&id=${encodeURIComponent(String(sessionId))}`
-      const peopleResp = await fetch(peopleUrl)
-      if (!peopleResp.ok) {
-        return new Response(JSON.stringify({ error: `LegiScan getSessionPeople failed: HTTP ${peopleResp.status}` }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        })
-      }
-      const peopleData = await peopleResp.json()
-      if (peopleData?.status && peopleData.status !== "OK") {
-        return new Response(JSON.stringify({ error: `LegiScan getSessionPeople returned ${peopleData.status}` }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        })
-      }
-      const rawPeople = peopleData?.sessionpeople || peopleData?.people || peopleData?.data || peopleData
-      const people = Array.isArray(rawPeople)
-        ? rawPeople.filter(Boolean)
-        : Object.values((rawPeople || {}) as Record<string, unknown>).filter((x) => x && typeof x === "object")
+      const peopleByKey = new Map<string, Record<string, unknown>>()
+      for (const sessionId of sessionIds) {
+        const peopleUrl = `https://api.legiscan.com/?key=${encodeURIComponent(
+          LEGISCAN_API_KEY
+        )}&op=getSessionPeople&id=${encodeURIComponent(String(sessionId))}`
+        const peopleResp = await fetch(peopleUrl)
+        if (!peopleResp.ok) continue
+        const peopleData = await peopleResp.json()
+        if (peopleData?.status && peopleData.status !== "OK") continue
+        const people = [
+          ...objectRows(peopleData?.sessionpeople),
+          ...objectRows(peopleData?.people),
+          ...objectRows(peopleData?.data?.sessionpeople),
+          ...objectRows(peopleData?.data?.people),
+        ]
 
-      return new Response(JSON.stringify({ ok: true, people }), {
+        for (const p of people) {
+          const row = (p && typeof p === "object" ? p : {}) as Record<string, unknown>
+          const key =
+            String(row.people_id ?? row.person_id ?? row.id ?? "").trim() ||
+            String(row.name ?? "").trim().toLowerCase()
+          if (!key) continue
+          if (!peopleByKey.has(key)) peopleByKey.set(key, row)
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true, people: [...peopleByKey.values()] }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })

@@ -81,7 +81,8 @@ export default function ApplicationsSection({
                 <th>Age</th>
                 <th>School grade</th>
                 <th>Review score</th>
-                <th>State</th>
+                <th>Country</th>
+                <th>State / region</th>
                 <th>Submitted</th>
                 {applicationFilter === 'met_with' && <th>Met with</th>}
                 <th>Status</th>
@@ -98,7 +99,8 @@ export default function ApplicationsSection({
                   <td>{app.age != null && app.age !== '' ? app.age : '—'}</td>
                   <td>{app.grade}</td>
                   <td>{app.numeric_grade != null && app.numeric_grade !== '' ? app.numeric_grade : '—'}</td>
-                  <td>{app.state}</td>
+                  <td>{app.country || '—'}</td>
+                  <td>{app.state || '—'}</td>
                   <td>{formatDateLong(app.submitted_at)}</td>
                   {applicationFilter === 'met_with' && (
                     <td style={{ minWidth: '150px' }}>

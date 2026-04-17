@@ -74,6 +74,24 @@ export function canonicalUSStateName(raw) {
   return t
 }
 
+/**
+ * Two-letter USPS-style code for display (dropdowns, compact labels).
+ * Accepts stored full names ("California"), abbreviations ("ca"), or "United States" → US.
+ * Unknown / custom text: returns trimmed input.
+ */
+export function usStateAbbreviation(raw) {
+  if (raw == null) return ''
+  const t = String(raw).trim()
+  if (!t) return ''
+  const upper = t.toUpperCase()
+  if (US_STATE_CODE_TO_NAME[upper]) return upper
+  const lower = t.toLowerCase()
+  for (const [code, name] of Object.entries(US_STATE_CODE_TO_NAME)) {
+    if (name.toLowerCase() === lower) return code
+  }
+  return t
+}
+
 /** Key for grouping bills by state in the dashboard (never empty string). */
 export function billStateGroupKey(raw) {
   const c = canonicalUSStateName(raw)

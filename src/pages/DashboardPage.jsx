@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import QRCode from 'qrcode'
 import RegistrationForm from '../components/RegistrationForm'
@@ -28,6 +28,13 @@ import VolunteerHoursSection from './dashboard/VolunteerHoursSection'
 import HrReportSubmitModal from './dashboard/HrReportSubmitModal'
 import HrReportsSection from './dashboard/HrReportsSection'
 import HrReportViewModal from './dashboard/HrReportViewModal'
+import ExecConductSection from './dashboard/ExecConductSection'
+import ResignFromSpanSection from './dashboard/ResignFromSpanSection'
+import MemberStrikeModal from './dashboard/MemberStrikeModal'
+import MemberRemovalModal from './dashboard/MemberRemovalModal'
+import HonorableExitEmailModal from './dashboard/HonorableExitEmailModal'
+import RemovalNoticeEmailModal from './dashboard/RemovalNoticeEmailModal'
+import { strikeLimitForMember, isAtStrikeLimit } from '../lib/memberStrikeRules'
 import IdeasSuggestionsSection from './dashboard/IdeasSuggestionsSection'
 import LeaveExtensionSection from './dashboard/LeaveExtensionSection'
 import LeaveRequestQuickReviewModal from './dashboard/LeaveRequestQuickReviewModal'
@@ -239,6 +246,18 @@ function DashboardPage() {
   const [hrReportSuccess, setHrReportSuccess] = useState('')
   const [selectedHrReport, setSelectedHrReport] = useState(null)
   const [showHrReportViewModal, setShowHrReportViewModal] = useState(false)
+  const [memberStrikeRows, setMemberStrikeRows] = useState([])
+  const [removalProposals, setRemovalProposals] = useState([])
+  const [execResignations, setExecResignations] = useState([])
+  const [myResignationRows, setMyResignationRows] = useState([])
+  const [strikeModalMember, setStrikeModalMember] = useState(null)
+  const [showStrikeModal, setShowStrikeModal] = useState(false)
+  const [removalModalMember, setRemovalModalMember] = useState(null)
+  const [showRemovalModal, setShowRemovalModal] = useState(false)
+  const [showHonorableExitEmailModal, setShowHonorableExitEmailModal] = useState(false)
+  const [showRemovalNoticeEmailModal, setShowRemovalNoticeEmailModal] = useState(false)
+  const [recordingHrStrike, setRecordingHrStrike] = useState(false)
+  const [resignSubmitLoading, setResignSubmitLoading] = useState(false)
   const [myRequests, setMyRequests] = useState([])
   const [allMemberRequests, setAllMemberRequests] = useState([])
   const [memberRequestFilter, setMemberRequestFilter] = useState('pending') // 'all' | 'pending' | 'approved' | 'declined'
@@ -417,6 +436,7 @@ function DashboardPage() {
       }
       if (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')) {
         loadHrReports()
+        loadExecConductData()
         loadAllMemberRequests()
         loadAllSuggestions()
         loadSchools()
@@ -426,6 +446,7 @@ function DashboardPage() {
       }
       loadMyRequests()
       if (member) loadMySuggestions()
+      if (member) loadMyResignations()
     }
   }, [member, viewAsData])
 
@@ -757,6 +778,42 @@ function DashboardPage() {
     })
 
     setHrReports(filtered)
+  }
+
+  const loadExecConductData = async () => {
+    if (!member) return
+    const isExecUser =
+      (member.volunteer === true || member.volunteer === 'true') &&
+      (member.applications === true || member.applications === 'true') &&
+      (member.bills === true || member.bills === 'true') &&
+      (member.registration === true || member.registration === 'true')
+    if (!isExecUser) return
+
+    const [s, p, r] = await Promise.all([
+      supabase.from('member_strikes').select('*').order('created_at', { ascending: false }),
+      supabase.from('member_removal_proposals').select('*').order('created_at', { ascending: false }),
+      supabase.from('member_resignations').select('*').order('created_at', { ascending: false }),
+    ])
+    if (s.error) console.error('member_strikes', s.error)
+    else setMemberStrikeRows(s.data || [])
+    if (p.error) console.error('member_removal_proposals', p.error)
+    else setRemovalProposals(p.data || [])
+    if (r.error) console.error('member_resignations', r.error)
+    else setExecResignations(r.data || [])
+  }
+
+  const loadMyResignations = async () => {
+    if (!member?.member_id) return
+    const { data, error } = await supabase
+      .from('member_resignations')
+      .select('*')
+      .eq('member_id', member.member_id)
+      .order('created_at', { ascending: false })
+    if (error) {
+      console.error('member_resignations load', error)
+      return
+    }
+    setMyResignationRows(data || [])
   }
 
   // Load current member's own HR reports only (for non-execs)
@@ -1122,6 +1179,216 @@ function DashboardPage() {
     }
   }
 
+  const handleRecordStrikeFromHrReport = async (report) => {
+    if (!report?.regarding_member_id || !member?.member_id) return
+    setRecordingHrStrike(true)
+    try {
+      const { error } = await supabase.from('member_strikes').insert({
+        member_id: report.regarding_member_id,
+        source: 'hr_report',
+        hr_report_id: report.report_id,
+        notes: `HR report: ${(report.nature_of_complaint || '').slice(0, 400)}`,
+        recorded_by: member.member_id,
+      })
+      if (error) {
+        if (error.code === '23505' || String(error.message || '').includes('duplicate')) {
+          alert('A strike is already linked to this HR report.')
+        } else {
+          throw error
+        }
+        return
+      }
+      await loadExecConductData()
+      alert('Strike recorded for the member named in this report.')
+    } catch (err) {
+      alert(err.message || 'Could not record strike.')
+    } finally {
+      setRecordingHrStrike(false)
+    }
+  }
+
+  const handleAddManualStrike = async (notes) => {
+    if (!strikeModalMember || !member?.member_id) return
+    const { error } = await supabase.from('member_strikes').insert({
+      member_id: strikeModalMember.member_id,
+      source: 'manual',
+      hr_report_id: null,
+      notes: notes || null,
+      recorded_by: member.member_id,
+    })
+    if (error) {
+      alert(error.message || 'Could not add strike.')
+      return
+    }
+    await loadExecConductData()
+  }
+
+  const handleDeleteStrike = async (strikeId) => {
+    if (!confirm('Remove this strike from the record?')) return
+    const { error } = await supabase.from('member_strikes').delete().eq('strike_id', strikeId)
+    if (error) {
+      alert(error.message)
+      return
+    }
+    await loadExecConductData()
+  }
+
+  const handleInitiateRemovalProposal = async () => {
+    if (!removalModalMember || !member?.member_id) return
+    const { error } = await supabase.from('member_removal_proposals').insert({
+      member_id: removalModalMember.member_id,
+      initiated_by: member.member_id,
+      status: 'awaiting_second',
+    })
+    if (error) {
+      if (error.code === '23505') {
+        alert('A removal proposal is already pending for this member. Use the banner above or cancel it first.')
+      } else {
+        alert(error.message || 'Could not save removal proposal.')
+      }
+      return
+    }
+    await loadExecConductData()
+    alert('First executive confirmation recorded. Another executive must confirm before this is treated as final.')
+    setShowRemovalModal(false)
+    setRemovalModalMember(null)
+  }
+
+  const handleSecondExecRemovalConfirm = async (proposal) => {
+    if (!proposal?.proposal_id || !member?.member_id) return
+    if (String(proposal.initiated_by) === String(member.member_id)) {
+      alert('A different executive must provide the second confirmation.')
+      return
+    }
+    const { error } = await supabase
+      .from('member_removal_proposals')
+      .update({
+        confirmed_by: member.member_id,
+        status: 'dual_confirmed',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('proposal_id', proposal.proposal_id)
+      .eq('status', 'awaiting_second')
+    if (error) {
+      alert(error.message || 'Update failed.')
+      return
+    }
+    await loadExecConductData()
+    alert('Dual executive confirmation recorded. Proceed with manual deactivation when your team is ready.')
+    setShowRemovalModal(false)
+    setRemovalModalMember(null)
+  }
+
+  const handleCancelRemovalProposal = async (proposal) => {
+    if (!proposal?.proposal_id) return
+    const { error } = await supabase
+      .from('member_removal_proposals')
+      .update({
+        status: 'cancelled',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('proposal_id', proposal.proposal_id)
+    if (error) {
+      alert(error.message)
+      return
+    }
+    await loadExecConductData()
+  }
+
+  const handleSubmitResignationRequest = async (message) => {
+    if (!member?.member_id) return
+    setResignSubmitLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('member_resignations')
+        .insert({
+          member_id: member.member_id,
+          message,
+          status: 'requested',
+        })
+        .select()
+        .single()
+      if (error) throw error
+      const base = import.meta.env.VITE_SUPABASE_URL
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (session?.access_token && data?.resignation_id && base) {
+        const resp = await fetch(
+          `${base.replace(/\/$/, '')}/functions/v1/notify-resignation-request`,
+          {
+            method: 'POST',
+            headers: supabaseInvokeHeaders(session.access_token),
+            body: JSON.stringify({ resignation_id: data.resignation_id }),
+          }
+        )
+        if (!resp.ok) {
+          const errBody = await resp.json().catch(() => ({}))
+          console.warn('Resignation notify email failed:', resp.status, errBody)
+          alert(
+            'Request saved, but emailing directors failed. Please contact leadership directly.'
+          )
+        }
+      }
+      await loadMyResignations()
+      await loadExecConductData()
+    } catch (err) {
+      alert(err.message || 'Could not submit resignation request.')
+    } finally {
+      setResignSubmitLoading(false)
+    }
+  }
+
+  const handleWithdrawResignation = async () => {
+    const row = (myResignationRows || []).find(
+      (r) => !['withdrawn', 'honorable_letter_sent', 'completed'].includes(r.status)
+    )
+    if (!row?.resignation_id) return
+    const { error } = await supabase
+      .from('member_resignations')
+      .update({
+        status: 'withdrawn',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('resignation_id', row.resignation_id)
+    if (error) {
+      alert(error.message)
+      return
+    }
+    await loadMyResignations()
+    await loadExecConductData()
+  }
+
+  const handleUpdateResignationStatus = async (resignationId, status) => {
+    const { error } = await supabase
+      .from('member_resignations')
+      .update({
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('resignation_id', resignationId)
+    if (error) {
+      alert(error.message)
+      return
+    }
+    await loadExecConductData()
+  }
+
+  const handleUpdateResignationExecNotes = async (resignationId, execNotes) => {
+    const { error } = await supabase
+      .from('member_resignations')
+      .update({
+        exec_notes: execNotes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('resignation_id', resignationId)
+    if (error) {
+      alert(error.message)
+      return
+    }
+    await loadExecConductData()
+  }
+
   // In view-as mode, show only reports submitted by the viewed member; otherwise use full list (or own for non-exec)
   const effectiveHrReports = viewAsData?.member
     ? hrReports.filter(r => r.submitted_by === viewAsData.member.member_id)
@@ -1346,8 +1613,80 @@ function DashboardPage() {
   const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
   const effectiveSuggestions = viewAsData ? [] : (isExec ? filteredSuggestions : mySuggestions)
   const dashboardOrder = isExec
-    ? { yourInfo: 1, leaveExtension: 2, billManagement: 3, applications: 4, ideasSuggestions: 5, volunteerHours: 6, hrReports: 7, memberManagement: 8, schoolsPartners: 9, mediumBlog: 10, changePassword: 11, billSubmission: 99 }
-    : { yourInfo: 1, leaveExtension: 2, billSubmission: 3, volunteerHours: 4, ideasSuggestions: 5, hrReports: 6, mediumBlog: 7, changePassword: 8, billManagement: 99, applications: 99, memberManagement: 99, schoolsPartners: 99 }
+    ? {
+        yourInfo: 1,
+        leaveExtension: 2,
+        billManagement: 3,
+        applications: 4,
+        ideasSuggestions: 5,
+        volunteerHours: 6,
+        hrReports: 7,
+        execConduct: 8,
+        memberManagement: 9,
+        schoolsPartners: 10,
+        mediumBlog: 11,
+        changePassword: 12,
+        resignFromSpan: 13,
+        billSubmission: 99,
+      }
+    : {
+        yourInfo: 1,
+        leaveExtension: 2,
+        billSubmission: 3,
+        volunteerHours: 4,
+        ideasSuggestions: 5,
+        hrReports: 6,
+        mediumBlog: 7,
+        changePassword: 8,
+        resignFromSpan: 9,
+        billManagement: 99,
+        applications: 99,
+        memberManagement: 99,
+        schoolsPartners: 99,
+        execConduct: 99,
+      }
+
+  const strikeCountByMember = useMemo(() => {
+    const m = {}
+    for (const s of memberStrikeRows) {
+      m[s.member_id] = (m[s.member_id] || 0) + 1
+    }
+    return m
+  }, [memberStrikeRows])
+
+  const activeResignation = useMemo(
+    () => (myResignationRows || []).find((r) => r.status !== 'withdrawn'),
+    [myResignationRows]
+  )
+
+  const strikesForStrikeModal = useMemo(() => {
+    if (!strikeModalMember) return []
+    return memberStrikeRows.filter((s) => s.member_id === strikeModalMember.member_id)
+  }, [memberStrikeRows, strikeModalMember])
+
+  const membersByIdForConduct = useMemo(() => {
+    const o = {}
+    for (const row of allMembersForManagement || []) {
+      o[row.member_id] = row
+    }
+    return o
+  }, [allMembersForManagement])
+
+  const pendingRemovalForRemovalModal = useMemo(() => {
+    if (!removalModalMember) return null
+    return (removalProposals || []).find(
+      (p) =>
+        p.member_id === removalModalMember.member_id && p.status === 'awaiting_second'
+    )
+  }, [removalModalMember, removalProposals])
+
+  const memberAtStrikeLimitRow = useCallback(
+    (mrow) => {
+      const c = strikeCountByMember[mrow.member_id] || 0
+      return isAtStrikeLimit(mrow, c)
+    },
+    [strikeCountByMember]
+  )
 
   const loadMemberData = async (skipRedirect = false) => {
     try {
@@ -4950,6 +5289,24 @@ function DashboardPage() {
             }
             onChangeProfilePhoto={handleExecChangeMemberPhoto}
             onEditMember={handleEditMember}
+            execStrikeUi={
+              !viewAsData &&
+              hasPermission('volunteer') &&
+              hasPermission('applications') &&
+              hasPermission('bills') &&
+              hasPermission('registration')
+            }
+            strikeCountByMember={strikeCountByMember}
+            strikeLimitForMemberRow={strikeLimitForMember}
+            memberAtStrikeLimit={memberAtStrikeLimitRow}
+            onOpenStrikeModal={(row) => {
+              setStrikeModalMember(row)
+              setShowStrikeModal(true)
+            }}
+            onOpenRemovalModal={(row) => {
+              setRemovalModalMember(row)
+              setShowRemovalModal(true)
+            }}
           />
         )}
 
@@ -5204,6 +5561,28 @@ function DashboardPage() {
                               }}
         />
 
+        {hasPermission('volunteer') &&
+          hasPermission('applications') &&
+          hasPermission('bills') &&
+          hasPermission('registration') &&
+          !viewAsData && (
+            <ExecConductSection
+              sectionOrder={dashboardOrder.execConduct}
+              removalProposals={removalProposals}
+              resignationRows={execResignations}
+              memberStrikeRows={memberStrikeRows}
+              membersById={membersByIdForConduct}
+              currentExecMemberId={member?.member_id}
+              formatDateLong={formatDateLong}
+              onConfirmRemovalSecond={handleSecondExecRemovalConfirm}
+              onCancelRemovalProposal={handleCancelRemovalProposal}
+              onUpdateResignationStatus={handleUpdateResignationStatus}
+              onUpdateResignationNotes={handleUpdateResignationExecNotes}
+              onOpenHonorableExitEmailModal={() => setShowHonorableExitEmailModal(true)}
+              onOpenRemovalNoticeEmailModal={() => setShowRemovalNoticeEmailModal(true)}
+            />
+          )}
+
         {!viewAsData && member && (member.blog === true || member.blog === 'true') && (
           <section className="mt-5" style={{ order: dashboardOrder.mediumBlog }}>
             <h3>Medium (blog) login</h3>
@@ -5287,6 +5666,17 @@ function DashboardPage() {
             </div>
           </div>
         </section>
+
+        {!viewAsData && member && (
+          <ResignFromSpanSection
+            sectionOrder={dashboardOrder.resignFromSpan}
+            viewAsData={viewAsData}
+            activeResignation={activeResignation}
+            onSubmitResignation={handleSubmitResignationRequest}
+            onWithdraw={handleWithdrawResignation}
+            submitting={resignSubmitLoading}
+          />
+        )}
         </div>
       </div>
 
@@ -5555,6 +5945,69 @@ function DashboardPage() {
           hasPermission('registration')
         }
         onUpdateStatus={handleUpdateHrReportStatus}
+        showRecordStrikeForRegarding={
+          !viewAsData &&
+          hasPermission('volunteer') &&
+          hasPermission('applications') &&
+          hasPermission('bills') &&
+          hasPermission('registration')
+        }
+        recordingStrike={recordingHrStrike}
+        onRecordStrikeFromReport={handleRecordStrikeFromHrReport}
+      />
+
+      <MemberStrikeModal
+        open={showStrikeModal && !!strikeModalMember}
+        onClose={() => {
+          setShowStrikeModal(false)
+          setStrikeModalMember(null)
+        }}
+        memberRow={strikeModalMember}
+        strikes={strikesForStrikeModal}
+        strikeLimit={strikeModalMember ? strikeLimitForMember(strikeModalMember) : 3}
+        atLimit={strikeModalMember ? memberAtStrikeLimitRow(strikeModalMember) : false}
+        formatDateLong={formatDateLong}
+        onAddManualStrike={handleAddManualStrike}
+        onDeleteStrike={handleDeleteStrike}
+        onOpenRemoval={() => {
+          setRemovalModalMember(strikeModalMember)
+          setShowStrikeModal(false)
+          setShowRemovalModal(true)
+        }}
+      />
+
+      <MemberRemovalModal
+        open={showRemovalModal && !!removalModalMember}
+        onClose={() => {
+          setShowRemovalModal(false)
+          setRemovalModalMember(null)
+        }}
+        memberRow={removalModalMember}
+        currentExecMemberId={member?.member_id}
+        pendingProposal={pendingRemovalForRemovalModal}
+        onInitiateRemoval={handleInitiateRemovalProposal}
+        onSecondExecConfirm={() =>
+          pendingRemovalForRemovalModal &&
+          handleSecondExecRemovalConfirm(pendingRemovalForRemovalModal)
+        }
+        onCancelProposal={() =>
+          pendingRemovalForRemovalModal &&
+          handleCancelRemovalProposal(pendingRemovalForRemovalModal)
+        }
+      />
+
+      <HonorableExitEmailModal
+        open={showHonorableExitEmailModal}
+        onClose={() => setShowHonorableExitEmailModal(false)}
+        supabase={supabase}
+        membersList={allMembersForManagement}
+      />
+
+      <RemovalNoticeEmailModal
+        open={showRemovalNoticeEmailModal}
+        onClose={() => setShowRemovalNoticeEmailModal(false)}
+        supabase={supabase}
+        membersList={allMembersForManagement}
       />
 
       <DeleteApplicationConfirmModal

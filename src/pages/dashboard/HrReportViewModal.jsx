@@ -8,6 +8,9 @@ export default function HrReportViewModal({
   formatDate,
   showExecStatusControls,
   onUpdateStatus,
+  showRecordStrikeForRegarding,
+  recordingStrike,
+  onRecordStrikeFromReport,
 }) {
   if (!open || !report) return null
 
@@ -146,6 +149,26 @@ export default function HrReportViewModal({
               </div>
             </div>
             <div className="modal-footer">
+              {showRecordStrikeForRegarding && report.regarding_member_id && typeof onRecordStrikeFromReport === 'function' && (
+                <button
+                  type="button"
+                  className="btn btn-outline-danger me-auto"
+                  disabled={recordingStrike}
+                  onClick={() => onRecordStrikeFromReport(report)}
+                >
+                  {recordingStrike ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-1" />
+                      Recording…
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-exclamation-triangle me-1" />
+                      Record strike for subject
+                    </>
+                  )}
+                </button>
+              )}
               <button type="button" className="btn btn-outline-dark" onClick={() => onClose()}>
                 Close
               </button>

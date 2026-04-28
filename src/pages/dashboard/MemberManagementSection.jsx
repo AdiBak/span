@@ -16,6 +16,12 @@ export default function MemberManagementSection({
   showViewAsDashboardLink,
   onChangeProfilePhoto,
   onEditMember,
+  execStrikeUi,
+  strikeCountByMember,
+  strikeLimitForMemberRow,
+  memberAtStrikeLimit,
+  onOpenStrikeModal,
+  onOpenRemovalModal,
 }) {
   const active = allMembersForManagement.filter((m) => m.active !== false)
   const inactive = allMembersForManagement.filter((m) => m.active === false)
@@ -83,11 +89,21 @@ export default function MemberManagementSection({
                               </div>
                             )}
                             <div className="d-flex flex-column text-start">
-                              <div className="d-flex align-items-center gap-2">
+                              <div className="d-flex align-items-center gap-2 flex-wrap">
                                 <span className="fw-bold">
                                   {memberItem.first_name} {memberItem.last_name}
                                 </span>
                                 <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
+                                {execStrikeUi && strikeCountByMember && strikeLimitForMemberRow && (
+                                  <span
+                                    className={`badge ${
+                                      memberAtStrikeLimit?.(memberItem) ? 'bg-danger' : 'bg-dark'
+                                    }`}
+                                  >
+                                    Strikes {strikeCountByMember[memberItem.member_id] ?? 0}/
+                                    {strikeLimitForMemberRow(memberItem)}
+                                  </span>
+                                )}
                               </div>
                               <small className="text-muted">{memberItem.email}</small>
                             </div>
@@ -210,6 +226,28 @@ export default function MemberManagementSection({
                             )}
                             <div className="col-12 mt-2">
                               <div className="d-flex gap-2 flex-wrap">
+                                {execStrikeUi && onOpenStrikeModal && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-danger"
+                                    onClick={() => onOpenStrikeModal(memberItem)}
+                                  >
+                                    <i className="bi bi-shield-exclamation me-1"></i>
+                                    Strikes
+                                  </button>
+                                )}
+                                {execStrikeUi &&
+                                  memberAtStrikeLimit?.(memberItem) &&
+                                  onOpenRemovalModal &&
+                                  memberItem.active !== false && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-danger"
+                                      onClick={() => onOpenRemovalModal(memberItem)}
+                                    >
+                                      Remove…
+                                    </button>
+                                  )}
                                 {showViewAsDashboardLink && (
                                   <a
                                     href={`/dashboard?viewAs=${memberItem.member_id}`}
@@ -291,11 +329,21 @@ export default function MemberManagementSection({
                               </div>
                             )}
                             <div className="d-flex flex-column text-start">
-                              <div className="d-flex align-items-center gap-2">
+                              <div className="d-flex align-items-center gap-2 flex-wrap">
                                 <span className="fw-bold">
                                   {memberItem.first_name} {memberItem.last_name}
                                 </span>
                                 <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
+                                {execStrikeUi && strikeCountByMember && strikeLimitForMemberRow && (
+                                  <span
+                                    className={`badge ${
+                                      memberAtStrikeLimit?.(memberItem) ? 'bg-danger' : 'bg-dark'
+                                    }`}
+                                  >
+                                    Strikes {strikeCountByMember[memberItem.member_id] ?? 0}/
+                                    {strikeLimitForMemberRow(memberItem)}
+                                  </span>
+                                )}
                               </div>
                               <small className="text-muted">{memberItem.email}</small>
                             </div>
@@ -418,6 +466,16 @@ export default function MemberManagementSection({
                             )}
                             <div className="col-12 mt-2">
                               <div className="d-flex gap-2 flex-wrap">
+                                {execStrikeUi && onOpenStrikeModal && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-danger"
+                                    onClick={() => onOpenStrikeModal(memberItem)}
+                                  >
+                                    <i className="bi bi-shield-exclamation me-1"></i>
+                                    Strikes
+                                  </button>
+                                )}
                                 {showViewAsDashboardLink && (
                                   <a
                                     href={`/dashboard?viewAs=${memberItem.member_id}`}

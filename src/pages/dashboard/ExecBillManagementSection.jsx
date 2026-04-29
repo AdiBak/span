@@ -54,6 +54,10 @@ export default function ExecBillManagementSection({
   billAssignments,
   execAssignmentFilter,
   onExecAssignmentFilterChange,
+  execAssignmentTeamFilter,
+  onExecAssignmentTeamFilterChange,
+  assignmentTeamFilterOptions,
+  resolveAssignmentTeamLabel,
   onOpenAssignWork,
   resolveBillAssignmentMemberName,
   resolveBillAssignmentMemberNames,
@@ -486,6 +490,10 @@ export default function ExecBillManagementSection({
           billAssignments={billAssignments}
           execAssignmentFilter={execAssignmentFilter}
           onExecAssignmentFilterChange={onExecAssignmentFilterChange}
+          execAssignmentTeamFilter={execAssignmentTeamFilter}
+          onExecAssignmentTeamFilterChange={onExecAssignmentTeamFilterChange}
+          assignmentTeamFilterOptions={assignmentTeamFilterOptions}
+          resolveAssignmentTeamLabel={resolveAssignmentTeamLabel}
           viewAsData={viewAsData}
           onOpenAssignWork={onOpenAssignWork}
           formatDate={formatDate}

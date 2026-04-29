@@ -1,6 +1,7 @@
 import React from 'react'
 
 export default function MemberManagementSection({
+  policyTeamsAdminSlot,
   sectionStyleOrder,
   imageBaseUrl,
   allMembersForManagement,
@@ -39,6 +40,8 @@ export default function MemberManagementSection({
         <i className="bi bi-info-circle me-2"></i>
         When you add a new member, they will automatically receive an email invitation to set up their account.
       </div>
+
+      {policyTeamsAdminSlot}
 
       <input
         ref={execMemberPhotoInputRef}

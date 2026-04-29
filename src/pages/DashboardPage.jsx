@@ -45,6 +45,8 @@ import BillPdfPreviewModal from './dashboard/BillPdfPreviewModal'
 import DeleteVolunteerEntryModal from './dashboard/DeleteVolunteerEntryModal'
 import MemberFormModal from './dashboard/MemberFormModal'
 import MemberManagementSection from './dashboard/MemberManagementSection'
+import PolicyTeamsPanel from './dashboard/PolicyTeamsPanel'
+import TeamLeadAssignmentsSection from './dashboard/TeamLeadAssignmentsSection'
 import ExecBillManagementSection from './dashboard/ExecBillManagementSection'
 import BillSubmissionSection from './dashboard/BillSubmissionSection'
 import ApplicationViewModal from './dashboard/ApplicationViewModal'
@@ -118,6 +120,7 @@ function DashboardPage() {
   const [execBillSectionTab, setExecBillSectionTab] = useState('review_queue')
   const [memberBillSectionTab, setMemberBillSectionTab] = useState('my_bills')
   const [execAssignmentFilter, setExecAssignmentFilter] = useState('all')
+  const [execAssignmentTeamFilter, setExecAssignmentTeamFilter] = useState('all')
   const [memberAssignmentFilter, setMemberAssignmentFilter] = useState('all')
   const [showAssignBillModal, setShowAssignBillModal] = useState(false)
   const [assignBillForm, setAssignBillForm] = useState({
@@ -173,6 +176,10 @@ function DashboardPage() {
   const [showImportApplicationModal, setShowImportApplicationModal] = useState(false)
   const [editingMemberId, setEditingMemberId] = useState(null)
   const [allMembersForManagement, setAllMembersForManagement] = useState([])
+  const [policyTeams, setPolicyTeams] = useState([])
+  const [memberPolicyTeams, setMemberPolicyTeams] = useState([])
+  /** Members on the current user's led policy team (for name resolution + assignee picker). */
+  const [teamRosterMembers, setTeamRosterMembers] = useState([])
   const emailManuallyEdited = useRef(false)
   /** Invalidates in-flight LegiScan prefill when publish modal is opened again. */
   const publishModalLegiscanAutofillRef = useRef(0)
@@ -261,6 +268,7 @@ function DashboardPage() {
   const [myRequests, setMyRequests] = useState([])
   const [allMemberRequests, setAllMemberRequests] = useState([])
   const [memberRequestFilter, setMemberRequestFilter] = useState('pending') // 'all' | 'pending' | 'approved' | 'declined'
+  const [memberRequestTeamFilter, setMemberRequestTeamFilter] = useState('all')
   const [leaveExtensionViewMode, setLeaveExtensionViewMode] = useState('calendar') // 'calendar' | 'table'
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [requestForm, setRequestForm] = useState({
@@ -390,6 +398,85 @@ function DashboardPage() {
     return m[permission] === true || m[permission] === 'true'
   }
 
+  const isExec = useMemo(() => {
+    const m = viewAsData?.member ?? member
+    if (!m) return false
+    return (
+      (m.volunteer === true || m.volunteer === 'true') &&
+      (m.applications === true || m.applications === 'true') &&
+      (m.bills === true || m.bills === 'true') &&
+      (m.registration === true || m.registration === 'true')
+    )
+  }, [member, viewAsData])
+
+  const isTeamLeadUser = useMemo(() => {
+    const m = viewAsData?.member ?? member
+    if (!m?.member_id) return false
+    return (policyTeams || []).some(
+      (t) =>
+        String(t.lead_member_id) === String(m.member_id) &&
+        t.active !== false
+    )
+  }, [member, viewAsData, policyTeams])
+
+  /** Bill-permission members; team leads only see their policy team roster. */
+  const assigneePickerMembers = useMemo(() => {
+    const billsMembers = (allMembersForManagement || []).filter(
+      (m) => m.bills === true || m.bills === 'true'
+    )
+    if (isExec) return billsMembers
+    if (!isTeamLeadUser) return billsMembers
+    const subject = viewAsData?.member ?? member
+    const led = (policyTeams || []).find(
+      (t) =>
+        String(t.lead_member_id) === String(subject?.member_id) &&
+        t.active !== false
+    )
+    if (!led) return billsMembers
+    const allowed = new Set(
+      (memberPolicyTeams || [])
+        .filter((mpt) => String(mpt.team_id) === String(led.team_id))
+        .map((m) => String(m.member_id))
+    )
+    const fromMgmt = billsMembers.filter((m) => allowed.has(String(m.member_id)))
+    if (fromMgmt.length > 0) return fromMgmt
+    /* Team leads may not have registration permission; roster fetch supplies rows. */
+    return (teamRosterMembers || []).filter(
+      (m) =>
+        allowed.has(String(m.member_id)) && (m.bills === true || m.bills === 'true')
+    )
+  }, [
+    allMembersForManagement,
+    isExec,
+    isTeamLeadUser,
+    policyTeams,
+    memberPolicyTeams,
+    member,
+    viewAsData,
+    teamRosterMembers,
+  ])
+
+  const memberTeamNameById = useMemo(() => {
+    const teamNameById = {}
+    for (const t of policyTeams || []) {
+      teamNameById[String(t.team_id)] = String(t.name || '').trim() || 'Unnamed team'
+    }
+    const out = {}
+    for (const row of memberPolicyTeams || []) {
+      const tid = String(row.team_id || '')
+      out[String(row.member_id)] = teamNameById[tid] || 'Unassigned teams'
+    }
+    return out
+  }, [policyTeams, memberPolicyTeams])
+
+  const assignmentTeamLabel = (assignment) => {
+    const assigneeIds = billAssignmentAssigneeIds(assignment)
+    if (!assigneeIds.length) return 'Open pool'
+    const names = [...new Set(assigneeIds.map((id) => memberTeamNameById[String(id)] || 'Unassigned teams'))]
+    if (names.length === 1) return names[0]
+    return 'Multiple teams'
+  }
+
   // Load member data
   useEffect(() => {
     // Check if there's a hash in the URL (from invite link)
@@ -430,6 +517,7 @@ function DashboardPage() {
         loadAllBills()
         loadBillAssignments()
         loadResearchBills()
+        loadPolicyTeams()
       }
       if (hasPermission('applications')) {
         loadApplications()
@@ -913,6 +1001,63 @@ function DashboardPage() {
     }
     setAllMemberRequests(data || [])
   }
+
+  const loadPolicyTeams = async () => {
+    const { data: teams, error: e1 } = await supabase.from('policy_teams').select('*').order('name')
+    const { data: mpt, error: e2 } = await supabase.from('member_policy_teams').select('member_id, team_id')
+    if (e1) console.error('policy_teams', e1)
+    if (e2) console.error('member_policy_teams', e2)
+    setPolicyTeams(teams || [])
+    setMemberPolicyTeams(mpt || [])
+  }
+
+  useEffect(() => {
+    if (!member || viewAsData) return
+    if (isExec) return
+    if (!isTeamLeadUser) return
+    loadAllMemberRequests()
+  }, [member, viewAsData, isTeamLeadUser, isExec])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadTeamRoster() {
+      const subject = viewAsData?.member ?? member
+      if (!subject?.member_id || viewAsData) {
+        if (!cancelled) setTeamRosterMembers([])
+        return
+      }
+      if (isExec) {
+        if (!cancelled) setTeamRosterMembers([])
+        return
+      }
+      const led = (policyTeams || []).find(
+        (t) =>
+          String(t.lead_member_id) === String(subject.member_id) &&
+          t.active !== false
+      )
+      if (!led) {
+        if (!cancelled) setTeamRosterMembers([])
+        return
+      }
+      const ids = (memberPolicyTeams || [])
+        .filter((mpt) => String(mpt.team_id) === String(led.team_id))
+        .map((mpt) => mpt.member_id)
+      if (ids.length === 0) {
+        if (!cancelled) setTeamRosterMembers([])
+        return
+      }
+      const { data, error } = await supabase
+        .from('members')
+        .select('member_id, first_name, last_name, email, bills, role')
+        .in('member_id', ids)
+      if (error) console.error('team roster load', error)
+      if (!cancelled) setTeamRosterMembers(data || [])
+    }
+    loadTeamRoster()
+    return () => {
+      cancelled = true
+    }
+  }, [member, viewAsData, isExec, policyTeams, memberPolicyTeams])
 
   const loadMySuggestions = async () => {
     if (!member?.member_id) return
@@ -1432,7 +1577,7 @@ function DashboardPage() {
       setRequestForm({ type: 'leave', reason: '', leaveStart: '', leaveEnd: '', projectName: '', requestedByDate: '' })
       setShowRequestModal(false)
       await loadMyRequests()
-      if (hasPermission('registration')) await loadAllMemberRequests()
+      if (isExec || isTeamLeadUser) await loadAllMemberRequests()
     } catch (err) {
       setRequestError(err.message || 'Failed to submit request.')
     }
@@ -1526,6 +1671,29 @@ function DashboardPage() {
     }
   }
 
+  const handleDeleteRequestFromView = async () => {
+    if (!selectedRequestForView?.request_id) return
+    const target = selectedRequestForView
+    const label = target.member
+      ? `${target.member.first_name || ''} ${target.member.last_name || ''}`.trim() || 'this member'
+      : 'this request'
+    if (!window.confirm(`Delete this ${target.type || 'leave'} request for ${label}? This cannot be undone.`)) return
+    try {
+      const { error } = await supabase
+        .from('member_requests')
+        .delete()
+        .eq('request_id', target.request_id)
+      if (error) throw error
+      setShowRequestViewModal(false)
+      setSelectedRequestForView(null)
+      setRequestReviewNotes('')
+      await loadAllMemberRequests()
+      await loadMyRequests()
+    } catch (err) {
+      alert(err.message || 'Failed to delete request.')
+    }
+  }
+
   const handleSubmitSuggestion = async (e) => {
     e?.preventDefault()
     setSuggestionError('')
@@ -1601,10 +1769,27 @@ function DashboardPage() {
     }
   }
 
-  const filteredMemberRequests = allMemberRequests.filter(r => {
-    if (memberRequestFilter === 'all') return true
-    return r.status === memberRequestFilter
+  const filteredMemberRequests = allMemberRequests.filter((r) => {
+    if (memberRequestFilter !== 'all' && r.status !== memberRequestFilter) return false
+    if (memberRequestTeamFilter === 'all') return true
+    return (memberTeamNameById[String(r.member_id)] || 'Unassigned teams') === memberRequestTeamFilter
   })
+
+  const assignmentTeamFilterOptions = useMemo(() => {
+    const names = new Set()
+    for (const a of billAssignments || []) {
+      names.add(assignmentTeamLabel(a))
+    }
+    return ['all', ...Array.from(names).sort((a, b) => a.localeCompare(b))]
+  }, [billAssignments, assignmentTeamLabel])
+
+  const memberRequestTeamFilterOptions = useMemo(() => {
+    const names = new Set()
+    for (const r of allMemberRequests || []) {
+      names.add(memberTeamNameById[String(r.member_id)] || 'Unassigned teams')
+    }
+    return ['all', ...Array.from(names).sort((a, b) => a.localeCompare(b))]
+  }, [allMemberRequests, memberTeamNameById])
 
   const filteredSuggestions = allSuggestions.filter((s) => {
     if (suggestionFilter !== 'all' && s.status !== suggestionFilter) return false
@@ -1613,7 +1798,7 @@ function DashboardPage() {
     return s._source !== 'public_bill'
   })
 
-  const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
+  const isTeamLeadOnly = isTeamLeadUser && !isExec
   const effectiveSuggestions = viewAsData ? [] : (isExec ? filteredSuggestions : mySuggestions)
   const dashboardOrder = isExec
     ? {
@@ -1632,22 +1817,39 @@ function DashboardPage() {
         resignFromSpan: 13,
         billSubmission: 99,
       }
-    : {
-        yourInfo: 1,
-        leaveExtension: 2,
-        billSubmission: 3,
-        volunteerHours: 4,
-        ideasSuggestions: 5,
-        hrReports: 6,
-        mediumBlog: 7,
-        changePassword: 8,
-        resignFromSpan: 9,
-        billManagement: 99,
-        applications: 99,
-        memberManagement: 99,
-        schoolsPartners: 99,
-        execConduct: 99,
-      }
+    : isTeamLeadOnly
+      ? {
+          yourInfo: 1,
+          leaveExtension: 2,
+          billManagement: 3,
+          billSubmission: 4,
+          volunteerHours: 5,
+          ideasSuggestions: 6,
+          hrReports: 7,
+          mediumBlog: 8,
+          changePassword: 9,
+          resignFromSpan: 10,
+          applications: 99,
+          memberManagement: 99,
+          schoolsPartners: 99,
+          execConduct: 99,
+        }
+      : {
+          yourInfo: 1,
+          leaveExtension: 2,
+          billSubmission: 3,
+          volunteerHours: 4,
+          ideasSuggestions: 5,
+          hrReports: 6,
+          mediumBlog: 7,
+          changePassword: 8,
+          resignFromSpan: 9,
+          billManagement: 99,
+          applications: 99,
+          memberManagement: 99,
+          schoolsPartners: 99,
+          execConduct: 99,
+        }
 
   const strikeCountByMember = useMemo(() => {
     const m = {}
@@ -2503,8 +2705,9 @@ function DashboardPage() {
   const resolveBillAssignmentMemberName = (memberId) => {
     if (memberId == null) return 'Open — anyone can claim'
     const m =
-      allMembersForManagement.find((x) => x.member_id === memberId) ||
-      allMembers.find((x) => x.member_id === memberId)
+      teamRosterMembers.find((x) => String(x.member_id) === String(memberId)) ||
+      allMembersForManagement.find((x) => String(x.member_id) === String(memberId)) ||
+      allMembers.find((x) => String(x.member_id) === String(memberId))
     return m ? `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Unknown' : 'Unknown'
   }
 
@@ -2571,12 +2774,13 @@ function DashboardPage() {
         return
       }
       for (const mid of ids) {
-        const assigneeRow = allMembersForManagement.find((m) => m.member_id === mid)
-        if (
-          !assigneeRow ||
-          (assigneeRow.bills !== true && assigneeRow.bills !== 'true')
-        ) {
-          setAssignBillError('Each assignee must be a member with Bill permission.')
+        const ok = assigneePickerMembers.some((m) => String(m.member_id) === String(mid))
+        if (!ok) {
+          setAssignBillError(
+            isTeamLeadUser && !isExec
+              ? 'Each assignee must be on your policy team with Bill permission.'
+              : 'Each assignee must be a member with Bill permission.'
+          )
           return
         }
       }
@@ -2849,11 +3053,6 @@ function DashboardPage() {
     }
     await loadBillAssignments()
   }
-
-  /** Members with Bill permission only (assignees must be able to use Bill Submission / Assigned to me). */
-  const assigneePickerMembers = allMembersForManagement.filter(
-    (m) => m.bills === true || m.bills === 'true'
-  )
 
   const handleConfirmDeleteBillAssignment = async () => {
     if (!assignmentToDelete?.assignment_id) return
@@ -4725,7 +4924,11 @@ function DashboardPage() {
     )
   })
 
-  const effectiveRequests = viewAsData ? (viewAsData.leave_requests ?? []) : (hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') ? filteredMemberRequests : myRequests)
+  const effectiveRequests = viewAsData
+    ? (viewAsData.leave_requests ?? [])
+    : isExec || isTeamLeadUser
+      ? filteredMemberRequests
+      : myRequests
   const effectiveApplications = viewAsData ? (viewAsData.applications ?? []) : applications
   const filteredEffectiveApplications = applicationFilter === 'all' ? effectiveApplications : effectiveApplications.filter(app => app.status === applicationFilter)
 
@@ -5129,15 +5332,13 @@ function DashboardPage() {
           leaveExtensionViewMode={leaveExtensionViewMode}
           setLeaveExtensionViewMode={setLeaveExtensionViewMode}
           viewAsData={viewAsData}
-          showExecRequestFilters={
-            !viewAsData &&
-            hasPermission('volunteer') &&
-            hasPermission('applications') &&
-            hasPermission('bills') &&
-            hasPermission('registration')
-          }
+          showExecRequestFilters={!viewAsData && (isExec || isTeamLeadUser)}
           memberRequestFilter={memberRequestFilter}
           setMemberRequestFilter={setMemberRequestFilter}
+          memberRequestTeamFilter={memberRequestTeamFilter}
+          setMemberRequestTeamFilter={setMemberRequestTeamFilter}
+          memberRequestTeamFilterOptions={memberRequestTeamFilterOptions}
+          resolveRequestTeamName={(req) => memberTeamNameById[String(req.member_id)] || 'Unassigned teams'}
           allMemberRequests={allMemberRequests}
           effectiveRequests={effectiveRequests}
           formatDate={formatDate}
@@ -5253,6 +5454,10 @@ function DashboardPage() {
             billAssignments={billAssignments}
             execAssignmentFilter={execAssignmentFilter}
             onExecAssignmentFilterChange={setExecAssignmentFilter}
+            execAssignmentTeamFilter={execAssignmentTeamFilter}
+            onExecAssignmentTeamFilterChange={setExecAssignmentTeamFilter}
+            assignmentTeamFilterOptions={assignmentTeamFilterOptions}
+            resolveAssignmentTeamLabel={assignmentTeamLabel}
             onOpenAssignWork={handleOpenAssignBillModal}
             resolveBillAssignmentMemberName={resolveBillAssignmentMemberName}
             resolveBillAssignmentMemberNames={resolveBillAssignmentMemberNames}
@@ -5268,11 +5473,40 @@ function DashboardPage() {
           />
         )}
 
+        {/* Policy team lead: assign work within team (RLS-scoped); not shown for full execs (they use Exec Bill Management). */}
+        {isTeamLeadOnly && !viewAsData && hasPermission('bills') && (
+          <TeamLeadAssignmentsSection
+            sectionOrder={dashboardOrder.billManagement}
+            currentMemberId={member?.member_id}
+            billAssignments={billAssignments}
+            execAssignmentFilter={execAssignmentFilter}
+            onExecAssignmentFilterChange={setExecAssignmentFilter}
+            execAssignmentTeamFilter={execAssignmentTeamFilter}
+            onExecAssignmentTeamFilterChange={setExecAssignmentTeamFilter}
+            assignmentTeamFilterOptions={assignmentTeamFilterOptions}
+            resolveAssignmentTeamLabel={assignmentTeamLabel}
+            viewAsData={viewAsData}
+            onOpenAssignWork={handleOpenAssignBillModal}
+            formatDate={formatDate}
+            resolveBillAssignmentMemberName={resolveBillAssignmentMemberName}
+            resolveBillAssignmentMemberNames={resolveBillAssignmentMemberNames}
+            onExecStatus={handleExecBillAssignmentStatus}
+            onApproveAndPublish={handleExecApproveAssignment}
+            onReopenPublish={handleReopenPublishBillFromAssignment}
+            onEditAssignment={handleOpenEditAssignmentModal}
+            onRequestDeleteAssignment={(a) => {
+              setAssignmentToDelete(a)
+              setDeleteAssignmentError('')
+              setShowDeleteAssignmentModal(true)
+            }}
+          />
+        )}
+
         {/* Bill Submission Section - Members with Bills (non-exec); execs see this when viewing-as such a member */}
         {(() => {
           const hasBills = hasPermission('bills')
-          const isExec = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
-          return hasBills && !isExec
+          const isExecUser = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
+          return hasBills && !isExecUser
         })() && (
           <BillSubmissionSection
             sectionOrder={dashboardOrder.billSubmission}
@@ -5318,6 +5552,16 @@ function DashboardPage() {
 
         {hasPermission('registration') && (
           <MemberManagementSection
+            policyTeamsAdminSlot={
+              !viewAsData && isExec ? (
+                <PolicyTeamsPanel
+                  policyTeams={policyTeams}
+                  memberPolicyTeams={memberPolicyTeams}
+                  allMembersForManagement={allMembersForManagement}
+                  onRefresh={loadPolicyTeams}
+                />
+              ) : null
+            }
             sectionStyleOrder={dashboardOrder.memberManagement}
             imageBaseUrl={IMAGE_BASE_URL}
             allMembersForManagement={allMembersForManagement}
@@ -5781,17 +6025,12 @@ function DashboardPage() {
         formatDate={formatDate}
         formatDateLong={formatDateLong}
         viewAsData={viewAsData}
-        showExecReviewPanel={
-          !viewAsData &&
-          hasPermission('volunteer') &&
-          hasPermission('applications') &&
-          hasPermission('bills') &&
-          hasPermission('registration')
-        }
+        showExecReviewPanel={!viewAsData && (isExec || isTeamLeadUser)}
         requestReviewNotes={requestReviewNotes}
         setRequestReviewNotes={setRequestReviewNotes}
         onReviewFromView={handleRequestReviewSubmitFromView}
         onStatusChangeFromView={handleRequestStatusChangeFromView}
+        onDeleteFromView={handleDeleteRequestFromView}
       />
 
       <SuggestionViewModal
@@ -5867,7 +6106,7 @@ function DashboardPage() {
         onConfirm={handleConfirmDeleteBill}
       />
 
-      {/* Assign bill work — exec only */}
+      {/* Assign bill work — exec or policy team lead */}
       <AssignBillWorkModal
         open={showAssignBillModal}
         editingAssignment={editingAssignment}

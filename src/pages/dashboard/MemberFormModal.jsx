@@ -240,9 +240,9 @@ export default function MemberFormModal({
 
                 {showPermissionsSection && (
                   <div className="col-md-12">
-                    <label className="form-label fw-bold">Permissions</label>
+                    <label className="form-label fw-bold">Dashboard Access</label>
                     <small className="text-muted d-block mb-2">
-                      Select which dashboard functions this member can access
+                      Choose which dashboard sections and tools this member can access.
                     </small>
                     <div className="row g-2">
                       <div className="col-md-6">
@@ -255,9 +255,11 @@ export default function MemberFormModal({
                             id="memberVolunteer"
                           />
                           <label className="form-check-label" htmlFor="memberVolunteer">
-                            Volunteer Hours Management
+                            Volunteer Hours
                           </label>
-                          <small className="text-muted d-block">Can approve/manage volunteer hours</small>
+                          <small className="text-muted d-block">
+                            Can view and manage volunteer hour submissions.
+                          </small>
                         </div>
                       </div>
                       <div className="col-md-6">
@@ -270,9 +272,11 @@ export default function MemberFormModal({
                             id="memberApplications"
                           />
                           <label className="form-check-label" htmlFor="memberApplications">
-                            Application Review
+                            Applications
                           </label>
-                          <small className="text-muted d-block">Can review new member applications</small>
+                          <small className="text-muted d-block">
+                            Can review and update applicant pipeline statuses.
+                          </small>
                         </div>
                       </div>
                       <div className="col-md-6">
@@ -285,9 +289,11 @@ export default function MemberFormModal({
                             id="memberBills"
                           />
                           <label className="form-check-label" htmlFor="memberBills">
-                            Bill Management
+                            Bills and Outreach
                           </label>
-                          <small className="text-muted d-block">Can submit bills for review</small>
+                          <small className="text-muted d-block">
+                            Can access bill workflows, assignments, and legislator outreach tools.
+                          </small>
                         </div>
                       </div>
                       <div className="col-md-6">
@@ -302,7 +308,9 @@ export default function MemberFormModal({
                           <label className="form-check-label" htmlFor="memberRegistration">
                             Member Management
                           </label>
-                          <small className="text-muted d-block">Can add/edit members and manage roles</small>
+                          <small className="text-muted d-block">
+                            Can add/edit members and manage registration-related access.
+                          </small>
                         </div>
                       </div>
                       <div className="col-md-6">
@@ -315,10 +323,10 @@ export default function MemberFormModal({
                             id="memberBlog"
                           />
                           <label className="form-check-label" htmlFor="memberBlog">
-                            Medium / blog login
+                            Blog OTP Access
                           </label>
                           <small className="text-muted d-block">
-                            Can arm OTP forwarding from the dashboard (shared Medium account)
+                            Can arm OTP forwarding for the shared Medium account.
                           </small>
                         </div>
                       </div>

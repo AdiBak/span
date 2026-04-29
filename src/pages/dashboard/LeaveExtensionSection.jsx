@@ -9,6 +9,10 @@ export default function LeaveExtensionSection({
   showExecRequestFilters,
   memberRequestFilter,
   setMemberRequestFilter,
+  memberRequestTeamFilter,
+  setMemberRequestTeamFilter,
+  memberRequestTeamFilterOptions,
+  resolveRequestTeamName,
   allMemberRequests,
   effectiveRequests,
   formatDate,
@@ -36,6 +40,7 @@ export default function LeaveExtensionSection({
             <thead>
               <tr>
                 {isExecDisplay && <th>Member</th>}
+                {isExecDisplay && <th>Team</th>}
                 <th>Type</th>
                 <th>Reason</th>
                 <th>Details</th>
@@ -51,6 +56,18 @@ export default function LeaveExtensionSection({
                     <td>
                       {req.member ? `${req.member.first_name} ${req.member.last_name}` : 'Unknown'}
                       {req.member?.email && <div className="small text-muted">{req.member.email}</div>}
+                    </td>
+                  )}
+                  {isExecDisplay && (
+                    <td>
+                      {(() => {
+                        const teamName = resolveRequestTeamName ? resolveRequestTeamName(req) : 'Unassigned teams'
+                        return teamName && teamName !== 'Unassigned teams' ? (
+                          <span className="badge bg-light text-dark border">{teamName}</span>
+                        ) : (
+                          <span className="text-muted">—</span>
+                        )
+                      })()}
                     </td>
                   )}
                   <td>
@@ -109,59 +126,86 @@ export default function LeaveExtensionSection({
 
   return (
     <section className="mt-5" style={{ order: sectionOrder }}>
-      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <h3 className="mb-0">Leave & Extension Requests</h3>
-        <div className="d-flex align-items-center gap-2 flex-wrap">
-          <div className="btn-group" role="group" aria-label="Leave requests view">
-            <button
-              type="button"
-              className={`btn btn-sm ${leaveExtensionViewMode === 'calendar' ? 'btn-dark' : 'btn-outline-dark'}`}
-              onClick={() => setLeaveExtensionViewMode('calendar')}
-            >
-              <i className="bi bi-calendar3 me-1"></i>Calendar
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${leaveExtensionViewMode === 'table' ? 'btn-dark' : 'btn-outline-dark'}`}
-              onClick={() => setLeaveExtensionViewMode('table')}
-            >
-              <i className="bi bi-table me-1"></i>Table
-            </button>
-          </div>
-          {showExecRequestFilters && (
-            <div className="btn-group" role="group">
+      <div className="mb-4">
+        <h3 className="mb-2">Leave & Extension Requests</h3>
+        <div className="d-flex justify-content-between align-items-center gap-2 flex-wrap w-100">
+          <div className="d-flex align-items-center gap-2 flex-wrap" style={{ minWidth: 0, flex: '1 1 auto' }}>
+            <div className="btn-group flex-shrink-0" role="group" aria-label="Leave requests view">
               <button
                 type="button"
-                className={`btn btn-sm ${memberRequestFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
-                onClick={() => setMemberRequestFilter('all')}
+                className={`btn btn-sm ${leaveExtensionViewMode === 'calendar' ? 'btn-dark' : 'btn-outline-dark'}`}
+                onClick={() => setLeaveExtensionViewMode('calendar')}
               >
-                All ({allMemberRequests.length})
+                <i className="bi bi-calendar3 me-1"></i>Calendar
               </button>
               <button
                 type="button"
-                className={`btn btn-sm ${memberRequestFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
-                onClick={() => setMemberRequestFilter('pending')}
+                className={`btn btn-sm ${leaveExtensionViewMode === 'table' ? 'btn-dark' : 'btn-outline-dark'}`}
+                onClick={() => setLeaveExtensionViewMode('table')}
               >
-                Pending ({allMemberRequests.filter((r) => r.status === 'pending').length})
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${memberRequestFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
-                onClick={() => setMemberRequestFilter('approved')}
-              >
-                Approved ({allMemberRequests.filter((r) => r.status === 'approved').length})
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${memberRequestFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
-                onClick={() => setMemberRequestFilter('declined')}
-              >
-                Declined ({allMemberRequests.filter((r) => r.status === 'declined').length})
+                <i className="bi bi-table me-1"></i>Table
               </button>
             </div>
-          )}
+            {showExecRequestFilters && (
+              <>
+                <div className="btn-group flex-shrink-0" role="group" aria-label="Filter by request status">
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                    onClick={() => setMemberRequestFilter('all')}
+                    style={{ flex: '0 0 auto' }}
+                  >
+                    All ({allMemberRequests.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
+                    onClick={() => setMemberRequestFilter('pending')}
+                    style={{ flex: '0 0 auto' }}
+                  >
+                    Pending ({allMemberRequests.filter((r) => r.status === 'pending').length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
+                    onClick={() => setMemberRequestFilter('approved')}
+                    style={{ flex: '0 0 auto' }}
+                  >
+                    Approved ({allMemberRequests.filter((r) => r.status === 'approved').length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${memberRequestFilter === 'declined' ? 'btn-danger' : 'btn-outline-danger'}`}
+                    onClick={() => setMemberRequestFilter('declined')}
+                    style={{ flex: '0 0 auto' }}
+                  >
+                    Declined ({allMemberRequests.filter((r) => r.status === 'declined').length})
+                  </button>
+                </div>
+                {setMemberRequestTeamFilter && (
+                  <select
+                    className="form-select form-select-sm flex-shrink-0"
+                    style={{ width: 'auto', minWidth: '9.5rem', maxWidth: '16rem' }}
+                    value={memberRequestTeamFilter || 'all'}
+                    onChange={(e) => setMemberRequestTeamFilter(e.target.value)}
+                    aria-label="Filter leave requests by team"
+                  >
+                    {(memberRequestTeamFilterOptions || ['all']).map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt === 'all' ? 'All teams' : opt}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </>
+            )}
+          </div>
           {!viewAsData && (
-            <button className="btn btn-dark btn-sm" onClick={onOpenNewRequest}>
+            <button
+              type="button"
+              className="btn btn-dark btn-sm flex-shrink-0 align-self-center"
+              onClick={onOpenNewRequest}
+            >
               <i className="bi bi-plus-circle me-2"></i>Make new request
             </button>
           )}

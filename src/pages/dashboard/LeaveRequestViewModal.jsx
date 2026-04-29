@@ -12,6 +12,7 @@ export default function LeaveRequestViewModal({
   setRequestReviewNotes,
   onReviewFromView,
   onStatusChangeFromView,
+  onDeleteFromView,
 }) {
   if (!open || !request) return null
 
@@ -161,6 +162,11 @@ export default function LeaveRequestViewModal({
               )}
             </div>
             <div className="modal-footer">
+              {!viewAsData && showExecReviewPanel && typeof onDeleteFromView === 'function' && (
+                <button type="button" className="btn btn-outline-danger me-auto" onClick={() => onDeleteFromView()}>
+                  Delete request
+                </button>
+              )}
               <button type="button" className="btn btn-outline-dark" onClick={() => close()}>
                 Close
               </button>

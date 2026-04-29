@@ -15,6 +15,10 @@ export default function BillAssignmentsExecPanel({
   billAssignments,
   execAssignmentFilter,
   onExecAssignmentFilterChange,
+  execAssignmentTeamFilter = 'all',
+  onExecAssignmentTeamFilterChange,
+  assignmentTeamFilterOptions = ['all'],
+  resolveAssignmentTeamLabel = () => 'Unassigned teams',
   viewAsData,
   onOpenAssignWork,
   formatDate,
@@ -25,26 +29,50 @@ export default function BillAssignmentsExecPanel({
   onReopenPublish,
   onEditAssignment,
   onRequestDeleteAssignment,
+  /** Hide exec-only publish / approval flows (policy team leads). */
+  teamLeadMode = false,
+  /** When teamLeadMode, delete only allowed for assignments created by this member. */
+  currentMemberId = null,
 }) {
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <div className="btn-group flex-wrap" role="group">
-          {STATUS_FILTERS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              className={`btn btn-sm ${execAssignmentFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
-              onClick={() => onExecAssignmentFilterChange(key)}
+      <div className="d-flex justify-content-between align-items-center mb-4 gap-2">
+        <div
+          className="d-flex align-items-center gap-2 flex-nowrap overflow-auto"
+          style={{ minWidth: 0, flex: '1 1 auto' }}
+        >
+          <div className="btn-group" role="group" aria-label="Filter by assignment status">
+            {STATUS_FILTERS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                className={`btn btn-sm ${execAssignmentFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
+                onClick={() => onExecAssignmentFilterChange(key)}
+              >
+                {key === 'all'
+                  ? `All (${billAssignments.length})`
+                  : `${billAssignmentStatusLabel(key)} (${billAssignments.filter((x) => x.status === key).length})`}
+              </button>
+            ))}
+          </div>
+          {onExecAssignmentTeamFilterChange && (
+            <select
+              className="form-select form-select-sm flex-shrink-0"
+              style={{ width: 'auto', minWidth: '140px', maxWidth: '220px' }}
+              value={execAssignmentTeamFilter}
+              onChange={(e) => onExecAssignmentTeamFilterChange(e.target.value)}
+              aria-label="Filter assignments by team"
             >
-              {key === 'all'
-                ? `All (${billAssignments.length})`
-                : `${billAssignmentStatusLabel(key)} (${billAssignments.filter((x) => x.status === key).length})`}
-            </button>
-          ))}
+              {assignmentTeamFilterOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt === 'all' ? 'All teams' : opt}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         {!viewAsData && (
-          <button type="button" className="btn btn-dark btn-sm" onClick={onOpenAssignWork}>
+          <button type="button" className="btn btn-dark btn-sm flex-shrink-0" onClick={onOpenAssignWork}>
             <i className="bi bi-plus-circle me-1"></i>Assign work
           </button>
         )}
@@ -54,7 +82,11 @@ export default function BillAssignmentsExecPanel({
           execAssignmentFilter === 'all'
             ? billAssignments
             : billAssignments.filter((x) => x.status === execAssignmentFilter)
-        if (filtered.length === 0) {
+        const teamFiltered =
+          execAssignmentTeamFilter === 'all'
+            ? filtered
+            : filtered.filter((x) => resolveAssignmentTeamLabel(x) === execAssignmentTeamFilter)
+        if (teamFiltered.length === 0) {
           return (
             <div className="text-center py-5 text-muted">
               <i className="bi bi-list-task display-4 d-block mb-3"></i>
@@ -64,9 +96,10 @@ export default function BillAssignmentsExecPanel({
         }
         return (
           <div className="accordion mb-4" id="execBillAssignmentsAccordion" style={{ maxHeight: '600px', overflowY: 'auto' }}>
-            {filtered.map((a) => {
+            {teamFiltered.map((a) => {
               const cid = `collapseExecAssign${String(a.assignment_id).replace(/-/g, '')}`
               const assigneeIds = billAssignmentAssigneeIds(a)
+              const teamLabel = resolveAssignmentTeamLabel(a)
               return (
                 <div key={a.assignment_id} className="accordion-item mb-2 shadow-sm border rounded">
                   <h2 className="accordion-header">
@@ -92,6 +125,9 @@ export default function BillAssignmentsExecPanel({
                           {assigneeIds.length ? resolveMemberNames(assigneeIds) : resolveMemberName(null)}
                           {a.due_date ? ` · due ${formatDate(a.due_date)}` : ''}
                         </span>
+                        {teamLabel && teamLabel !== 'Unassigned teams' && (
+                          <span className="badge bg-light text-dark border">{teamLabel}</span>
+                        )}
                       </div>
                     </button>
                   </h2>
@@ -143,7 +179,7 @@ export default function BillAssignmentsExecPanel({
                         </div>
                       )}
                       <div className="d-flex flex-wrap gap-2 align-items-center w-100">
-                        {a.status === 'completed' && (
+                        {!teamLeadMode && a.status === 'completed' && (
                           <>
                             <button
                               type="button"
@@ -161,7 +197,7 @@ export default function BillAssignmentsExecPanel({
                             </button>
                           </>
                         )}
-                        {a.status === 'in_review' && (
+                        {!teamLeadMode && a.status === 'in_review' && (
                           <button
                             type="button"
                             className="btn btn-sm btn-success"
@@ -170,7 +206,7 @@ export default function BillAssignmentsExecPanel({
                             Approve &amp; publish bill…
                           </button>
                         )}
-                        {a.status === 'approved' && a.resulting_bill_id == null && !viewAsData && (
+                        {!teamLeadMode && a.status === 'approved' && a.resulting_bill_id == null && !viewAsData && (
                           <button
                             type="button"
                             className="btn btn-sm btn-dark"
@@ -188,13 +224,17 @@ export default function BillAssignmentsExecPanel({
                             >
                               <i className="bi bi-pencil me-1"></i>Edit
                             </button>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-danger ms-auto"
-                              onClick={() => onRequestDeleteAssignment(a)}
-                            >
-                              <i className="bi bi-trash me-1"></i>Delete
-                            </button>
+                            {(!teamLeadMode ||
+                              (currentMemberId != null &&
+                                String(a.assigned_by_member_id) === String(currentMemberId))) && (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-danger ms-auto"
+                                onClick={() => onRequestDeleteAssignment(a)}
+                              >
+                                <i className="bi bi-trash me-1"></i>Delete
+                              </button>
+                            )}
                           </>
                         )}
                       </div>

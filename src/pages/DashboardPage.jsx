@@ -333,7 +333,10 @@ function DashboardPage() {
   const [verificationPdfUrl, setVerificationPdfUrl] = useState(null)
   const [verificationPdfBase64, setVerificationPdfBase64] = useState(null)
   const [verificationMember, setVerificationMember] = useState(null)
+  const [verificationApprovedEntries, setVerificationApprovedEntries] = useState([])
+  const [selectedVerificationEntryIds, setSelectedVerificationEntryIds] = useState([])
   const [verificationEntryCount, setVerificationEntryCount] = useState(0)
+  const [verificationPreviewDirty, setVerificationPreviewDirty] = useState(false)
   const [verificationSending, setVerificationSending] = useState(false)
   const [verificationGenerating, setVerificationGenerating] = useState(false)
 
@@ -2380,6 +2383,9 @@ function DashboardPage() {
 
   // Volunteer verification PDF
   const handleSendVerification = async (targetMemberId, approvedEntries) => {
+    setVerificationApprovedEntries(approvedEntries || [])
+    setSelectedVerificationEntryIds((approvedEntries || []).map((e) => e.id))
+    setVerificationPreviewDirty(false)
     setVerificationGenerating(true)
     try {
       // Fetch full member data for the PDF (need dob, city, state, role, etc.)
@@ -2411,8 +2417,51 @@ function DashboardPage() {
     }
   }
 
+  const handleVerificationSelectionChange = (nextIds) => {
+    setSelectedVerificationEntryIds(nextIds)
+    setVerificationPreviewDirty(true)
+  }
+
+  const handleRebuildVerificationPreview = async () => {
+    if (!verificationMember?.member_id) return
+    const selectedEntries = (verificationApprovedEntries || []).filter((e) =>
+      selectedVerificationEntryIds.includes(e.id)
+    )
+    if (!selectedEntries.length) {
+      alert('Select at least one approved entry.')
+      return
+    }
+    setVerificationGenerating(true)
+    try {
+      const { pdfBlob, pdfBase64 } = await generateVolunteerPDF(
+        verificationMember,
+        selectedEntries,
+        supabase
+      )
+      if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
+      const blobUrl = URL.createObjectURL(pdfBlob)
+      setVerificationPdfUrl(blobUrl)
+      setVerificationPdfBase64(pdfBase64)
+      setVerificationEntryCount(selectedEntries.length)
+      setVerificationPreviewDirty(false)
+    } catch (err) {
+      console.error('Error rebuilding verification PDF:', err)
+      alert('Failed to rebuild verification PDF: ' + err.message)
+    } finally {
+      setVerificationGenerating(false)
+    }
+  }
+
   const handleConfirmSendVerification = async () => {
     if (!verificationMember || !verificationPdfBase64) return
+    if (verificationPreviewDirty) {
+      alert('Please rebuild the preview after changing entry selection.')
+      return
+    }
+    if (!selectedVerificationEntryIds.length) {
+      alert('Select at least one approved entry.')
+      return
+    }
     setVerificationSending(true)
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -6123,14 +6172,23 @@ function DashboardPage() {
         open={showVerificationModal && !!verificationMember}
         verificationMember={verificationMember}
         verificationPdfUrl={verificationPdfUrl}
+        verificationApprovedEntries={verificationApprovedEntries}
+        selectedVerificationEntryIds={selectedVerificationEntryIds}
         verificationEntryCount={verificationEntryCount}
+        verificationPreviewDirty={verificationPreviewDirty}
+        verificationGenerating={verificationGenerating}
         verificationSending={verificationSending}
+        onSelectionChange={handleVerificationSelectionChange}
+        onRebuildPreview={handleRebuildVerificationPreview}
         onDismiss={() => {
                 setShowVerificationModal(false)
                 if (verificationPdfUrl) URL.revokeObjectURL(verificationPdfUrl)
                 setVerificationPdfUrl(null)
                 setVerificationPdfBase64(null)
                 setVerificationMember(null)
+                setVerificationApprovedEntries([])
+                setSelectedVerificationEntryIds([])
+                setVerificationPreviewDirty(false)
         }}
         onSend={handleConfirmSendVerification}
       />

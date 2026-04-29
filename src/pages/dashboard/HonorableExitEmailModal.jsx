@@ -28,6 +28,7 @@ export default function HonorableExitEmailModal({ open, onClose, supabase, membe
   const [manualWorkNotes, setManualWorkNotes] = useState('')
   const [stats, setStats] = useState(null)
   const [approvedEntries, setApprovedEntries] = useState([])
+  const [selectedApprovedEntryIds, setSelectedApprovedEntryIds] = useState([])
   const [previewSubject, setPreviewSubject] = useState('')
   const [previewHtml, setPreviewHtml] = useState('')
   const [pdfAttachBase64, setPdfAttachBase64] = useState(null)
@@ -56,6 +57,7 @@ export default function HonorableExitEmailModal({ open, onClose, supabase, membe
       if (cancelled) return
       setStats(s)
       setApprovedEntries(entries)
+      setSelectedApprovedEntryIds((entries || []).map((e) => e.id))
     })()
     return () => {
       cancelled = true
@@ -78,9 +80,13 @@ export default function HonorableExitEmailModal({ open, onClose, supabase, membe
   const hasDocumentedWork =
     stats &&
     ((stats.volunteerHoursDecimal || 0) > 0 || (stats.billsImpactedCount || 0) > 0)
-  const hasApprovedHoursEntries = approvedEntries.length > 0
+  const selectedApprovedEntries = approvedEntries.filter((e) => selectedApprovedEntryIds.includes(e.id))
+  const hasApprovedHoursEntries = selectedApprovedEntries.length > 0
   const honorableSendOk =
     hasDocumentedWork || (manualWorkNotes && manualWorkNotes.trim().length > 0)
+
+  const allApprovedSelected =
+    approvedEntries.length > 0 && approvedEntries.every((e) => selectedApprovedEntryIds.includes(e.id))
 
   const handleBuildPreview = async () => {
     if (!selected) return
@@ -100,7 +106,7 @@ export default function HonorableExitEmailModal({ open, onClose, supabase, membe
       let attachB64 = null
       let blobUrl = null
       if (hasApprovedHoursEntries) {
-        const { pdfBlob, pdfBase64 } = await generateVolunteerPDF(memberForPdf, approvedEntries, supabase)
+        const { pdfBlob, pdfBase64 } = await generateVolunteerPDF(memberForPdf, selectedApprovedEntries, supabase)
         attachB64 = pdfBase64
         blobUrl = URL.createObjectURL(pdfBlob)
         setPdfAttachBase64(pdfBase64)
@@ -278,9 +284,51 @@ export default function HonorableExitEmailModal({ open, onClose, supabase, membe
                 <p className="small text-muted mb-2">
                   Records: {stats.volunteerHoursDisplay} approved hours · {stats.billsImpactedCount} bill(s) tracked
                   {hasApprovedHoursEntries
-                    ? ` · ${approvedEntries.length} approved entr${approvedEntries.length === 1 ? 'y' : 'ies'} (PDF can attach)`
+                    ? ` · ${selectedApprovedEntries.length} selected entr${selectedApprovedEntries.length === 1 ? 'y' : 'ies'} (PDF will attach)`
                     : ' · no approved hour entries (no PDF attachment)'}
                 </p>
+              )}
+              {approvedEntries.length > 0 && (
+                <div className="border rounded p-2 mb-2">
+                  <div className="form-check mb-2">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="honorableSelectAllEntries"
+                      checked={allApprovedSelected}
+                      onChange={() =>
+                        setSelectedApprovedEntryIds(
+                          allApprovedSelected ? [] : approvedEntries.map((entry) => entry.id)
+                        )
+                      }
+                    />
+                    <label className="form-check-label small fw-semibold" htmlFor="honorableSelectAllEntries">
+                      Select all approved entries
+                    </label>
+                  </div>
+                  <div className="d-flex flex-column gap-1" style={{ maxHeight: '140px', overflowY: 'auto' }}>
+                    {approvedEntries.map((entry) => (
+                      <label key={entry.id} className="small">
+                        <input
+                          className="form-check-input me-2"
+                          type="checkbox"
+                          checked={selectedApprovedEntryIds.includes(entry.id)}
+                          onChange={() =>
+                            setSelectedApprovedEntryIds((prev) =>
+                              prev.includes(entry.id)
+                                ? prev.filter((id) => id !== entry.id)
+                                : [...prev, entry.id]
+                            )
+                          }
+                        />
+                        {entry.volunteering_job_title || 'Volunteer entry'}{' '}
+                        <span className="text-muted">
+                          ({entry.start_timestamp ? new Date(entry.start_timestamp).toLocaleDateString() : 'No date'})
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               )}
               {!honorableSendOk && (
                 <div className="alert alert-warning py-2 small mb-2">

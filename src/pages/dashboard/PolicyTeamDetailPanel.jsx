@@ -5,6 +5,11 @@ function roleLabel(member) {
   return r || '—'
 }
 
+/** Matches DB index `idx_policy_teams_name_lower` (lower(trim(name))). */
+function normalizedPolicyTeamName(value) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
 /**
  * Right pane: edit one policy team (lead, roster, batch add, delete). Used in split policy-teams layout.
  */
@@ -20,8 +25,10 @@ export default function PolicyTeamDetailPanel({
   onAddMembersToTeam,
   onRemoveMemberFromTeam,
   onDeleteTeam,
+  onRenameTeam,
 }) {
   const [selectedAddIds, setSelectedAddIds] = useState(() => new Set())
+  const [nameInput, setNameInput] = useState('')
 
   const rosterSet = useMemo(() => new Set((rosterMemberIds || []).map((id) => String(id))), [rosterMemberIds])
 
@@ -40,6 +47,10 @@ export default function PolicyTeamDetailPanel({
   useEffect(() => {
     if (team?.team_id) setSelectedAddIds(new Set())
   }, [team?.team_id])
+
+  useEffect(() => {
+    if (team?.name != null) setNameInput(String(team.name))
+  }, [team?.team_id, team?.name])
 
   useEffect(() => {
     setSelectedAddIds((prev) => {
@@ -99,14 +110,39 @@ export default function PolicyTeamDetailPanel({
 
   return (
     <div className="border rounded p-3 h-100" style={{ maxHeight: 'min(70vh, 640px)', overflowY: 'auto' }}>
-      <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
-        <div>
-          <h6 className="mb-0 fw-bold">{team.name}</h6>
-          {team.active === false && <span className="badge bg-secondary mt-1">inactive</span>}
+      <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div className="flex-grow-1" style={{ minWidth: 'min(100%, 18rem)' }}>
+          <label className="form-label small mb-1 fw-semibold" htmlFor={`policy-team-name-${team.team_id}`}>
+            Team name
+          </label>
+          <div className="d-flex flex-wrap gap-2 align-items-center">
+            <input
+              id={`policy-team-name-${team.team_id}`}
+              type="text"
+              className="form-control form-control-sm"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              disabled={saving}
+              autoComplete="off"
+              style={{ maxWidth: '22rem' }}
+            />
+            <button
+              type="button"
+              className="btn btn-sm btn-dark"
+              disabled={saving || normalizedPolicyTeamName(nameInput) === normalizedPolicyTeamName(team.name)}
+              onClick={() => onRenameTeam?.(team.team_id, nameInput)}
+            >
+              Save name
+            </button>
+          </div>
+          <p className="small text-muted mb-0 mt-1">
+            Must be unique among policy teams (spacing and capital letters are ignored).
+          </p>
+          {team.active === false && <span className="badge bg-secondary mt-2">inactive</span>}
         </div>
         <button
           type="button"
-          className="btn btn-sm btn-outline-danger"
+          className="btn btn-sm btn-outline-danger align-self-start"
           disabled={saving}
           onClick={() => onDeleteTeam(team)}
         >

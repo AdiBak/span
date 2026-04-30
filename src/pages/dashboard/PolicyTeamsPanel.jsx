@@ -14,6 +14,11 @@ function eligibleTeamLeads(rows) {
   )
 }
 
+/** Same normalization as unique index `idx_policy_teams_name_lower`: lower(trim(name)). */
+function normalizedPolicyTeamName(value) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
 export default function PolicyTeamsPanel({
   policyTeams,
   memberPolicyTeams,
@@ -76,12 +81,22 @@ export default function PolicyTeamsPanel({
       showMsg('Enter a team name.', true)
       return
     }
+    const key = normalizedPolicyTeamName(name)
+    if ((policyTeams || []).some((t) => normalizedPolicyTeamName(t.name) === key)) {
+      showMsg('A team with this name already exists (spacing and capitals are ignored).', true)
+      return
+    }
     setSaving(true)
     setError('')
     const { error: err } = await supabase.from('policy_teams').insert({ name })
     setSaving(false)
     if (err) {
-      showMsg(err.message || 'Could not create team.', true)
+      const msg = err.message || ''
+      if (msg.includes('idx_policy_teams_name_lower') || (msg.includes('unique') && msg.toLowerCase().includes('name'))) {
+        showMsg('A team with this name already exists (spacing and capitals are ignored).', true)
+      } else {
+        showMsg(msg || 'Could not create team.', true)
+      }
       return
     }
     setNewTeamName('')
@@ -187,6 +202,43 @@ export default function PolicyTeamsPanel({
     [policyTeams]
   )
 
+  const handleRenameTeam = async (teamId, rawName) => {
+    const name = String(rawName ?? '').trim()
+    if (!name) {
+      showMsg('Team name cannot be empty.', true)
+      return
+    }
+    const key = normalizedPolicyTeamName(name)
+    const clash = sortedTeams.some(
+      (t) => String(t.team_id) !== String(teamId) && normalizedPolicyTeamName(t.name) === key
+    )
+    if (clash) {
+      showMsg('Another team already uses this name (spacing and capitals are ignored).', true)
+      return
+    }
+    setSaving(true)
+    setError('')
+    const { error: err } = await supabase
+      .from('policy_teams')
+      .update({
+        name,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('team_id', teamId)
+    setSaving(false)
+    if (err) {
+      const msg = err.message || ''
+      if (msg.includes('idx_policy_teams_name_lower') || (msg.includes('unique') && msg.toLowerCase().includes('name'))) {
+        showMsg('Another team already uses this name (spacing and capitals are ignored).', true)
+      } else {
+        showMsg(msg || 'Could not rename team.', true)
+      }
+      return
+    }
+    showMsg('Team name updated.')
+    await onRefresh?.()
+  }
+
   useEffect(() => {
     if (!sortedTeams.length) {
       setSelectedTeamId(null)
@@ -290,6 +342,7 @@ export default function PolicyTeamsPanel({
                 onAddMembersToTeam={handleAddMembersToTeamBatch}
                 onRemoveMemberFromTeam={(memberId) => handleAssignMemberToTeam(memberId, null)}
                 onDeleteTeam={(t) => handleDeleteTeam(t)}
+                onRenameTeam={handleRenameTeam}
               />
             </div>
           </div>

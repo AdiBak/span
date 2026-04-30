@@ -37,6 +37,16 @@ VITE_TURNSTILE_SITE_KEY=your-turnstile-site-key
 
 If this variable is unset, the directory keeps the previous behavior (direct `mailto` with no challenge). The site key is public. For stronger abuse resistance, validate Turnstile tokens in a server or Edge Function before revealing or proxying contact actions.
 
+**GitHub Pages:** Add the same variable as a repository secret `VITE_TURNSTILE_SITE_KEY` so the deploy workflow can embed it at build time (see `.github/workflows/pages.yml`).
+
+**Turnstile “Unable to connect” / HTTP 400 on `challenges.cloudflare.com`:** In the Cloudflare dashboard → Turnstile → your widget → **Hostnames**, include every origin where the site runs, for example:
+
+- `localhost` (and try `127.0.0.1` if needed) for local dev  
+- Your GitHub Pages host, e.g. `youruser.github.io`  
+- Any custom domain (apex and `www` if you use both)
+
+If the page’s hostname is not listed, Turnstile rejects the challenge and the widget shows an error. Create a separate widget for production vs dev if you prefer different hostname lists.
+
 **LegiScan API Notes:**
 - Free tier: 30,000 queries/month (resets on the 1st of each month)
 - Caching with `change_hash` and 24-hour `sessionStorage` to minimize queries

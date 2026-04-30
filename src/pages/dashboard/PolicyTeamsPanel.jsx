@@ -49,13 +49,18 @@ export default function PolicyTeamsPanel({
   const getMember = (memberId) =>
     billsOnly.find((x) => String(x.member_id) === String(memberId)) || null
 
-  const leadDisplay = (leadMemberId) => {
-    if (!leadMemberId) return '—'
-    const m = getMember(leadMemberId)
-    if (!m) return '—'
-    const name = `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Unknown'
-    const role = String(m.role || '').trim()
-    return role ? `${name} · ${role}` : name
+  /** Short line for left rail (up to two names, then +N). */
+  const leadsSummaryLine = (team) => {
+    const ids = team?.lead_member_ids
+    if (!Array.isArray(ids) || ids.length === 0) return 'No leads'
+    const labels = ids.map((id) => {
+      const m = getMember(id)
+      if (!m) return '—'
+      const n = `${m.first_name || ''} ${m.last_name || ''}`.trim()
+      return n || '—'
+    })
+    if (labels.length <= 2) return labels.join(', ')
+    return `${labels.slice(0, 2).join(', ')} +${labels.length - 2}`
   }
 
   const showMsg = (msg, isErr = false) => {
@@ -84,22 +89,32 @@ export default function PolicyTeamsPanel({
     await onRefresh?.()
   }
 
-  const handleSetLead = async (teamId, leadMemberId) => {
+  const handleSetTeamLeads = async (teamId, memberIds) => {
+    const ids = [...new Set((memberIds || []).filter(Boolean))].map(String)
     setSaving(true)
-    const value = leadMemberId === '' || leadMemberId == null ? null : leadMemberId
-    const { error: err } = await supabase
-      .from('policy_teams')
-      .update({
-        lead_member_id: value,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('team_id', teamId)
-    setSaving(false)
-    if (err) {
-      showMsg(err.message || 'Could not update lead.', true)
+    setError('')
+    const { error: delErr } = await supabase.from('policy_team_leads').delete().eq('team_id', teamId)
+    if (delErr) {
+      setSaving(false)
+      showMsg(delErr.message || 'Could not update team leads.', true)
       return
     }
-    showMsg('Team lead updated.')
+    if (ids.length) {
+      const { error: insErr } = await supabase
+        .from('policy_team_leads')
+        .insert(ids.map((member_id) => ({ team_id: teamId, member_id })))
+      if (insErr) {
+        setSaving(false)
+        showMsg(insErr.message || 'Could not set team leads.', true)
+        return
+      }
+    }
+    await supabase
+      .from('policy_teams')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('team_id', teamId)
+    setSaving(false)
+    showMsg('Team leads updated.')
     await onRefresh?.()
   }
 
@@ -194,7 +209,8 @@ export default function PolicyTeamsPanel({
         <h5 className="mb-0">Policy teams (bill analysts)</h5>
         <small className="text-muted">
           Only members with Bill permission can join a team. Team leads must have Bill permission and &quot;team lead&quot;
-          in their role; they can then review leave for their team and assign bill work within the team.
+          in their role (you can pick several per team). They can review leave for their team and assign bill work within
+          the team.
         </small>
       </div>
       <div className="card-body">
@@ -233,7 +249,7 @@ export default function PolicyTeamsPanel({
                 {sortedTeams.map((team) => {
                   const rosterIds = membersByTeam[team.team_id] || []
                   const isActive = selectedTeam && String(selectedTeam.team_id) === String(team.team_id)
-                  const leadShort = team.lead_member_id ? leadDisplay(team.lead_member_id) : 'No lead'
+                  const leadShort = leadsSummaryLine(team)
                   return (
                     <button
                       key={team.team_id}
@@ -270,7 +286,7 @@ export default function PolicyTeamsPanel({
                 getMember={getMember}
                 memberTeamId={memberTeamId}
                 saving={saving}
-                onSetLead={handleSetLead}
+                onSetTeamLeads={handleSetTeamLeads}
                 onAddMembersToTeam={handleAddMembersToTeamBatch}
                 onRemoveMemberFromTeam={(memberId) => handleAssignMemberToTeam(memberId, null)}
                 onDeleteTeam={(t) => handleDeleteTeam(t)}

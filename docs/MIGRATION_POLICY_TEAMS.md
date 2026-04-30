@@ -2,15 +2,17 @@
 
 ## Applying on Supabase
 
-1. Run the SQL migration against your project (CLI or SQL Editor):
-   - File: `supabase/migrations/policy_teams_and_team_lead_scope.sql`
-2. Confirm tables exist: `policy_teams`, `member_policy_teams`.
+1. Run the SQL migrations against your project (CLI or SQL Editor), in order:
+   - `supabase/migrations/policy_teams_and_team_lead_scope.sql`
+   - `supabase/migrations/bill_assignments_team_lead_insert_scope_fix.sql` (if not already applied)
+   - `supabase/migrations/policy_team_leads_multiple.sql` (multiple co-leads per team; drops `policy_teams.lead_member_id` after backfill)
+2. Confirm tables exist: `policy_teams`, `member_policy_teams`, `policy_team_leads`.
 3. No app deploy is required beyond merging this repo; ensure env points at the updated DB.
 
 ## Behavior summary
 
-- **Executives** (all four permission flags): unchanged global access; **Member Management** includes **Policy teams** to create teams, set leads (member must have Bill permission and `"team lead"` in role), and assign Bill-permission members to exactly one team.
-- **Team leads** (`policy_teams.lead_member_id`): RLS limits leave-request visibility/updates and bill-assignment operations to their team; dashboard shows team-scoped leave queue and **Team — Assigned work** (no publish-to-site actions).
+- **Executives** (all four permission flags): unchanged global access; **Member Management** includes **Policy teams** to create teams, set one or more co-leads per team in `policy_team_leads` (member must have Bill permission and `"team lead"` in role), and assign Bill-permission members to exactly one team.
+- **Team leads** (`policy_team_leads`): RLS limits leave-request visibility/updates and bill-assignment operations to their team; dashboard shows team-scoped leave queue and **Team — Assigned work** (no publish-to-site actions).
 - **Members**: unchanged unless given team membership.
 
 ## Manual QA checklist

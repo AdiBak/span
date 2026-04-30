@@ -69,6 +69,12 @@ import {
 import { supabaseInvokeHeaders } from './dashboard/supabaseInvoke'
 import './DashboardPage.css'
 
+/** Lead member ids merged from `policy_team_leads` in `loadPolicyTeams`. */
+function policyTeamLeadIds(team) {
+  const ids = team?.lead_member_ids
+  return Array.isArray(ids) ? ids.map(String) : []
+}
+
 function DashboardPage() {
   console.log('DashboardPage component rendering...')
   const [member, setMember] = useState(null)
@@ -412,10 +418,9 @@ function DashboardPage() {
   const isTeamLeadUser = useMemo(() => {
     const m = viewAsData?.member ?? member
     if (!m?.member_id) return false
+    const mid = String(m.member_id)
     return (policyTeams || []).some(
-      (t) =>
-        String(t.lead_member_id) === String(m.member_id) &&
-        t.active !== false
+      (t) => t.active !== false && policyTeamLeadIds(t).includes(mid)
     )
   }, [member, viewAsData, policyTeams])
 
@@ -427,17 +432,16 @@ function DashboardPage() {
     if (isExec) return billsMembers
     if (!isTeamLeadUser) return billsMembers
     const subject = viewAsData?.member ?? member
-    const led = (policyTeams || []).find(
-      (t) =>
-        String(t.lead_member_id) === String(subject?.member_id) &&
-        t.active !== false
+    const ledTeams = (policyTeams || []).filter(
+      (t) => t.active !== false && policyTeamLeadIds(t).includes(String(subject?.member_id))
     )
-    if (!led) return billsMembers
-    const allowed = new Set(
-      (memberPolicyTeams || [])
-        .filter((mpt) => String(mpt.team_id) === String(led.team_id))
-        .map((m) => String(m.member_id))
-    )
+    if (ledTeams.length === 0) return billsMembers
+    const allowed = new Set()
+    for (const led of ledTeams) {
+      for (const mpt of memberPolicyTeams || []) {
+        if (String(mpt.team_id) === String(led.team_id)) allowed.add(String(mpt.member_id))
+      }
+    }
     const fromMgmt = billsMembers.filter((m) => allowed.has(String(m.member_id)))
     if (fromMgmt.length > 0) return fromMgmt
     /* Team leads may not have registration permission; roster fetch supplies rows. */
@@ -1005,9 +1009,21 @@ function DashboardPage() {
   const loadPolicyTeams = async () => {
     const { data: teams, error: e1 } = await supabase.from('policy_teams').select('*').order('name')
     const { data: mpt, error: e2 } = await supabase.from('member_policy_teams').select('member_id, team_id')
+    const { data: leadRows, error: e3 } = await supabase.from('policy_team_leads').select('team_id, member_id')
     if (e1) console.error('policy_teams', e1)
     if (e2) console.error('member_policy_teams', e2)
-    setPolicyTeams(teams || [])
+    if (e3) console.error('policy_team_leads', e3)
+    const byTeam = {}
+    for (const r of leadRows || []) {
+      const tid = String(r.team_id)
+      if (!byTeam[tid]) byTeam[tid] = []
+      byTeam[tid].push(r.member_id)
+    }
+    const merged = (teams || []).map((t) => ({
+      ...t,
+      lead_member_ids: byTeam[String(t.team_id)] || [],
+    }))
+    setPolicyTeams(merged)
     setMemberPolicyTeams(mpt || [])
   }
 
@@ -1030,18 +1046,20 @@ function DashboardPage() {
         if (!cancelled) setTeamRosterMembers([])
         return
       }
-      const led = (policyTeams || []).find(
-        (t) =>
-          String(t.lead_member_id) === String(subject.member_id) &&
-          t.active !== false
+      const ledTeams = (policyTeams || []).filter(
+        (t) => t.active !== false && policyTeamLeadIds(t).includes(String(subject.member_id))
       )
-      if (!led) {
+      if (ledTeams.length === 0) {
         if (!cancelled) setTeamRosterMembers([])
         return
       }
-      const ids = (memberPolicyTeams || [])
-        .filter((mpt) => String(mpt.team_id) === String(led.team_id))
-        .map((mpt) => mpt.member_id)
+      const idSet = new Set()
+      for (const led of ledTeams) {
+        for (const mpt of memberPolicyTeams || []) {
+          if (String(mpt.team_id) === String(led.team_id)) idSet.add(mpt.member_id)
+        }
+      }
+      const ids = [...idSet]
       if (ids.length === 0) {
         if (!cancelled) setTeamRosterMembers([])
         return
@@ -1771,6 +1789,8 @@ function DashboardPage() {
 
   const filteredMemberRequests = allMemberRequests.filter((r) => {
     if (memberRequestFilter !== 'all' && r.status !== memberRequestFilter) return false
+    // Team leads only ever see their team (RLS); no team dropdown — do not apply team filter.
+    if (isTeamLeadUser && !isExec) return true
     if (memberRequestTeamFilter === 'all') return true
     return (memberTeamNameById[String(r.member_id)] || 'Unassigned teams') === memberRequestTeamFilter
   })
@@ -5333,6 +5353,7 @@ function DashboardPage() {
           setLeaveExtensionViewMode={setLeaveExtensionViewMode}
           viewAsData={viewAsData}
           showExecRequestFilters={!viewAsData && (isExec || isTeamLeadUser)}
+          showRequestTeamFilter={!viewAsData && isExec}
           memberRequestFilter={memberRequestFilter}
           setMemberRequestFilter={setMemberRequestFilter}
           memberRequestTeamFilter={memberRequestTeamFilter}
@@ -5495,10 +5516,10 @@ function DashboardPage() {
             onReopenPublish={handleReopenPublishBillFromAssignment}
             onEditAssignment={handleOpenEditAssignmentModal}
             onRequestDeleteAssignment={(a) => {
-              setAssignmentToDelete(a)
-              setDeleteAssignmentError('')
-              setShowDeleteAssignmentModal(true)
-            }}
+                                          setAssignmentToDelete(a)
+                                          setDeleteAssignmentError('')
+                                          setShowDeleteAssignmentModal(true)
+                                        }}
           />
         )}
 
@@ -5970,8 +5991,8 @@ function DashboardPage() {
             submitting={resignSubmitLoading}
           />
         )}
-        </div>
-      </div>
+                </div>
+                </div>
 
       <SpanCardPasswordModal
         open={showPasswordModal}

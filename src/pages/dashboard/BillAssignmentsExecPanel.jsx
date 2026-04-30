@@ -55,7 +55,7 @@ export default function BillAssignmentsExecPanel({
               </button>
             ))}
           </div>
-          {onExecAssignmentTeamFilterChange && (
+          {onExecAssignmentTeamFilterChange && !teamLeadMode && (
             <select
               className="form-select form-select-sm flex-shrink-0"
               style={{ width: 'auto', minWidth: '140px', maxWidth: '220px' }}
@@ -83,7 +83,7 @@ export default function BillAssignmentsExecPanel({
             ? billAssignments
             : billAssignments.filter((x) => x.status === execAssignmentFilter)
         const teamFiltered =
-          execAssignmentTeamFilter === 'all'
+          teamLeadMode || execAssignmentTeamFilter === 'all'
             ? filtered
             : filtered.filter((x) => resolveAssignmentTeamLabel(x) === execAssignmentTeamFilter)
         if (teamFiltered.length === 0) {

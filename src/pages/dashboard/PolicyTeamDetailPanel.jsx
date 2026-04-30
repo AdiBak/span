@@ -16,7 +16,7 @@ export default function PolicyTeamDetailPanel({
   getMember,
   memberTeamId,
   saving,
-  onSetLead,
+  onSetTeamLeads,
   onAddMembersToTeam,
   onRemoveMemberFromTeam,
   onDeleteTeam,
@@ -25,13 +25,31 @@ export default function PolicyTeamDetailPanel({
 
   const rosterSet = useMemo(() => new Set((rosterMemberIds || []).map((id) => String(id))), [rosterMemberIds])
 
+  const leadIdSet = useMemo(
+    () => new Set((team?.lead_member_ids || []).map((id) => String(id))),
+    [team?.lead_member_ids]
+  )
+
   const eligibleToAdd = useMemo(() => {
-    return (billsOnly || []).filter((m) => !rosterSet.has(String(m.member_id)))
-  }, [billsOnly, rosterSet])
+    return (billsOnly || []).filter((m) => {
+      const id = String(m.member_id)
+      return !rosterSet.has(id) && !leadIdSet.has(id)
+    })
+  }, [billsOnly, rosterSet, leadIdSet])
 
   useEffect(() => {
     if (team?.team_id) setSelectedAddIds(new Set())
   }, [team?.team_id])
+
+  useEffect(() => {
+    setSelectedAddIds((prev) => {
+      const next = new Set()
+      for (const id of prev) {
+        if (!rosterSet.has(id) && !leadIdSet.has(id)) next.add(id)
+      }
+      return next
+    })
+  }, [rosterSet, leadIdSet])
 
   if (!team) {
     return (
@@ -42,8 +60,19 @@ export default function PolicyTeamDetailPanel({
   }
 
   const rosterIds = rosterMemberIds || []
-  const leadId = `policy-team-lead-${team.team_id}`
+  const leadDisplayIds = team.lead_member_ids || []
+  const nonLeadRosterIds = rosterIds.filter((id) => !leadIdSet.has(String(id)))
+  const rosterListCount = leadDisplayIds.length + nonLeadRosterIds.length
+  const leadGroupId = `policy-team-leads-${team.team_id}`
   const addGroupId = `policy-team-add-heading-${team.team_id}`
+
+  const toggleLeadId = (memberId) => {
+    const k = String(memberId)
+    const next = new Set(leadIdSet)
+    if (next.has(k)) next.delete(k)
+    else next.add(k)
+    onSetTeamLeads(team.team_id, Array.from(next))
+  }
 
   const toggleAddId = (memberId) => {
     const k = String(memberId)
@@ -86,41 +115,88 @@ export default function PolicyTeamDetailPanel({
       </div>
 
       <p className="small text-muted mb-3">
-        Bill-permission members only. Choose a lead from members who have &quot;team lead&quot; in their role (their title still appears below).
+        Bill-permission members only. Check everyone who should be a team lead — they must have &quot;team lead&quot; in their
+        role.
       </p>
 
       <div className="mb-3">
-        <label className="form-label fw-semibold small mb-1" htmlFor={leadId}>
-          Team lead
-        </label>
-        <select
-          id={leadId}
-          className="form-select form-select-sm"
-          value={team.lead_member_id || ''}
-          onChange={(e) => onSetLead(team.team_id, e.target.value)}
-          disabled={saving}
-        >
-          <option value="">— No lead —</option>
-          {leadChoices.map((m) => (
-            <option key={m.member_id} value={m.member_id}>
-              {m.first_name} {m.last_name} · {roleLabel(m)}
-            </option>
-          ))}
-        </select>
-        {team.lead_member_id && getMember?.(team.lead_member_id) && (
-          <p className="small text-muted mb-0 mt-2">
-            Role on file: <span className="text-dark">{roleLabel(getMember(team.lead_member_id))}</span>
-          </p>
+        <span className="form-label fw-semibold small mb-2 d-block" id={leadGroupId}>
+          Team leads
+        </span>
+        {leadChoices.length === 0 ? (
+          <p className="small text-muted mb-0">No eligible leads (need Bill permission and &quot;team lead&quot; in role).</p>
+        ) : (
+          <div
+            className="border rounded bg-white px-2 py-2"
+            style={{ maxHeight: '180px', overflowY: 'auto' }}
+            role="group"
+            aria-labelledby={leadGroupId}
+          >
+            {leadChoices.map((m) => {
+              const id = String(m.member_id)
+              const checked = leadIdSet.has(id)
+              return (
+                <div key={id} className="form-check py-1">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id={`lead-${team.team_id}-${id}`}
+                    checked={checked}
+                    onChange={() => toggleLeadId(id)}
+                    disabled={saving}
+                  />
+                  <label className="form-check-label small" htmlFor={`lead-${team.team_id}-${id}`}>
+                    {m.first_name} {m.last_name}
+                    <span className="text-muted"> · {roleLabel(m)}</span>
+                  </label>
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
 
       <div className="mb-3">
-        <div className="fw-semibold small mb-2">Roster ({rosterIds.length})</div>
-        {rosterIds.length === 0 ? (
+        <div className="fw-semibold small mb-2">Roster ({rosterListCount})</div>
+        {rosterListCount === 0 ? (
           <p className="text-muted small mb-0">No members yet. Add people below.</p>
         ) : (
           <ul className="list-group list-group-flush border rounded small">
-            {rosterIds.map((id) => {
+            {leadDisplayIds.map((id) => {
+              const m = getMember?.(id)
+              const name = m
+                ? `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Unknown'
+                : String(id)
+              const onRoster = rosterSet.has(String(id))
+              return (
+                <li
+                  key={`lead-${id}`}
+                  className="list-group-item d-flex justify-content-between align-items-start gap-2 py-2"
+                >
+                  <div>
+                    <div className="d-flex align-items-center gap-2 flex-wrap">
+                      <span>{name}</span>
+                      <span className="badge bg-dark">Lead</span>
+                      {!onRoster && <span className="badge bg-secondary">Off roster</span>}
+                    </div>
+                    <div className="small text-muted">Role: {m ? roleLabel(m) : '—'}</div>
+                  </div>
+                  {onRoster ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary flex-shrink-0"
+                      disabled={saving}
+                      onClick={() => onRemoveMemberFromTeam(id)}
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <span className="small text-muted flex-shrink-0">—</span>
+                  )}
+                </li>
+              )
+            })}
+            {nonLeadRosterIds.map((id) => {
               const m = getMember?.(id)
               const name = m
                 ? `${m.first_name || ''} ${m.last_name || ''}`.trim() || 'Unknown'
@@ -174,7 +250,9 @@ export default function PolicyTeamDetailPanel({
           </div>
         </div>
         {eligibleToAdd.length === 0 ? (
-          <p className="small text-muted mb-0">Everyone with Bill permission is already on this roster.</p>
+          <p className="small text-muted mb-0">
+            Everyone with Bill permission is already on the roster or designated as a team lead above.
+          </p>
         ) : (
           <>
             <div

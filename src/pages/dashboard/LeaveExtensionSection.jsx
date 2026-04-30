@@ -7,6 +7,8 @@ export default function LeaveExtensionSection({
   setLeaveExtensionViewMode,
   viewAsData,
   showExecRequestFilters,
+  /** Exec-only: filter leave rows by policy team. Team leads are scoped to one team — hide this. */
+  showRequestTeamFilter = true,
   memberRequestFilter,
   setMemberRequestFilter,
   memberRequestTeamFilter,
@@ -182,7 +184,7 @@ export default function LeaveExtensionSection({
                     Declined ({allMemberRequests.filter((r) => r.status === 'declined').length})
                   </button>
                 </div>
-                {setMemberRequestTeamFilter && (
+                {setMemberRequestTeamFilter && showRequestTeamFilter && (
                   <select
                     className="form-select form-select-sm flex-shrink-0"
                     style={{ width: 'auto', minWidth: '9.5rem', maxWidth: '16rem' }}

@@ -1,7 +1,10 @@
 -- Multiple team leads per policy team (replaces single policy_teams.lead_member_id).
+--
+-- Order matters: policies on bill_assignments that reference policy_teams.lead_member_id
+-- must be dropped BEFORE dropping that column (PostgreSQL dependency error 2BP01).
 
 -- ---------------------------------------------------------------------------
--- 1) Junction table + backfill
+-- 1) Junction table + backfill from legacy column (if present)
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS public.policy_team_leads (
@@ -13,11 +16,22 @@ CREATE TABLE IF NOT EXISTS public.policy_team_leads (
 
 CREATE INDEX IF NOT EXISTS idx_policy_team_leads_member ON public.policy_team_leads (member_id);
 
-INSERT INTO public.policy_team_leads (team_id, member_id)
-SELECT pt.team_id, pt.lead_member_id
-FROM public.policy_teams pt
-WHERE pt.lead_member_id IS NOT NULL
-ON CONFLICT DO NOTHING;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'policy_teams'
+      AND column_name = 'lead_member_id'
+  ) THEN
+    INSERT INTO public.policy_team_leads (team_id, member_id)
+    SELECT pt.team_id, pt.lead_member_id
+    FROM public.policy_teams pt
+    WHERE pt.lead_member_id IS NOT NULL
+    ON CONFLICT DO NOTHING;
+  END IF;
+END $$;
 
 ALTER TABLE public.policy_team_leads ENABLE ROW LEVEL SECURITY;
 
@@ -85,7 +99,7 @@ AS $$
 $$;
 
 -- ---------------------------------------------------------------------------
--- 3) policy_teams: lead SELECT policy + drop legacy column
+-- 3) policy_teams lead SELECT policy (no dependency on lead_member_id column)
 -- ---------------------------------------------------------------------------
 
 DROP POLICY IF EXISTS "policy_teams_lead_select_own" ON public.policy_teams;
@@ -103,15 +117,25 @@ CREATE POLICY "policy_teams_lead_select_own"
     AND COALESCE(policy_teams.active, true)
   );
 
+-- ---------------------------------------------------------------------------
+-- 4) Drop bill_assignments policies that still reference policy_teams.lead_member_id
+--    (must run before ALTER ... DROP COLUMN lead_member_id)
+-- ---------------------------------------------------------------------------
+
+DROP POLICY IF EXISTS "bill_assignments_team_lead_insert" ON public.bill_assignments;
+DROP POLICY IF EXISTS "bill_assignments_team_lead_select_creator" ON public.bill_assignments;
+
+-- ---------------------------------------------------------------------------
+-- 5) Drop legacy column on policy_teams
+-- ---------------------------------------------------------------------------
+
 DROP INDEX IF EXISTS idx_policy_teams_lead;
 
 ALTER TABLE public.policy_teams DROP COLUMN IF EXISTS lead_member_id;
 
 -- ---------------------------------------------------------------------------
--- 4) bill_assignments team-lead INSERT / SELECT creator (multi-lead join)
+-- 6) Recreate bill_assignments team-lead policies (policy_team_leads join only)
 -- ---------------------------------------------------------------------------
-
-DROP POLICY IF EXISTS "bill_assignments_team_lead_insert" ON public.bill_assignments;
 
 CREATE POLICY "bill_assignments_team_lead_insert"
   ON public.bill_assignments
@@ -126,8 +150,6 @@ CREATE POLICY "bill_assignments_team_lead_insert"
     )
     AND assigned_by_member_id IN (SELECT m.member_id FROM public.members m WHERE m.user_id = auth.uid())
   );
-
-DROP POLICY IF EXISTS "bill_assignments_team_lead_select_creator" ON public.bill_assignments;
 
 CREATE POLICY "bill_assignments_team_lead_select_creator"
   ON public.bill_assignments

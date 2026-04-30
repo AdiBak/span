@@ -37,6 +37,8 @@ VITE_TURNSTILE_SITE_KEY=your-turnstile-site-key
 
 If this variable is unset, the directory keeps the previous behavior (direct `mailto` with no challenge). The site key is public. For stronger abuse resistance, validate Turnstile tokens in a server or Edge Function before revealing or proxying contact actions.
 
+**Local development (`npm run dev`):** The app uses Cloudflare’s [dummy visible site key](https://developers.cloudflare.com/turnstile/troubleshooting/testing/) (`1x00000000000000000000AA`) so Turnstile works on `localhost` without dashboard hostname setup. Your production key in `.env.local` is **ignored** during dev unless you set `VITE_TURNSTILE_USE_REAL_KEY=true` (useful when debugging hostname allowlisting).
+
 **GitHub Pages:** Add the same variable as a repository secret `VITE_TURNSTILE_SITE_KEY` so the deploy workflow can embed it at build time (see `.github/workflows/pages.yml`).
 
 **Turnstile “Unable to connect” / HTTP 400 on `challenges.cloudflare.com`:** In the Cloudflare dashboard → Turnstile → your widget → **Hostnames**, include every origin where the site runs, for example:

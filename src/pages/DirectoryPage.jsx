@@ -4,7 +4,12 @@ import Pagination from '../components/Pagination'
 import DirectoryEmailGateModal from '../components/DirectoryEmailGateModal'
 import './DirectoryPage.css'
 
-const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY
+/** Production: real key from CI. Dev: Cloudflare dummy “always pass” key (works on localhost without hostname setup). Set VITE_TURNSTILE_USE_REAL_KEY=true to test your real site key locally. */
+const TURNSTILE_SITE_KEY = import.meta.env.PROD
+  ? import.meta.env.VITE_TURNSTILE_SITE_KEY
+  : import.meta.env.VITE_TURNSTILE_USE_REAL_KEY === 'true'
+    ? import.meta.env.VITE_TURNSTILE_SITE_KEY
+    : '1x00000000000000000000AA'
 
 const ITEMS_PER_PAGE = 10
 const SEARCH_DEBOUNCE_MS = 300

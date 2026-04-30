@@ -35,6 +35,12 @@ export default function DirectoryEmailGateModal({
     setToken(null)
   }, [])
 
+  const handleError = useCallback((err) => {
+    if (import.meta.env.DEV) {
+      console.warn('[Turnstile]', err)
+    }
+  }, [])
+
   const handleContinue = () => {
     if (!token || !recipientEmail) return
     window.location.href = `mailto:${recipientEmail.trim()}`
@@ -71,6 +77,7 @@ export default function DirectoryEmailGateModal({
                   siteKey={siteKey}
                   onSuccess={handleSuccess}
                   onExpire={handleExpire}
+                  onError={handleError}
                   options={{
                     action: 'directory_email',
                     theme: 'auto',

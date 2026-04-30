@@ -29,6 +29,14 @@ VITE_LEGISCAN_API_KEY=your-legiscan-api-key
 
 Get a free API key at [LegiScan](https://legiscan.com/legiscan) (free tier: 30,000 queries/month). When set, the small info icon on bill cards will show live LegiScan status and last action.
 
+**Directory “Email” button (Cloudflare Turnstile):** To require a captcha before visitors open their mail app from the public member directory, create a [Turnstile](https://developers.cloudflare.com/turnstile/) widget in the Cloudflare dashboard and set:
+
+```env
+VITE_TURNSTILE_SITE_KEY=your-turnstile-site-key
+```
+
+If this variable is unset, the directory keeps the previous behavior (direct `mailto` with no challenge). The site key is public. For stronger abuse resistance, validate Turnstile tokens in a server or Edge Function before revealing or proxying contact actions.
+
 **LegiScan API Notes:**
 - Free tier: 30,000 queries/month (resets on the 1st of each month)
 - Caching with `change_hash` and 24-hour `sessionStorage` to minimize queries

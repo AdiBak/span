@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import Pagination from '../components/Pagination'
+import DirectoryEmailGateModal from '../components/DirectoryEmailGateModal'
 import './DirectoryPage.css'
+
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY
 
 const ITEMS_PER_PAGE = 10
 const SEARCH_DEBOUNCE_MS = 300
@@ -32,6 +35,7 @@ function DirectoryPage() {
   const [error, setError] = useState(null)
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const searchTimeoutRef = useRef(null)
+  const [emailGate, setEmailGate] = useState(null)
 
   // Initialize search from URL on mount
   useEffect(() => {
@@ -142,6 +146,7 @@ function DirectoryPage() {
         const firstName = (m.first_name || '').trim()
         const lastName = (m.last_name || '').trim()
         return {
+          memberId: m.member_id,
           firstName,
           lastName,
           name: (firstName || lastName) ? `${firstName} ${lastName}`.trim() : m.email || '',
@@ -230,6 +235,15 @@ function DirectoryPage() {
   function handlePageChange(page) {
     setCurrentPage(page)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function handleDirectoryEmailClick(member) {
+    if (!member.email) return
+    if (TURNSTILE_SITE_KEY) {
+      setEmailGate({ name: member.name, email: member.email })
+    } else {
+      window.location.href = `mailto:${member.email}`
+    }
   }
 
   function getSortIcon(key) {
@@ -341,9 +355,9 @@ function DirectoryPage() {
                   </td>
                 </tr>
               ) : (
-                paginatedMembers.map((member, idx) => {
+                paginatedMembers.map((member) => {
                   return (
-                    <tr key={idx}>
+                    <tr key={member.memberId || member.email}>
                       <td>
                         <div className="d-flex align-items-center gap-2">
                           <img
@@ -361,9 +375,13 @@ function DirectoryPage() {
                       </td>
                       <td>
                         {member.email && (
-                          <a href={`mailto:${member.email}`} className="btn btn-sm btn-outline-dark">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-dark"
+                            onClick={() => handleDirectoryEmailClick(member)}
+                          >
                             <i className="bi bi-envelope"></i> Email
-                          </a>
+                          </button>
                         )}
                       </td>
                       <td>{member.role}</td>
@@ -385,6 +403,14 @@ function DirectoryPage() {
           </div>
         )}
       </main>
+
+      <DirectoryEmailGateModal
+        open={!!emailGate}
+        recipientName={emailGate?.name}
+        recipientEmail={emailGate?.email}
+        siteKey={TURNSTILE_SITE_KEY}
+        onClose={() => setEmailGate(null)}
+      />
     </div>
   )
 }

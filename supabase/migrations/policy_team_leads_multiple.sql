@@ -37,6 +37,25 @@ ALTER TABLE public.policy_team_leads ENABLE ROW LEVEL SECURITY;
 
 COMMENT ON TABLE public.policy_team_leads IS 'Co-leads for a policy team; exec-managed.';
 
+-- Lead SELECT must not subquery policy_team_leads inside its own USING (42P17 recursion).
+CREATE OR REPLACE FUNCTION public.policy_team_lead_can_view_team_leads(p_team_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+SET row_security = off
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.policy_team_leads ptl
+    WHERE ptl.team_id = p_team_id
+      AND ptl.member_id = public.current_member_id()
+  );
+$$;
+
+GRANT EXECUTE ON FUNCTION public.policy_team_lead_can_view_team_leads(uuid) TO authenticated;
+
 DROP POLICY IF EXISTS "policy_team_leads_exec_all" ON public.policy_team_leads;
 CREATE POLICY "policy_team_leads_exec_all"
   ON public.policy_team_leads
@@ -50,14 +69,7 @@ CREATE POLICY "policy_team_leads_lead_select_team"
   ON public.policy_team_leads
   FOR SELECT
   TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1
-      FROM public.policy_team_leads ptl_self
-      WHERE ptl_self.team_id = policy_team_leads.team_id
-        AND ptl_self.member_id = public.current_member_id()
-    )
-  );
+  USING (public.policy_team_lead_can_view_team_leads(team_id));
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.policy_team_leads TO authenticated;
 
@@ -108,12 +120,7 @@ CREATE POLICY "policy_teams_lead_select_own"
   FOR SELECT
   TO authenticated
   USING (
-    EXISTS (
-      SELECT 1
-      FROM public.policy_team_leads ptl
-      WHERE ptl.team_id = policy_teams.team_id
-        AND ptl.member_id = public.current_member_id()
-    )
+    public.policy_team_lead_can_view_team_leads(policy_teams.team_id)
     AND COALESCE(policy_teams.active, true)
   );
 

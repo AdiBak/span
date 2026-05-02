@@ -26,6 +26,9 @@ export default function PolicyTeamDetailPanel({
   onRemoveMemberFromTeam,
   onDeleteTeam,
   onRenameTeam,
+  /** Map member_id → team_id where they are already a designated lead (exclude from other teams’ adds/leads). */
+  leadMemberIdToTeamId = {},
+  teamNameById = {},
 }) {
   const [selectedAddIds, setSelectedAddIds] = useState(() => new Set())
   const [nameInput, setNameInput] = useState('')
@@ -38,11 +41,15 @@ export default function PolicyTeamDetailPanel({
   )
 
   const eligibleToAdd = useMemo(() => {
+    const curTid = team?.team_id != null ? String(team.team_id) : null
     return (billsOnly || []).filter((m) => {
       const id = String(m.member_id)
-      return !rosterSet.has(id) && !leadIdSet.has(id)
+      if (rosterSet.has(id) || leadIdSet.has(id)) return false
+      const ledTeam = leadMemberIdToTeamId[id]
+      if (ledTeam != null && curTid != null && String(ledTeam) !== curTid) return false
+      return true
     })
-  }, [billsOnly, rosterSet, leadIdSet])
+  }, [billsOnly, rosterSet, leadIdSet, leadMemberIdToTeamId, team?.team_id])
 
   useEffect(() => {
     if (team?.team_id) setSelectedAddIds(new Set())
@@ -53,14 +60,18 @@ export default function PolicyTeamDetailPanel({
   }, [team?.team_id, team?.name])
 
   useEffect(() => {
+    const curTid = team?.team_id != null ? String(team.team_id) : null
     setSelectedAddIds((prev) => {
       const next = new Set()
       for (const id of prev) {
-        if (!rosterSet.has(id) && !leadIdSet.has(id)) next.add(id)
+        if (rosterSet.has(id) || leadIdSet.has(id)) continue
+        const ledTeam = leadMemberIdToTeamId[id]
+        if (ledTeam != null && curTid != null && String(ledTeam) !== curTid) continue
+        next.add(id)
       }
       return next
     })
-  }, [rosterSet, leadIdSet])
+  }, [rosterSet, leadIdSet, leadMemberIdToTeamId, team?.team_id])
 
   if (!team) {
     return (
@@ -152,7 +163,7 @@ export default function PolicyTeamDetailPanel({
 
       <p className="small text-muted mb-3">
         Bill-permission members only. Check everyone who should be a team lead — they must have &quot;team lead&quot; in their
-        role.
+        role. Someone already a lead on another team must be removed there before they can be added here.
       </p>
 
       <div className="mb-3">
@@ -171,6 +182,10 @@ export default function PolicyTeamDetailPanel({
             {leadChoices.map((m) => {
               const id = String(m.member_id)
               const checked = leadIdSet.has(id)
+              const ledTeam = leadMemberIdToTeamId[id]
+              const blockedElsewhere =
+                ledTeam != null && String(ledTeam) !== String(team.team_id)
+              const otherName = blockedElsewhere ? teamNameById[String(ledTeam)] || 'another team' : ''
               return (
                 <div key={id} className="form-check py-1">
                   <input
@@ -179,11 +194,22 @@ export default function PolicyTeamDetailPanel({
                     id={`lead-${team.team_id}-${id}`}
                     checked={checked}
                     onChange={() => toggleLeadId(id)}
-                    disabled={saving}
+                    disabled={saving || blockedElsewhere}
+                    title={
+                      blockedElsewhere
+                        ? `Already a team lead for ${otherName}. Remove them there first.`
+                        : undefined
+                    }
                   />
-                  <label className="form-check-label small" htmlFor={`lead-${team.team_id}-${id}`}>
+                  <label
+                    className={`form-check-label small ${blockedElsewhere ? 'text-muted' : ''}`}
+                    htmlFor={`lead-${team.team_id}-${id}`}
+                  >
                     {m.first_name} {m.last_name}
                     <span className="text-muted"> · {roleLabel(m)}</span>
+                    {blockedElsewhere && (
+                      <span className="text-muted"> — lead on {otherName}</span>
+                    )}
                   </label>
                 </div>
               )
@@ -213,7 +239,6 @@ export default function PolicyTeamDetailPanel({
                     <div className="d-flex align-items-center gap-2 flex-wrap">
                       <span>{name}</span>
                       <span className="badge bg-dark">Lead</span>
-                      {!onRoster && <span className="badge bg-secondary">Off roster</span>}
                     </div>
                     <div className="small text-muted">Role: {m ? roleLabel(m) : '—'}</div>
                   </div>
@@ -287,7 +312,7 @@ export default function PolicyTeamDetailPanel({
         </div>
         {eligibleToAdd.length === 0 ? (
           <p className="small text-muted mb-0">
-            Everyone with Bill permission is already on the roster or designated as a team lead above.
+            Everyone with Bill permission is already on this roster, a lead for this team, or a lead on another team.
           </p>
         ) : (
           <>

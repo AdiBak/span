@@ -51,6 +51,35 @@ export default function PolicyTeamsPanel({
     return o
   }, [memberPolicyTeams])
 
+  /** member_id → team_id where they are designated as a policy team lead (any team). */
+  const leadMemberIdToTeamId = useMemo(() => {
+    const o = {}
+    for (const t of policyTeams || []) {
+      for (const mid of t.lead_member_ids || []) {
+        o[String(mid)] = t.team_id
+      }
+    }
+    return o
+  }, [policyTeams])
+
+  const teamNameById = useMemo(() => {
+    const o = {}
+    for (const t of policyTeams || []) {
+      o[String(t.team_id)] = String(t.name || '').trim() || 'Team'
+    }
+    return o
+  }, [policyTeams])
+
+  /** Roster members plus leads (deduped) — leads-only row counts toward size. */
+  const teamUniqueHeadcount = (team) => {
+    const roster = membersByTeam[team.team_id] || []
+    const leads = team.lead_member_ids || []
+    const s = new Set()
+    for (const id of roster) s.add(String(id))
+    for (const id of leads) s.add(String(id))
+    return s.size
+  }
+
   const getMember = (memberId) =>
     billsOnly.find((x) => String(x.member_id) === String(memberId)) || null
 
@@ -299,9 +328,9 @@ export default function PolicyTeamsPanel({
               <div className="fw-semibold small text-muted mb-2">Teams</div>
               <div className="list-group">
                 {sortedTeams.map((team) => {
-                  const rosterIds = membersByTeam[team.team_id] || []
                   const isActive = selectedTeam && String(selectedTeam.team_id) === String(team.team_id)
                   const leadShort = leadsSummaryLine(team)
+                  const headcount = teamUniqueHeadcount(team)
                   return (
                     <button
                       key={team.team_id}
@@ -309,11 +338,12 @@ export default function PolicyTeamsPanel({
                       className={`list-group-item list-group-item-action text-start py-2 px-3 ${isActive ? 'active' : ''}`}
                       disabled={saving}
                       onClick={() => setSelectedTeamId(team.team_id)}
+                      title="Members on roster plus anyone who is only a designated lead (deduped)"
                     >
                       <div className="d-flex justify-content-between align-items-start gap-2">
                         <span className="fw-semibold text-truncate">{team.name}</span>
                         <span className={`badge flex-shrink-0 ${isActive ? 'bg-light text-dark' : 'bg-secondary'}`}>
-                          {rosterIds.length}
+                          {headcount}
                         </span>
                       </div>
                       <div className={`small text-truncate mt-1 ${isActive ? 'text-white-50' : 'text-muted'}`}>
@@ -343,6 +373,8 @@ export default function PolicyTeamsPanel({
                 onRemoveMemberFromTeam={(memberId) => handleAssignMemberToTeam(memberId, null)}
                 onDeleteTeam={(t) => handleDeleteTeam(t)}
                 onRenameTeam={handleRenameTeam}
+                leadMemberIdToTeamId={leadMemberIdToTeamId}
+                teamNameById={teamNameById}
               />
             </div>
           </div>

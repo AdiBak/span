@@ -13,8 +13,8 @@ The dashboard is a single page (`src/pages/DashboardPage.jsx`) that shows or hid
 
 After registration is complete, every member sees these sections (in the order above).
 
-- **Profile header** — Photo (or initials), name, role, LinkedIn/Instagram links, "Change profile picture", and "Download My SPANCard."
-- **Your Info** — Read-only contact and profile info from their members row.
+- **Profile header** — Photo (or initials), name, role, LinkedIn/Instagram links, "Change profile picture", and "Download My SPANCard." **Preferred public name** (if used) can be edited inline next to the heading via the pencil control.
+- **Your Info** — Read-only contact and profile info from their `members` row (legal and contact fields; display naming follows **`memberDisplayName`** helpers).
 - **Leave & extension requests** — Submit a leave/break or extension request; view their own requests (View button opens modal with details and, for execs, approve/decline and comments).
 - **Ideas & suggestions** — Submit an idea (bill idea, general interest, or web/feature suggestion) with title and optional description; view their own suggestions and status. The list defaults to the **Pending** filter for execs.
 - **Volunteer Hours** — Add their own entries (date/time or hours, job title, description); view their own entries with status (waiting / approved / denied) and supervisor comment.
@@ -51,8 +51,8 @@ So by default: your profile, your volunteer entries, your requests, your reports
 
 ### Registration
 
-- **See:** Member Management (active and inactive member list).
-- **Do:** Add a new member, edit any member (details), set active/inactive
+- **See:** Member Management (active and inactive member list). Exec view also includes **Policy teams** (roster, co-leads, team kind) per `docs/MIGRATION_POLICY_TEAMS.md`.
+- **Do:** Add a new member, edit any member (details), set active/inactive; optional middle name and preferred public name on the form.
 - **Note:** Only execs can edit member perms (volunteer, applications, bills, registration, blog)
 
 *Figure: member management section allows viewing member list*

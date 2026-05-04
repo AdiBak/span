@@ -5,6 +5,16 @@ Dates use the **commit author date** (local calendar day) from `git log` for eac
 
 ---
 
+## 2026-05-03
+
+- **Policy teams, member naming, assignments, RLS** — `ADDING_A_NEW_MEMBER.md`, `CODEBASE_ARCHITECTURE.md`, `DATABASE_ARCHITECTURE.md`, `DASHBOARD_FUNCTIONS.md`, `MIGRATION_POLICY_TEAMS.md`, `BILLS_EXEC_SUITE_SPEC.md`, `COPILOT_CONTEXT.md`, `DOCS_CHANGELOG.md`; `5acf2d5` (*feat: policy team kinds, member names, assignments, and member RLS fix*).
+  - **Members:** optional `middle_name` and `preferred_name`; org email still derived from first + last; public display uses preferred name when present (`memberDisplayName.js`).
+  - **Dashboard:** preferred name editable from the profile header; exec **Member Management** includes policy-team roster and co-leads per existing policy-team docs.
+  - **Bill assignments:** assign-work flows respect policy-team context (e.g. bill-detail prefill where applicable).
+  - **Migrations:** cross-linked `members_middle_name_preferred_name.sql`, `members_rls_use_jwt_email_not_auth_users.sql` (JWT email for self-update paths that must not subquery `auth.users`).
+
+---
+
 ## 2026-03-30
 
 - **README-REACT.md** — Brought in line with current app: § *Current feature surface* (aligned with `WORK_SUMMARY.txt` §0), removed stale vanilla-login / EmailJS / wrong application statuses; folder sketch; Resend + Edge Functions note.

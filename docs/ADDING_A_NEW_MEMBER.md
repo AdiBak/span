@@ -5,7 +5,7 @@ What happens when an exec **adds a new member** to SPAN — from an accepted app
 
 ## 1\. Where and how members are added
 
-**What happens:** Members with the **registration** permission see the **Member Management** section in the dashboard. There they can click **Add New Member** to open a modal with the member form: first name, last name, email (often a SPAN address like `firstname.lastname@spanationwide.org`), original/personal email, role, active flag, start date, DOB, school, city, state, phone, LinkedIn, Instagram, notes, bio. The four permission checkboxes are only visible to execs; if you only have registration permission you can add members but not set their permissions. See figure.  
+**What happens:** Members with the **registration** permission see the **Member Management** section in the dashboard. There they can click **Add New Member** to open a modal with the member form: first name, optional middle name, last name, optional **preferred public name** (how they appear on the directory, team cards, and blog bylines when set), email (often a SPAN address like `firstname.lastname@spanationwide.org`), original/personal email, role, active flag, start date, DOB, school, city, state, phone, LinkedIn, Instagram, notes, bio. **SPAN org email** is generated from **first + last name only** (middle and preferred names do not change the suggested address). The four permission checkboxes are only visible to execs; if you only have registration permission you can add members but not set their permissions. See figure.  
 ![][image1]  
 *Figure: exec’s add member modal (actually scrollable; I merged screenshots for this one).*
 
@@ -22,10 +22,10 @@ After a successful creation, the UI shows a success message (e.g. “They will r
 
 **Data:**
 
-- **Table:** `members`. The form fields map to columns (first\_name, last\_name, email, original\_email, role, active, start\_date, dob, school\_name, city, state, phone, linkedin, instagram, notes, bio, volunteer, applications, bills, registration). New members are created with **`registration_complete = false`** so they are prompted to complete the registration form on first login.  
+- **Table:** `members`. The form fields map to columns including **first\_name**, optional **middle\_name**, **last\_name**, optional **preferred\_name**, **email**, **original\_email**, **role**, **active**, **start\_date**, **dob**, **school\_name**, **city**, **state**, **phone**, **linkedin**, **instagram**, **notes**, **bio**, and permission booleans (**volunteer**, **applications**, **bills**, **registration**, **blog** where applicable). New members are created with **`registration_complete = false`** so they are prompted to complete the registration form on first login.  
 - **Who can do it:** The dashboard only shows Member Management (and thus Add Member) to members who have the **registration** permission. The actual create is done via an RPC that runs with elevated privileges (see below), so the database doesn’t rely on RLS for this insert.
 
-**Implementation notes:** New or renamed member fields need matching updates in the form state and the `create_member` RPC parameters. “Accept & Add Member” opens a pre-filled Add Member modal; creation still goes through **Add Member** and the RPC (not a single-click create). Editing an existing member uses Update Member / `update_member`, not this add flow.
+**Implementation notes:** New or renamed member fields need matching updates in the form state and the **`create_member`** / **`update_member`** RPC parameters. “Accept & Add Member” opens a pre-filled Add Member modal; creation still goes through **Add Member** and the RPC (not a single-click create). Editing an existing member uses Update Member / `update_member`, not this add flow. Display helpers for **public vs legal** naming live in **`src/lib/memberDisplayName.js`** (`memberSiteDisplayName`, `memberLegalName`).
 
 ---
 

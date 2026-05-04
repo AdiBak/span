@@ -51,6 +51,8 @@ span/
 
 │       ├── legiscan.js   \# LegiScan API helper
 
+│       ├── memberDisplayName.js   \# Public vs legal display names (preferred / first+middle+last)
+
 │       └── generateVolunteerPDF.js   \# Client-side PDF for volunteer verification
 
 ├── supabase/
@@ -135,7 +137,7 @@ These pages are visible to everyone (no login required). A short overview of eac
   - **Application form** posts to `applications` (and optional resume to `applications-resumes` bucket);   
   - **SchoolsCarousel** loads from `schools` (active only);   
   - **PartnersCarousel** from `partners` (active only);   
-  - **TeamSection** from `members` (for team display).   
+  - **TeamSection** from `members` (for team display; names use **preferred public name** when set, otherwise legal first/middle/last).   
   - HomePage itself doesn’t call Supabase; the child components do.  
       
 - **Where:** `src/pages/HomePage.jsx`, plus `src/components/ApplicationForm.jsx`, `SchoolsCarousel.jsx`, `PartnersCarousel.jsx`, `TeamSection.jsx`, `ImpactMap.jsx`.
@@ -155,7 +157,7 @@ These pages are visible to everyone (no login required). A short overview of eac
 
 - **What visitors see:** Blog posts in a list (featured post first, then paginated). Each post has a title, excerpt, author, link to full post.  
 - **Data:** Posts come from **Medium via RSS** (using rss2json.com), not from our database.   
-  - Author names are optionally matched to **members** so they can link to the Directory profile.  
+  - Author names are optionally matched to **members** (using the same display-name rules as the directory) so they can link to the Directory profile.  
 - **Where:** `src/pages/BlogPage.jsx` (fetches RSS, optionally loads members for directory links). Individual post view: `BlogPostPage.jsx` (same RSS/post data, single post). `BlogCard` in `src/components/`.
 
 ### Our Story (`our-story.html` → OurStoryPage)
@@ -166,7 +168,7 @@ These pages are visible to everyone (no login required). A short overview of eac
 
 ### Directory (`directory.html` → DirectoryPage)
 
-- **What visitors see:** List of **active** SPAN members with photo, name, role, and optional links (e.g. email, LinkedIn). Often filterable or searchable.  
+- **What visitors see:** List of **active** SPAN members with photo, **display name** (preferred name when set, otherwise legal name), role, and optional links (e.g. email, LinkedIn). Often filterable or searchable.  
 - **Data:**   
   - **Members** from `members` table (typically `active = true` only for public directory).   
   - Profile photos from `members-images` storage bucket.  

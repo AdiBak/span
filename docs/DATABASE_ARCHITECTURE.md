@@ -20,7 +20,7 @@ Almost everything ties back to **`members`**.
 
 | What | Meaning |
 | :---- | :---- |
-| **Who they are** | Name, email, phone, school, city, state, DOB, bio, profile image, etc. |
+| **Who they are** | Legal name: **first\_name**, optional **middle\_name**, **last\_name**. Optional **preferred\_name** controls how the person appears on the public directory, team cards, and similar surfaces (when empty, the app uses the legal name). Org email addresses stay **`firstname.lastname@…`** style from first + last only. Plus email, phone, school, city, state, DOB, bio, profile image, etc. |
 | **Auth** | `user_id` points to `auth.users.id`. If set, they can log in. |
 | **Permissions** | Four booleans: `volunteer`, `applications`, `bills`, `registration`. They control what that person can do in the dashboard (e.g. approve volunteer hours, review applications, submit/approve bills, manage members). |
 | **Exec** | A member with **all four** **permissions** true. Execs can approve bills, manage members, view any member’s dashboard, handle HR reports, approve leave/extension requests, etc. |
@@ -107,6 +107,7 @@ Files live in **Supabase Storage**, not in PostgreSQL. The DB only stores **file
   - **Own rows only** — e.g. volunteer entries where `member_id` \= that member (so you only see your own unless you have permission).  
   - **All rows** — for **execs** (all four permission booleans true), e.g. view any member’s data, approve bills.  
 - **Admin-style writes** (create/update members, update report status) go through **RPC functions** in the migrations. Those run with elevated privileges (`SECURITY DEFINER`) so they can do things RLS would block. The app calls them with `supabase.rpc('function_name', { ... })`.
+- **Own `members` row updates:** policies may compare the session to the row using **JWT claims** (email / `user_id`) rather than selecting from **`auth.users`**, so members can update their profile without needing table privileges on `auth.users`. See migration **`members_rls_use_jwt_email_not_auth_users.sql`**.
 
 **In one line:** Tables \= what data we have; **RLS** \= who can see/change it; **RPC** \= when we need a controlled admin action.
 

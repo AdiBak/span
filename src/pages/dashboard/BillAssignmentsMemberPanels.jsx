@@ -113,7 +113,7 @@ export function BillAssignmentsMemberAssignedPanel({
         )}
       <p className="text-muted small mb-3">
         Work items assigned by the exec team. A task may be shared with several members—everyone sees the same deliverables and
-        status. Add both a proposal doc link and a proposal PDF URL, save, then mark complete when ready for review.
+        status. Add a proposal doc link (required), optionally a PDF link, save, then mark complete when ready for review.
       </p>
       <div className="btn-group flex-wrap mb-3" role="group">
         {MEMBER_STATUS_FILTERS.map((key) => (
@@ -205,9 +205,7 @@ export function BillAssignmentsMemberAssignedPanel({
                         <small className="text-muted">Provide a link to the proposal doc so it can be edited.</small>
                       </div>
                       <div className="mb-3">
-                        <label className="form-label small mb-0">
-                          Proposal PDF URL <span className="text-danger">*</span>
-                        </label>
+                        <label className="form-label small mb-0">Proposal PDF URL (optional)</label>
                         <input
                           type="url"
                           className="form-control form-control-sm"
@@ -221,7 +219,7 @@ export function BillAssignmentsMemberAssignedPanel({
                             }))
                           }
                         />
-                        <small className="text-muted">Link to the PDF (e.g. shared Drive file).</small>
+                        <small className="text-muted">Optional — link to a PDF if separate from the doc above.</small>
                       </div>
                       <div className="d-flex flex-wrap gap-2">
                         {a.status !== 'approved' && !viewAsData && (

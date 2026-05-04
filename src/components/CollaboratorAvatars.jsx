@@ -1,4 +1,5 @@
 import React from 'react'
+import { memberLegalName, memberSiteDisplayName } from '../lib/memberDisplayName'
 
 function CollaboratorAvatars({ collaborators, members, billIndex, onCollaboratorClick }) {
   if (!collaborators || !Array.isArray(collaborators) || collaborators.length === 0) {
@@ -7,9 +8,11 @@ function CollaboratorAvatars({ collaborators, members, billIndex, onCollaborator
 
   const findMemberByName = (fullName) => {
     const lowerName = fullName.trim().toLowerCase()
-    return members.find(m => {
-      const memberFullName = `${m.first_name} ${m.last_name}`.toLowerCase()
-      return memberFullName === lowerName
+    return members.find((m) => {
+      const legal = memberLegalName(m).toLowerCase()
+      const site = memberSiteDisplayName(m).toLowerCase()
+      const legacy = `${m.first_name || ''} ${m.last_name || ''}`.trim().toLowerCase()
+      return legal === lowerName || site === lowerName || legacy === lowerName
     })
   }
 
@@ -44,8 +47,8 @@ function CollaboratorAvatars({ collaborators, members, billIndex, onCollaborator
         <img
           key={i}
           src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/${collab.image}`}
-          alt={`${collab.first_name} ${collab.last_name}`}
-          title={`${collab.first_name} ${collab.last_name}`}
+          alt={memberSiteDisplayName(collab)}
+          title={memberSiteDisplayName(collab)}
           className="collaborator-avatar"
           loading="lazy"
           decoding="async"

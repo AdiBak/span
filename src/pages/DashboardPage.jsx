@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import RegistrationForm from '../components/RegistrationForm'
 import BillResearchPanel from '../components/BillResearchPanel'
 import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
+import { memberLegalName, memberSiteDisplayName } from '../lib/memberDisplayName'
 import { billStateGroupKey, canonicalUSStateName } from '../lib/usStateCanonical'
 import { fetchLegiscanBillBySearch, isLegiscanBillNumberShape } from '../lib/legiscan'
 import { isAllowedApplicationStatusTransition } from './dashboard/applications'
@@ -45,7 +46,7 @@ import BillPdfPreviewModal from './dashboard/BillPdfPreviewModal'
 import DeleteVolunteerEntryModal from './dashboard/DeleteVolunteerEntryModal'
 import MemberFormModal from './dashboard/MemberFormModal'
 import MemberManagementSection from './dashboard/MemberManagementSection'
-import PolicyTeamsPanel from './dashboard/PolicyTeamsPanel'
+import ExecTeamsSection from './dashboard/ExecTeamsSection'
 import TeamLeadAssignmentsSection from './dashboard/TeamLeadAssignmentsSection'
 import ExecBillManagementSection from './dashboard/ExecBillManagementSection'
 import BillSubmissionSection from './dashboard/BillSubmissionSection'
@@ -129,6 +130,8 @@ function DashboardPage() {
   const [execAssignmentTeamFilter, setExecAssignmentTeamFilter] = useState('all')
   const [memberAssignmentFilter, setMemberAssignmentFilter] = useState('all')
   const [showAssignBillModal, setShowAssignBillModal] = useState(false)
+  /** When true, Assign work modal omits bill prefill (staff / non-policy team context). */
+  const [assignBillModalHidePrefill, setAssignBillModalHidePrefill] = useState(false)
   const [assignBillForm, setAssignBillForm] = useState({
     title: '',
     goal: '',
@@ -194,6 +197,8 @@ function DashboardPage() {
   const [memberForm, setMemberForm] = useState({
     firstName: '',
     lastName: '',
+    middleName: '',
+    preferredName: '',
     email: '',
     originalEmail: '',
     role: '',
@@ -337,6 +342,11 @@ function DashboardPage() {
   const [profilePicError, setProfilePicError] = useState('')
   const [profilePicSuccess, setProfilePicSuccess] = useState('')
   const [profilePicVersion, setProfilePicVersion] = useState(0) // cache-buster so browser shows new image after update
+  const [preferredNameDraft, setPreferredNameDraft] = useState('')
+  const [preferredNameEditOpen, setPreferredNameEditOpen] = useState(false)
+  const [preferredNameSaving, setPreferredNameSaving] = useState(false)
+  const [preferredNameError, setPreferredNameError] = useState('')
+  const [preferredNameSuccess, setPreferredNameSuccess] = useState('')
   const profilePicInputRef = useRef(null)
   const [memberPhotoTarget, setMemberPhotoTarget] = useState(null)
   const [memberPhotoLoading, setMemberPhotoLoading] = useState(false)
@@ -424,12 +434,13 @@ function DashboardPage() {
     )
   }, [member, viewAsData, policyTeams])
 
-  /** Bill-permission members; team leads only see their policy team roster. */
+  /** Assignee dropdown: execs see all active members (policy + staff teams). Team leads see their team roster (bill filter only for policy teams). */
   const assigneePickerMembers = useMemo(() => {
+    const allActive = (allMembersForManagement || []).filter((m) => m.active !== false)
     const billsMembers = (allMembersForManagement || []).filter(
       (m) => m.bills === true || m.bills === 'true'
     )
-    if (isExec) return billsMembers
+    if (isExec) return allActive
     if (!isTeamLeadUser) return billsMembers
     const subject = viewAsData?.member ?? member
     const ledTeams = (policyTeams || []).filter(
@@ -438,17 +449,22 @@ function DashboardPage() {
     if (ledTeams.length === 0) return billsMembers
     const allowed = new Set()
     for (const led of ledTeams) {
+      const kind = led.team_kind || 'policy'
       for (const mpt of memberPolicyTeams || []) {
-        if (String(mpt.team_id) === String(led.team_id)) allowed.add(String(mpt.member_id))
+        if (String(mpt.team_id) !== String(led.team_id)) continue
+        if (kind === 'policy') {
+          const row = (allMembersForManagement || []).find(
+            (x) => String(x.member_id) === String(mpt.member_id)
+          )
+          if (row && (row.bills === true || row.bills === 'true')) allowed.add(String(mpt.member_id))
+        } else {
+          allowed.add(String(mpt.member_id))
+        }
       }
     }
-    const fromMgmt = billsMembers.filter((m) => allowed.has(String(m.member_id)))
+    const fromMgmt = allActive.filter((m) => allowed.has(String(m.member_id)))
     if (fromMgmt.length > 0) return fromMgmt
-    /* Team leads may not have registration permission; roster fetch supplies rows. */
-    return (teamRosterMembers || []).filter(
-      (m) =>
-        allowed.has(String(m.member_id)) && (m.bills === true || m.bills === 'true')
-    )
+    return (teamRosterMembers || []).filter((m) => allowed.has(String(m.member_id)))
   }, [
     allMembersForManagement,
     isExec,
@@ -460,6 +476,12 @@ function DashboardPage() {
     teamRosterMembers,
   ])
 
+  const memberHasAssignmentWork = useMemo(() => {
+    if (!member?.member_id || !(billAssignments || []).length) return false
+    const mid = String(member.member_id)
+    return billAssignments.some((a) => billAssignmentAssigneeIds(a).map(String).includes(mid))
+  }, [member, billAssignments])
+
   const memberTeamNameById = useMemo(() => {
     const teamNameById = {}
     for (const t of policyTeams || []) {
@@ -469,6 +491,18 @@ function DashboardPage() {
     for (const row of memberPolicyTeams || []) {
       const tid = String(row.team_id || '')
       out[String(row.member_id)] = teamNameById[tid] || 'Unassigned teams'
+    }
+    // Team leads may not appear on member_policy_teams; still tag them with teams they lead.
+    for (const t of policyTeams || []) {
+      if (t.active === false) continue
+      const nm = teamNameById[String(t.team_id)] || 'Unassigned teams'
+      for (const lid of policyTeamLeadIds(t)) {
+        if (!lid) continue
+        const key = String(lid)
+        if (out[key] == null || out[key] === 'Unassigned teams') {
+          out[key] = nm
+        }
+      }
     }
     return out
   }, [policyTeams, memberPolicyTeams])
@@ -480,6 +514,45 @@ function DashboardPage() {
     if (names.length === 1) return names[0]
     return 'Multiple teams'
   }
+
+  const computeAssignBillModalHidePrefill = useCallback(
+    (forEdit, assignment) => {
+      const subject = viewAsData?.member ?? member
+      const mid = subject?.member_id != null ? String(subject.member_id) : ''
+
+      if (isTeamLeadUser && !isExec) {
+        const led = (policyTeams || []).filter(
+          (t) => t.active !== false && policyTeamLeadIds(t).includes(mid)
+        )
+        if (led.length === 0) return false
+        return !led.some((t) => (t.team_kind || 'policy') === 'policy')
+      }
+
+      if (forEdit && assignment) {
+        const label = assignmentTeamLabel(assignment)
+        if (label === 'Multiple teams' || label === 'Open pool') return false
+        const team = (policyTeams || []).find((t) => String(t.name || '').trim() === label)
+        if (team && (team.team_kind || 'policy') !== 'policy') return true
+        return false
+      }
+
+      if (isExec && execAssignmentTeamFilter !== 'all') {
+        const label = execAssignmentTeamFilter
+        const team = (policyTeams || []).find((t) => String(t.name || '').trim() === label)
+        if (team && (team.team_kind || 'policy') !== 'policy') return true
+      }
+      return false
+    },
+    [
+      isTeamLeadUser,
+      isExec,
+      member,
+      viewAsData,
+      policyTeams,
+      execAssignmentTeamFilter,
+      assignmentTeamLabel,
+    ]
+  )
 
   // Load member data
   useEffect(() => {
@@ -516,12 +589,12 @@ function DashboardPage() {
   // Load additional data based on permissions after member is loaded
   useEffect(() => {
     if (member) {
+      loadPolicyTeams()
+      loadBillAssignments()
       // Load bills based on permissions
       if (hasPermission('bills')) {
         loadAllBills()
-        loadBillAssignments()
         loadResearchBills()
-        loadPolicyTeams()
       }
       if (hasPermission('applications')) {
         loadApplications()
@@ -598,6 +671,19 @@ function DashboardPage() {
         .finally(() => setViewAsLoading(false))
     })
   }, [member])
+
+  useEffect(() => {
+    const m = viewAsData?.member ?? member
+    if (!m?.member_id) {
+      setPreferredNameDraft('')
+      return
+    }
+    setPreferredNameDraft(m.preferred_name ?? '')
+  }, [member?.member_id, member?.preferred_name, viewAsData?.member?.member_id, viewAsData?.member?.preferred_name])
+
+  useEffect(() => {
+    if (viewAsData) setPreferredNameEditOpen(false)
+  }, [viewAsData])
 
   // Draft inputs for assignee deliverable fields (preserve typing when list refreshes)
   useEffect(() => {
@@ -2101,6 +2187,33 @@ function DashboardPage() {
     }
   }
 
+  const handleSavePreferredPublicName = async () => {
+    if (viewAsData || !member?.member_id) return
+    setPreferredNameError('')
+    setPreferredNameSuccess('')
+    setPreferredNameSaving(true)
+    try {
+      const v = preferredNameDraft.trim() || null
+      const { error } = await supabase.from('members').update({ preferred_name: v }).eq('member_id', member.member_id)
+      if (error) throw error
+      setMember((prev) => (prev ? { ...prev, preferred_name: v } : null))
+      setPreferredNameEditOpen(false)
+      setPreferredNameSuccess('Preferred name saved.')
+      setTimeout(() => setPreferredNameSuccess(''), 3000)
+    } catch (err) {
+      setPreferredNameError(err.message || 'Could not save preferred name.')
+    } finally {
+      setPreferredNameSaving(false)
+    }
+  }
+
+  const handleCancelPreferredNameEdit = () => {
+    setPreferredNameDraft(member?.preferred_name ?? '')
+    setPreferredNameEditOpen(false)
+    setPreferredNameError('')
+    setPreferredNameSuccess('')
+  }
+
   // Exec: change a member's profile picture (Member Management)
   const handleExecChangeMemberPhoto = (memberItem) => {
     setMemberPhotoTarget(memberItem.member_id)
@@ -2380,7 +2493,7 @@ function DashboardPage() {
     ctx.shadowColor = 'rgba(0,0,0,0.3)'
     ctx.shadowBlur = 10
 
-    const fullName = `${member.first_name} ${member.last_name}`
+    const fullName = memberLegalName(member) || `${member.first_name} ${member.last_name}`
     const fontSize = shrinkText(ctx, fullName, leftW - 2 * padding, 100)
     ctx.font = `bold ${fontSize}px ${ctx.fontFamily}`
     ctx.fillText(fullName, textX, y)
@@ -2738,6 +2851,7 @@ function DashboardPage() {
 
   const resetAssignBillForm = () => {
     setAssignBillError('')
+    setAssignBillModalHidePrefill(false)
     setAssignBillForm({
       title: '',
       goal: '',
@@ -2760,12 +2874,14 @@ function DashboardPage() {
 
   const handleOpenAssignBillModal = () => {
     resetAssignBillForm()
+    setAssignBillModalHidePrefill(computeAssignBillModalHidePrefill(false, null))
     setShowAssignBillModal(true)
   }
 
   const handleOpenEditAssignmentModal = (a) => {
     setEditingAssignment(a)
     setAssignBillError('')
+    setAssignBillModalHidePrefill(computeAssignBillModalHidePrefill(true, a))
     setAssignBillForm({
       title: a.title || '',
       goal: a.goal || '',
@@ -2790,7 +2906,7 @@ function DashboardPage() {
     const ids = [...new Set((assignBillForm.assigneeMemberIds || []).filter(Boolean))]
     if (!assignBillForm.poolOpen) {
       if (ids.length === 0) {
-        setAssignBillError('Select at least one assignee with Bill permission, or post as an open task.')
+        setAssignBillError('Select at least one assignee, or post as an open task.')
         return
       }
       for (const mid of ids) {
@@ -2798,8 +2914,8 @@ function DashboardPage() {
         if (!ok) {
           setAssignBillError(
             isTeamLeadUser && !isExec
-              ? 'Each assignee must be on your policy team with Bill permission.'
-              : 'Each assignee must be a member with Bill permission.'
+              ? 'Each assignee must be on one of your teams’ rosters (Bill permission required only for policy/bill teams).'
+              : 'Each assignee must be selectable from the assignee list.'
           )
           return
         }
@@ -2808,6 +2924,15 @@ function DashboardPage() {
     if (!member?.member_id) return
     setAssignBillSaving(true)
 
+    const prefillPayload = assignBillModalHidePrefill
+      ? { prefill_state: null, prefill_bill_name: null, prefill_position: null }
+      : {
+          prefill_state:
+            canonicalUSStateName(assignBillForm.prefillState) || assignBillForm.prefillState?.trim() || null,
+          prefill_bill_name: assignBillForm.prefillBillName?.trim() || null,
+          prefill_position: normalizeBillFormPosition(assignBillForm.prefillPosition),
+        }
+
     if (editingAssignment) {
       const prev = editingAssignment
       const base = {
@@ -2815,9 +2940,7 @@ function DashboardPage() {
         goal: assignBillForm.goal.trim(),
         additional_info: assignBillForm.additionalInfo?.trim() || null,
         due_date: assignBillForm.dueDate?.trim() || null,
-        prefill_state: canonicalUSStateName(assignBillForm.prefillState) || assignBillForm.prefillState?.trim() || null,
-        prefill_bill_name: assignBillForm.prefillBillName?.trim() || null,
-        prefill_position: normalizeBillFormPosition(assignBillForm.prefillPosition),
+        ...prefillPayload,
       }
       try {
         let payload
@@ -2856,11 +2979,6 @@ function DashboardPage() {
       return
     }
 
-    const prefill = {
-      prefill_state: canonicalUSStateName(assignBillForm.prefillState) || assignBillForm.prefillState?.trim() || null,
-      prefill_bill_name: assignBillForm.prefillBillName?.trim() || null,
-      prefill_position: normalizeBillFormPosition(assignBillForm.prefillPosition),
-    }
     const row = assignBillForm.poolOpen
       ? {
           title: assignBillForm.title.trim(),
@@ -2869,7 +2987,7 @@ function DashboardPage() {
           assigned_by_member_id: member.member_id,
           due_date: assignBillForm.dueDate?.trim() || null,
           status: 'available',
-          ...prefill,
+          ...prefillPayload,
         }
       : {
           title: assignBillForm.title.trim(),
@@ -2878,7 +2996,7 @@ function DashboardPage() {
           assigned_by_member_id: member.member_id,
           due_date: assignBillForm.dueDate?.trim() || null,
           status: 'not_started',
-          ...prefill,
+          ...prefillPayload,
         }
     try {
       const { data: inserted, error } = await supabase.from('bill_assignments').insert(row).select('assignment_id').single()
@@ -3034,8 +3152,8 @@ function DashboardPage() {
     if (!draft) return
     const doc = (draft.doc || '').trim()
     const pdf = (draft.pdf || '').trim()
-    if (!doc || !pdf) {
-      alert('Add both a proposal doc link and a proposal PDF URL before saving.')
+    if (!doc?.trim()) {
+      alert('Add a proposal doc link before saving.')
       return
     }
     const { error } = await supabase
@@ -3057,8 +3175,8 @@ function DashboardPage() {
     const draft = memberDeliverableInputs[assignmentId] || {}
     const doc = draft.doc?.trim() || ''
     const pdf = draft.pdf?.trim() || ''
-    if (status === 'completed' && (!doc || !pdf)) {
-      alert('Add both a proposal doc link and a proposal PDF URL before marking complete.')
+    if (status === 'completed' && !doc?.trim()) {
+      alert('Add a proposal doc link before marking complete. (PDF link is optional.)')
       return
     }
     const payload = { status }
@@ -3505,6 +3623,8 @@ function DashboardPage() {
     setMemberForm({
       firstName: '',
       lastName: '',
+      middleName: '',
+      preferredName: '',
       email: '',
       originalEmail: '',
       role: '',
@@ -3550,6 +3670,8 @@ function DashboardPage() {
     setMemberForm({
       firstName: firstName,
       lastName: lastName,
+      middleName: '',
+      preferredName: '',
       email: spanEmail,
       originalEmail: application.email || '',
       role: '', // Leave role empty for admin to fill
@@ -3674,6 +3796,8 @@ function DashboardPage() {
     setMemberForm({
       firstName: memberToEdit.first_name || '',
       lastName: memberToEdit.last_name || '',
+      middleName: memberToEdit.middle_name || '',
+      preferredName: memberToEdit.preferred_name || '',
       email: memberToEdit.email || '',
       originalEmail: memberToEdit.original_email || '',
       role: memberToEdit.role || '',
@@ -3700,7 +3824,31 @@ function DashboardPage() {
   }
 
   const handleSaveMember = async () => {
-    const { firstName, lastName, email, originalEmail, role, active, startDate, dob, schoolName, city, state, phone, linkedin, instagram, notes, bio, volunteer, applications, bills, registration, blog } = memberForm
+    const {
+      firstName,
+      lastName,
+      middleName,
+      preferredName,
+      email,
+      originalEmail,
+      role,
+      active,
+      startDate,
+      dob,
+      schoolName,
+      city,
+      state,
+      phone,
+      linkedin,
+      instagram,
+      notes,
+      bio,
+      volunteer,
+      applications,
+      bills,
+      registration,
+      blog,
+    } = memberForm
     setMemberError('')
     setMemberSuccess('')
 
@@ -3728,6 +3876,8 @@ function DashboardPage() {
           p_member_id: editingMemberId,
           p_first_name: firstName.trim(),
           p_last_name: lastName.trim(),
+          p_middle_name: middleName.trim(),
+          p_preferred_name: preferredName.trim(),
           p_email: email.trim().toLowerCase(),
           p_original_email: originalEmail.trim().toLowerCase(),
           p_role: role.trim(),
@@ -3746,7 +3896,7 @@ function DashboardPage() {
           p_applications: applications,
           p_bills: bills,
           p_registration: registration,
-          p_blog: blog
+          p_blog: blog,
         })
 
         if (updateError) {
@@ -3761,6 +3911,8 @@ function DashboardPage() {
         const { data: memberDataResult, error: insertError } = await supabase.rpc('create_member', {
           p_first_name: firstName.trim(),
           p_last_name: lastName.trim(),
+          p_middle_name: middleName.trim(),
+          p_preferred_name: preferredName.trim(),
           p_email: email.trim().toLowerCase(),
           p_original_email: originalEmail.trim().toLowerCase(),
           p_role: role.trim(),
@@ -3779,7 +3931,7 @@ function DashboardPage() {
           p_applications: applications,
           p_bills: bills,
           p_registration: registration,
-          p_blog: blog
+          p_blog: blog,
         })
 
         if (insertError) {
@@ -3797,6 +3949,8 @@ function DashboardPage() {
       setMemberForm({
         firstName: '',
         lastName: '',
+        middleName: '',
+        preferredName: '',
         email: '',
         originalEmail: '',
         role: '',
@@ -4914,7 +5068,7 @@ function DashboardPage() {
   }
 
   const effectiveMember = viewAsData?.member ?? member
-  const fullName = `${effectiveMember.first_name || ''} ${effectiveMember.last_name || ''}`.trim()
+  const dashboardDisplayName = memberSiteDisplayName(effectiveMember)
 
   // SVG filenames under /images/states/ — align with canonical state names
   const getStateFileName = (state) => {
@@ -5010,7 +5164,7 @@ function DashboardPage() {
           <div className="alert alert-dark d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
             <span>
               <i className="bi bi-person-badge me-2" />
-              Viewing dashboard as <strong>{effectiveMember.first_name} {effectiveMember.last_name}</strong>
+              Viewing dashboard as <strong>{dashboardDisplayName}</strong>
             </span>
             <a href="/dashboard" className="btn btn-sm btn-light text-dark">Exit view</a>
           </div>
@@ -5071,7 +5225,68 @@ function DashboardPage() {
               </button>
             </div>
           )}
-          <h2>{fullName}</h2>
+          {preferredNameEditOpen && !viewAsData ? (
+            <div className="mx-auto mt-1" style={{ maxWidth: '420px', width: '100%' }}>
+              <label className="form-label small text-muted mb-1" htmlFor="dashboard-preferred-name-input">
+                Preferred public name (directory and blog)
+              </label>
+              <input
+                id="dashboard-preferred-name-input"
+                type="text"
+                className="form-control text-center"
+                value={preferredNameDraft}
+                onChange={(e) => setPreferredNameDraft(e.target.value)}
+                placeholder="Leave blank to use your legal first / middle / last"
+                disabled={preferredNameSaving}
+                autoComplete="name"
+              />
+              <p className="small text-muted mt-2 mb-2">
+                Your SPAN email stays first.last. Execs can also set this in Member Management.
+              </p>
+              <div className="d-flex gap-2 justify-content-center flex-wrap">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-dark"
+                  onClick={handleSavePreferredPublicName}
+                  disabled={preferredNameSaving}
+                >
+                  {preferredNameSaving ? 'Saving…' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={handleCancelPreferredNameEdit}
+                  disabled={preferredNameSaving}
+                >
+                  Cancel
+                </button>
+              </div>
+              {preferredNameError && <div className="small text-danger mt-2">{preferredNameError}</div>}
+            </div>
+          ) : (
+            <div className="d-flex align-items-center justify-content-center gap-1 flex-wrap">
+              <h2 className="mb-0">{dashboardDisplayName}</h2>
+              {!viewAsData && (
+                <button
+                  type="button"
+                  className="btn btn-link text-dark p-1 lh-1"
+                  onClick={() => {
+                    setPreferredNameDraft(member?.preferred_name ?? '')
+                    setPreferredNameError('')
+                    setPreferredNameSuccess('')
+                    setPreferredNameEditOpen(true)
+                  }}
+                  title="Edit preferred public name"
+                  aria-label="Edit preferred public name"
+                >
+                  <i className="bi bi-pencil-square fs-4" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          )}
+          {preferredNameSuccess && !preferredNameEditOpen && (
+            <div className="small text-success mt-1">{preferredNameSuccess}</div>
+          )}
           <p className="text-muted">{effectiveMember.role || '-'}</p>
           <div className="mt-2">
             {effectiveMember.linkedin && (
@@ -5342,6 +5557,7 @@ function DashboardPage() {
                     </div>
                   </div>
                 </div>
+
               </div>
             </div>
           </div>
@@ -5523,11 +5739,11 @@ function DashboardPage() {
           />
         )}
 
-        {/* Bill Submission Section - Members with Bills (non-exec); execs see this when viewing-as such a member */}
+        {/* Bill Submission Section - bills permission or assignment-only members (non-exec); execs see this when viewing-as */}
         {(() => {
           const hasBills = hasPermission('bills')
           const isExecUser = hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration')
-          return hasBills && !isExecUser
+          return (hasBills || memberHasAssignmentWork) && !isExecUser
         })() && (
           <BillSubmissionSection
             sectionOrder={dashboardOrder.billSubmission}
@@ -5575,7 +5791,7 @@ function DashboardPage() {
           <MemberManagementSection
             policyTeamsAdminSlot={
               !viewAsData && isExec ? (
-                <PolicyTeamsPanel
+                <ExecTeamsSection
                   policyTeams={policyTeams}
                   memberPolicyTeams={memberPolicyTeams}
                   allMembersForManagement={allMembersForManagement}
@@ -6131,6 +6347,7 @@ function DashboardPage() {
       <AssignBillWorkModal
         open={showAssignBillModal}
         editingAssignment={editingAssignment}
+        hideBillPrefill={assignBillModalHidePrefill}
         assignBillForm={assignBillForm}
         setAssignBillForm={setAssignBillForm}
         assignBillError={assignBillError}

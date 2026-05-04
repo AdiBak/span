@@ -74,6 +74,29 @@ export default function MemberFormModal({
                   />
                 </div>
                 <div className="col-md-6">
+                  <label className="form-label">Middle name (optional)</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={memberForm.middleName}
+                    onChange={(e) => setMemberForm({ ...memberForm, middleName: e.target.value })}
+                    placeholder="Not used for SPAN email"
+                  />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label">Preferred public name (optional)</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={memberForm.preferredName}
+                    onChange={(e) => setMemberForm({ ...memberForm, preferredName: e.target.value })}
+                    placeholder="Shown on directory & blog; leave blank to use first (middle) last"
+                  />
+                  <small className="text-muted">
+                    Members can also edit this from their dashboard. Does not change SPAN email (first.last only).
+                  </small>
+                </div>
+                <div className="col-md-6">
                   <label className="form-label">
                     Email (SPAN Email) <span className="text-danger">*</span>
                   </label>
@@ -88,7 +111,9 @@ export default function MemberFormModal({
                     placeholder="firstname.lastname@spanationwide.org"
                     required
                   />
-                  <small className="text-muted">Auto-generated from name, or enter manually</small>
+                  <small className="text-muted">
+                    Auto-generated as first.last@spanationwide.org from first and last name only, or enter manually
+                  </small>
                 </div>
                 <div className="col-md-6">
                   <label className="form-label">

@@ -1,4 +1,5 @@
 import React from 'react'
+import { memberLegalName, memberSiteDisplayName } from '../../lib/memberDisplayName'
 
 export default function MemberManagementSection({
   policyTeamsAdminSlot,
@@ -93,9 +94,7 @@ export default function MemberManagementSection({
                             )}
                             <div className="d-flex flex-column text-start">
                               <div className="d-flex align-items-center gap-2 flex-wrap">
-                                <span className="fw-bold">
-                                  {memberItem.first_name} {memberItem.last_name}
-                                </span>
+                                <span className="fw-bold">{memberSiteDisplayName(memberItem)}</span>
                                 <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
                                 {execStrikeUi && strikeCountByMember && strikeLimitForMemberRow && (
                                   <span
@@ -108,7 +107,10 @@ export default function MemberManagementSection({
                                   </span>
                                 )}
                               </div>
-                              <small className="text-muted">{memberItem.email}</small>
+                              {memberItem.preferred_name?.trim() && (
+                                <small className="text-muted">Legal: {memberLegalName(memberItem)}</small>
+                              )}
+                              <small className="text-muted d-block">{memberItem.email}</small>
                             </div>
                           </div>
                         </button>
@@ -157,10 +159,11 @@ export default function MemberManagementSection({
                               </div>
                             </div>
                             <div className="col-md-6">
-                              <strong>Name:</strong>
-                              <p className="mt-1 mb-0">
-                                {memberItem.first_name} {memberItem.last_name}
-                              </p>
+                              <strong>Name (public):</strong>
+                              <p className="mt-1 mb-0">{memberSiteDisplayName(memberItem)}</p>
+                              {memberItem.preferred_name?.trim() && (
+                                <small className="text-muted">Legal: {memberLegalName(memberItem)}</small>
+                              )}
                             </div>
                             <div className="col-md-6">
                               <strong>Email:</strong>
@@ -333,9 +336,7 @@ export default function MemberManagementSection({
                             )}
                             <div className="d-flex flex-column text-start">
                               <div className="d-flex align-items-center gap-2 flex-wrap">
-                                <span className="fw-bold">
-                                  {memberItem.first_name} {memberItem.last_name}
-                                </span>
+                                <span className="fw-bold">{memberSiteDisplayName(memberItem)}</span>
                                 <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
                                 {execStrikeUi && strikeCountByMember && strikeLimitForMemberRow && (
                                   <span
@@ -348,7 +349,10 @@ export default function MemberManagementSection({
                                   </span>
                                 )}
                               </div>
-                              <small className="text-muted">{memberItem.email}</small>
+                              {memberItem.preferred_name?.trim() && (
+                                <small className="text-muted">Legal: {memberLegalName(memberItem)}</small>
+                              )}
+                              <small className="text-muted d-block">{memberItem.email}</small>
                             </div>
                           </div>
                         </button>
@@ -397,10 +401,11 @@ export default function MemberManagementSection({
                               </div>
                             </div>
                             <div className="col-md-6">
-                              <strong>Name:</strong>
-                              <p className="mt-1 mb-0">
-                                {memberItem.first_name} {memberItem.last_name}
-                              </p>
+                              <strong>Name (public):</strong>
+                              <p className="mt-1 mb-0">{memberSiteDisplayName(memberItem)}</p>
+                              {memberItem.preferred_name?.trim() && (
+                                <small className="text-muted">Legal: {memberLegalName(memberItem)}</small>
+                              )}
                             </div>
                             <div className="col-md-6">
                               <strong>Email:</strong>

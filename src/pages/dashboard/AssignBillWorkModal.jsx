@@ -8,6 +8,7 @@ import { assignTaskPrefillBillOptionLabel, normalizeBillFormPosition } from './b
 export default function AssignBillWorkModal({
   open,
   editingAssignment,
+  hideBillPrefill = false,
   assignBillForm,
   setAssignBillForm,
   assignBillError,
@@ -39,6 +40,7 @@ export default function AssignBillWorkModal({
               <button type="button" className="btn-close" aria-label="Close" onClick={onClose} />
             </div>
             <div className="modal-body">
+              {!hideBillPrefill && (
               <div className="border rounded p-3 mb-3 bg-light">
                 <label className="form-label fw-semibold">Bill prefill (optional)</label>
                 <p className="small text-muted mb-2">
@@ -134,6 +136,7 @@ export default function AssignBillWorkModal({
                   </div>
                 </div>
               </div>
+              )}
               <div className="mb-3">
                 <label className="form-label">Topic / concept</label>
                 <input
@@ -197,13 +200,20 @@ export default function AssignBillWorkModal({
                 <div className="mb-3">
                   <label className="form-label">Assignees</label>
                   <p className="form-text small text-muted mb-2">
-                    Only members with <strong>Bill</strong> permission. Everyone checked shares the same task; deliverables and
-                    status update for all.
+                    {hideBillPrefill ? (
+                      <>Everyone checked shares the same task; deliverables and status update for all.</>
+                    ) : (
+                      <>
+                        Only members with <strong>Bill</strong> permission. Everyone checked shares the same task; deliverables
+                        and status update for all.
+                      </>
+                    )}
                   </p>
                   {assigneePickerMembers.length === 0 && assignBillForm.assigneeMemberIds.length === 0 ? (
                     <div className="alert alert-warning small mb-0 py-2">
-                      No members have Bill permission yet. Enable it in Member Management for at least one member, or choose an
-                      open task instead.
+                      {hideBillPrefill
+                        ? 'No members are available to assign yet. Add people to the team roster, or choose an open task instead.'
+                        : 'No members have Bill permission yet. Enable it in Member Management for at least one member, or choose an open task instead.'}
                     </div>
                   ) : (
                     <>

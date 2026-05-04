@@ -19,12 +19,22 @@ function normalizedPolicyTeamName(value) {
   return String(value ?? '').trim().toLowerCase()
 }
 
+/**
+ * Exec team admin: list + detail. Pass `teams` filtered by tab; `allTeams` for global name/lead rules.
+ */
 export default function PolicyTeamsPanel({
-  policyTeams,
+  teams,
+  allTeams,
+  teamKind = 'policy',
+  sectionTitle = 'Teams',
+  embedded = false,
   memberPolicyTeams,
   allMembersForManagement,
   onRefresh,
 }) {
+  const fullTeamList = allTeams ?? teams
+  const isPolicyKind = teamKind === 'policy'
+
   const [newTeamName, setNewTeamName] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -32,7 +42,17 @@ export default function PolicyTeamsPanel({
   const [selectedTeamId, setSelectedTeamId] = useState(null)
 
   const billsOnly = useMemo(() => billsMembers(allMembersForManagement), [allMembersForManagement])
-  const leadChoices = useMemo(() => eligibleTeamLeads(allMembersForManagement), [allMembersForManagement])
+  const staffPool = useMemo(
+    () => (allMembersForManagement || []).filter((m) => m.active !== false),
+    [allMembersForManagement]
+  )
+
+  const membersPool = useMemo(() => (isPolicyKind ? billsOnly : staffPool), [isPolicyKind, billsOnly, staffPool])
+
+  const leadChoices = useMemo(() => {
+    if (!isPolicyKind) return staffPool
+    return eligibleTeamLeads(allMembersForManagement)
+  }, [isPolicyKind, staffPool, allMembersForManagement])
 
   const membersByTeam = useMemo(() => {
     const m = {}
@@ -51,26 +71,24 @@ export default function PolicyTeamsPanel({
     return o
   }, [memberPolicyTeams])
 
-  /** member_id → team_id where they are designated as a policy team lead (any team). */
   const leadMemberIdToTeamId = useMemo(() => {
     const o = {}
-    for (const t of policyTeams || []) {
+    for (const t of fullTeamList || []) {
       for (const mid of t.lead_member_ids || []) {
         o[String(mid)] = t.team_id
       }
     }
     return o
-  }, [policyTeams])
+  }, [fullTeamList])
 
   const teamNameById = useMemo(() => {
     const o = {}
-    for (const t of policyTeams || []) {
+    for (const t of fullTeamList || []) {
       o[String(t.team_id)] = String(t.name || '').trim() || 'Team'
     }
     return o
-  }, [policyTeams])
+  }, [fullTeamList])
 
-  /** Roster members plus leads (deduped) — leads-only row counts toward size. */
   const teamUniqueHeadcount = (team) => {
     const roster = membersByTeam[team.team_id] || []
     const leads = team.lead_member_ids || []
@@ -81,9 +99,8 @@ export default function PolicyTeamsPanel({
   }
 
   const getMember = (memberId) =>
-    billsOnly.find((x) => String(x.member_id) === String(memberId)) || null
+    membersPool.find((x) => String(x.member_id) === String(memberId)) || null
 
-  /** Short line for left rail (up to two names, then +N). */
   const leadsSummaryLine = (team) => {
     const ids = team?.lead_member_ids
     if (!Array.isArray(ids) || ids.length === 0) return 'No leads'
@@ -111,13 +128,14 @@ export default function PolicyTeamsPanel({
       return
     }
     const key = normalizedPolicyTeamName(name)
-    if ((policyTeams || []).some((t) => normalizedPolicyTeamName(t.name) === key)) {
+    if ((fullTeamList || []).some((t) => normalizedPolicyTeamName(t.name) === key)) {
       showMsg('A team with this name already exists (spacing and capitals are ignored).', true)
       return
     }
     setSaving(true)
     setError('')
-    const { error: err } = await supabase.from('policy_teams').insert({ name })
+    const row = { name, team_kind: teamKind }
+    const { error: err } = await supabase.from('policy_teams').insert(row)
     setSaving(false)
     if (err) {
       const msg = err.message || ''
@@ -185,7 +203,6 @@ export default function PolicyTeamsPanel({
     await onRefresh?.()
   }
 
-  /** Add or move multiple Bill-permission members into one team (single refresh). */
   const handleAddMembersToTeamBatch = async (memberIds, teamId) => {
     const ids = [...new Set((memberIds || []).filter(Boolean))].map(String)
     if (!ids.length || !teamId) return
@@ -227,8 +244,8 @@ export default function PolicyTeamsPanel({
   }
 
   const sortedTeams = useMemo(
-    () => [...(policyTeams || [])].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
-    [policyTeams]
+    () => [...(teams || [])].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''))),
+    [teams]
   )
 
   const handleRenameTeam = async (teamId, rawName) => {
@@ -238,7 +255,7 @@ export default function PolicyTeamsPanel({
       return
     }
     const key = normalizedPolicyTeamName(name)
-    const clash = sortedTeams.some(
+    const clash = (fullTeamList || []).some(
       (t) => String(t.team_id) !== String(teamId) && normalizedPolicyTeamName(t.name) === key
     )
     if (clash) {
@@ -284,17 +301,33 @@ export default function PolicyTeamsPanel({
       ? sortedTeams.find((t) => String(t.team_id) === String(selectedTeamId)) || null
       : null
 
-  return (
-    <div className="card shadow-sm border mb-4">
-      <div className="card-header bg-white">
-        <h5 className="mb-0">Policy teams (bill analysts)</h5>
-        <small className="text-muted">
-          Only members with Bill permission can join a team. Team leads must have Bill permission and &quot;team lead&quot;
-          in their role (you can pick several per team). They can review leave for their team and assign bill work within
-          the team.
-        </small>
-      </div>
-      <div className="card-body">
+  const headerBlurb = isPolicyKind ? (
+    <>
+      Only members with Bill permission can join a policy team. Team leads should have &quot;team lead&quot; in their role
+      (you can pick several per team). They can review leave for their team and assign work within the team.
+    </>
+  ) : (
+    <>
+      Any active member can be on this roster or be a team lead. Same <strong>Assigned work</strong> workflow applies
+      (use Google Doc links for deliverables). One team membership per person across all teams.
+    </>
+  )
+
+  const inner = (
+    <>
+      {!embedded && (
+        <div className="card-header bg-white">
+          <h5 className="mb-0">{sectionTitle}</h5>
+          <small className="text-muted">{headerBlurb}</small>
+        </div>
+      )}
+      {embedded && (
+        <div className="mb-3">
+          <h6 className="mb-1">{sectionTitle}</h6>
+          <small className="text-muted d-block">{headerBlurb}</small>
+        </div>
+      )}
+      <div className={embedded ? '' : 'card-body'}>
         {(error || success) && (
           <div className="mb-3">
             {error && <div className="alert alert-danger py-2 mb-0">{error}</div>}
@@ -309,7 +342,7 @@ export default function PolicyTeamsPanel({
               className="form-control"
               value={newTeamName}
               onChange={(e) => setNewTeamName(e.target.value)}
-              placeholder="e.g. West Policy Team"
+              placeholder={isPolicyKind ? 'e.g. West Policy Team' : 'e.g. Marketing'}
               disabled={saving}
             />
           </div>
@@ -321,7 +354,7 @@ export default function PolicyTeamsPanel({
         </form>
 
         {sortedTeams.length === 0 ? (
-          <p className="text-muted mb-0">No teams yet. Create one above.</p>
+          <p className="text-muted mb-0">No teams in this category yet. Create one above.</p>
         ) : (
           <div className="row g-3 align-items-stretch">
             <div className="col-lg-4">
@@ -362,8 +395,11 @@ export default function PolicyTeamsPanel({
             <div className="col-lg-8">
               <PolicyTeamDetailPanel
                 team={selectedTeam}
-                billsOnly={billsOnly}
+                membersPool={membersPool}
                 leadChoices={leadChoices}
+                isPolicyTeam={
+                  selectedTeam ? (selectedTeam.team_kind || 'policy') === 'policy' : isPolicyKind
+                }
                 rosterMemberIds={selectedTeam ? membersByTeam[selectedTeam.team_id] || [] : []}
                 getMember={getMember}
                 memberTeamId={memberTeamId}
@@ -380,6 +416,12 @@ export default function PolicyTeamsPanel({
           </div>
         )}
       </div>
-    </div>
+    </>
   )
+
+  if (embedded) {
+    return inner
+  }
+
+  return <div className="card shadow-sm border mb-4">{inner}</div>
 }

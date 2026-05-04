@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { memberNameLookupKeys, memberSiteDisplayName } from '../lib/memberDisplayName'
 import '../pages/BlogPage.css'
 
 const RSS_FEED_URL = 'https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fmedium.com%2Ffeed%2F%40spanationwide'
@@ -49,19 +50,12 @@ const getCandidateNames = (rawName = '') => {
 
 const buildMemberLookup = (members = []) => {
   return members.reduce((map, member) => {
-    const namesToIndex = new Set()
-    const first = member?.first_name?.trim()
-    const last = member?.last_name?.trim()
-    const fullName = [first, last].filter(Boolean).join(' ').trim()
-    if (fullName) namesToIndex.add(fullName)
-    if (first) namesToIndex.add(first)
-    if (last) namesToIndex.add(last)
-    namesToIndex.forEach((name) => {
+    for (const name of memberNameLookupKeys(member)) {
       const normalized = normalizeName(name)
       if (normalized) {
         map.set(normalized, member)
       }
-    })
+    }
     return map
   }, new Map())
 }
@@ -96,7 +90,7 @@ const resolveAuthor = (item, memberLookup) => {
       if (!normalized) continue
       const member = memberLookup.get(normalized)
       if (member) {
-        const displayName = [member.first_name, member.last_name].filter(Boolean).join(' ').trim() || authorName
+        const displayName = memberSiteDisplayName(member) || authorName
         const avatar = member.image
           ? (member.image.startsWith('http') ? member.image : `${MEMBER_IMAGE_BASE_URL}/${member.image}`)
           : '/images/index/logo-icon-light.svg'
@@ -159,7 +153,7 @@ function BlogPostPage({ postId }) {
         // Fetch members for author resolution
         const { data: membersData } = await supabase
           .from('members')
-          .select('first_name,last_name,image')
+          .select('first_name,middle_name,last_name,preferred_name,image')
           .eq('active', true)
         setMembers(membersData || [])
 

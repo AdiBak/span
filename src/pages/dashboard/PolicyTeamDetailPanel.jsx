@@ -15,7 +15,7 @@ function normalizedPolicyTeamName(value) {
  */
 export default function PolicyTeamDetailPanel({
   team,
-  billsOnly,
+  membersPool,
   leadChoices,
   rosterMemberIds,
   getMember,
@@ -29,6 +29,8 @@ export default function PolicyTeamDetailPanel({
   /** Map member_id → team_id where they are already a designated lead (exclude from other teams’ adds/leads). */
   leadMemberIdToTeamId = {},
   teamNameById = {},
+  /** Policy/bill teams vs marketing/blog/general (copy + lead eligibility differ in parent). */
+  isPolicyTeam = true,
 }) {
   const [selectedAddIds, setSelectedAddIds] = useState(() => new Set())
   const [nameInput, setNameInput] = useState('')
@@ -42,14 +44,14 @@ export default function PolicyTeamDetailPanel({
 
   const eligibleToAdd = useMemo(() => {
     const curTid = team?.team_id != null ? String(team.team_id) : null
-    return (billsOnly || []).filter((m) => {
+    return (membersPool || []).filter((m) => {
       const id = String(m.member_id)
       if (rosterSet.has(id) || leadIdSet.has(id)) return false
       const ledTeam = leadMemberIdToTeamId[id]
       if (ledTeam != null && curTid != null && String(ledTeam) !== curTid) return false
       return true
     })
-  }, [billsOnly, rosterSet, leadIdSet, leadMemberIdToTeamId, team?.team_id])
+  }, [membersPool, rosterSet, leadIdSet, leadMemberIdToTeamId, team?.team_id])
 
   useEffect(() => {
     if (team?.team_id) setSelectedAddIds(new Set())
@@ -147,7 +149,7 @@ export default function PolicyTeamDetailPanel({
             </button>
           </div>
           <p className="small text-muted mb-0 mt-1">
-            Must be unique among policy teams (spacing and capital letters are ignored).
+            Must be unique among all teams (spacing and capital letters are ignored).
           </p>
           {team.active === false && <span className="badge bg-secondary mt-2">inactive</span>}
         </div>
@@ -162,8 +164,17 @@ export default function PolicyTeamDetailPanel({
       </div>
 
       <p className="small text-muted mb-3">
-        Bill-permission members only. Check everyone who should be a team lead — they must have &quot;team lead&quot; in their
-        role. Someone already a lead on another team must be removed there before they can be added here.
+        {isPolicyTeam ? (
+          <>
+            Bill-permission members only. Check everyone who should be a team lead — they must have &quot;team lead&quot; in
+            their role. Someone already a lead on another team must be removed there before they can be added here.
+          </>
+        ) : (
+          <>
+            Any active member can be on the roster or be chosen as a team lead. Someone already a lead on another team must
+            be removed there before they can be added here.
+          </>
+        )}
       </p>
 
       <div className="mb-3">
@@ -171,7 +182,11 @@ export default function PolicyTeamDetailPanel({
           Team leads
         </span>
         {leadChoices.length === 0 ? (
-          <p className="small text-muted mb-0">No eligible leads (need Bill permission and &quot;team lead&quot; in role).</p>
+          <p className="small text-muted mb-0">
+            {isPolicyTeam
+              ? 'No eligible leads (need Bill permission and "team lead" in role).'
+              : 'No active members available for lead selection.'}
+          </p>
         ) : (
           <div
             className="border rounded bg-white px-2 py-2"
@@ -312,7 +327,9 @@ export default function PolicyTeamDetailPanel({
         </div>
         {eligibleToAdd.length === 0 ? (
           <p className="small text-muted mb-0">
-            Everyone with Bill permission is already on this roster, a lead for this team, or a lead on another team.
+            {isPolicyTeam
+              ? 'Everyone with Bill permission is already on this roster, a lead for this team, or a lead on another team.'
+              : 'Everyone who can be added is already on this roster, a lead for this team, or a lead on another team.'}
           </p>
         ) : (
           <>

@@ -7,6 +7,7 @@
    - `supabase/migrations/bill_assignments_team_lead_insert_scope_fix.sql` (if not already applied)
    - `supabase/migrations/policy_team_leads_multiple.sql` (multiple co-leads per team; drops `policy_teams.lead_member_id` after backfill). If dropping that column failed with **dependent objects** (`bill_assignments_team_lead_*` policies), update this repo and re-run the migration file: it now drops those policies *before* dropping the column.
    - `supabase/migrations/policy_team_leads_rls_recursion_fix.sql` — fixes **42P17** infinite RLS recursion on `policy_team_leads` (lead SELECT policy must not subquery the same table without `SECURITY DEFINER` / `row_security off`).
+   - `supabase/migrations/policy_teams_team_kind.sql` — adds `team_kind` (`policy` | `marketing` | `blog` | `general`) so staff teams can include any member; existing rows default to `policy`.
 2. Confirm tables exist: `policy_teams`, `member_policy_teams`, `policy_team_leads`.
 3. No app deploy is required beyond merging this repo; ensure env points at the updated DB.
 

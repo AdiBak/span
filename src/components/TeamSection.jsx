@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { memberSiteDisplayName } from '../lib/memberDisplayName'
 
 const IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
 
@@ -46,7 +47,7 @@ function TeamSection() {
         imageEl.src = `${IMAGE_BASE_URL}/${selectedMember.image}`
       }
       if (labelEl) {
-        labelEl.textContent = `${selectedMember.first_name} ${selectedMember.last_name}`
+        labelEl.textContent = memberSiteDisplayName(selectedMember)
       }
       if (subLabelEl) {
         subLabelEl.textContent = `${selectedMember.role} • ${selectedMember.city}, ${selectedMember.state}`
@@ -56,7 +57,7 @@ function TeamSection() {
       }
       if (emailBtn) {
         emailBtn.href = `mailto:${selectedMember.email}`
-        emailBtn.innerHTML = `<i class="bi bi-envelope"></i> Email ${selectedMember.first_name}`
+        emailBtn.innerHTML = `<i class="bi bi-envelope"></i> Email ${memberSiteDisplayName(selectedMember).split(' ')[0] || 'member'}`
       }
     }
   }, [selectedMember])
@@ -82,11 +83,11 @@ function TeamSection() {
               <img
                 src={`${IMAGE_BASE_URL}/${member.image}`}
                 className="card-img-top rounded-circle w-75 mx-auto mt-4"
-                alt={`${member.first_name} ${member.last_name}`}
+                alt={memberSiteDisplayName(member)}
               />
               <div className="card-body d-flex flex-column justify-content-between">
                 <div>
-                  <h5 className="card-title">{member.first_name} {member.last_name}</h5>
+                  <h5 className="card-title">{memberSiteDisplayName(member)}</h5>
                   <p className="card-text text-muted">
                     {member.role}<br />{member.city}, {member.state}
                   </p>

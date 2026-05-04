@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { memberLegalName, memberSiteDisplayName } from '../lib/memberDisplayName'
 import Pagination from '../components/Pagination'
 import DirectoryEmailGateModal from '../components/DirectoryEmailGateModal'
 import './DirectoryPage.css'
@@ -147,14 +148,20 @@ function DirectoryPage() {
 
       if (fetchError) throw fetchError
 
-      const processedMembers = (data || []).map(m => {
+      const processedMembers = (data || []).map((m) => {
         const firstName = (m.first_name || '').trim()
         const lastName = (m.last_name || '').trim()
+        const displayName = memberSiteDisplayName(m) || m.email || ''
+        const legal = memberLegalName(m)
         return {
           memberId: m.member_id,
           firstName,
           lastName,
-          name: (firstName || lastName) ? `${firstName} ${lastName}`.trim() : m.email || '',
+          name: displayName,
+          searchText: [displayName, legal, firstName, lastName, m.middle_name, m.preferred_name, m.school_name]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase(),
           school: m.school_name || '',
           city: m.city || '',
           state: m.state || '',
@@ -194,11 +201,13 @@ function DirectoryPage() {
     // Apply search filter
     if (debouncedSearch.trim()) {
       const queryLower = debouncedSearch.toLowerCase()
-      filtered = filtered.filter(member =>
-        ['name', 'school', 'location', 'email', 'role'].some(field =>
-          (member[field] || '').toLowerCase().includes(queryLower)
-        )
-      )
+      filtered = filtered.filter((member) => {
+        const blob = [member.searchText, member.school, member.location, member.email, member.role]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        return blob.includes(queryLower)
+      })
     }
 
     // Apply sorting

@@ -170,6 +170,18 @@ function ApplicationForm() {
         return
       }
 
+      // Notify leadership via Resend (non-blocking; application already saved)
+      if (data?.application_id) {
+        anonymousSupabase.functions
+          .invoke('notify-new-application', {
+            body: { application_id: data.application_id },
+          })
+          .then(({ error: notifyError }) => {
+            if (notifyError) console.warn('New application notify failed:', notifyError)
+          })
+          .catch((notifyErr) => console.warn('New application notify error:', notifyErr))
+      }
+
       // Success!
       setSubmitSuccess(true)
       setFormData({

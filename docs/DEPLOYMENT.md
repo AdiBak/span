@@ -22,7 +22,7 @@ How production is **structured**: static frontend (e.g. GitHub Pages) plus Supab
 
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (or equivalents your functions read—check each `supabase/functions/*/index.ts`)
 - `RESEND_API_KEY` for email-sending functions (invitation, rejection, onboarding schedule, volunteer verification, etc.)
-- Optional: `INVITATION_FROM`, `INVITATION_CC`, `ONBOARDING_SCHEDULE_FROM`, `ONBOARDING_SCHEDULE_CC`, and any other names referenced in function code
+- Optional: `INVITATION_FROM`, `INVITATION_CC`, `ONBOARDING_SCHEDULE_FROM`, `ONBOARDING_SCHEDULE_CC`, `APPLICATION_NOTIFY_TO` (comma-separated emails for new public applications), `HR_REPORT_NOTIFY_TO`, and any other names referenced in function code
 - `SUPABASE_ANON_KEY` if a function needs it alongside the service role
 
 Deploy a function:
@@ -34,6 +34,8 @@ supabase functions deploy <function-name>
 **Database webhooks** (e.g. `members` → `members-provision`): point the HTTP URL at  
 `https://<your-project-ref>.supabase.co/functions/v1/<function-name>`  
 with the **service role** bearer token as required by your setup.
+
+**New applications:** deploy `notify-new-application` and run migration `applications_notify_sent_at.sql`. The homepage form invokes this after each successful insert; optionally add a webhook on `applications` INSERT to the same function (idempotent via `notify_sent_at`).
 
 ---
 

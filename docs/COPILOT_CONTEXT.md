@@ -71,7 +71,7 @@ Project Overview
 **Backend (`supabase/`):**
 
 - `migrations/` \- SQL migration files (run in order, all RLS policies and functions are here)  
-- `functions/` \- Edge Functions (Deno/TypeScript): `members-provision/` (member onboarding), `password-reset/` (password reset emails), `dashboard-view/` (deployed as `view-member-dashboard`), `send-rejection-email/`, `send-invitation-email/` (interview invite; Resend, `dry_run` preview), `send-onboarding-schedule-email/` (onboarding call scheduling; Resend, `dry_run` preview), `send-volunteer-verification/`, `medium-otp-arm/` (Medium OTP forwarding for blog editors), plus LegiScan contact fetch where used
+- `functions/` \- Edge Functions (Deno/TypeScript): `members-provision/` (member onboarding), `password-reset/` (password reset emails), `dashboard-view/` (deployed as `view-member-dashboard`), `notify-new-application/` (Resend alert when a public application is submitted), `notify-hr-report/`, `notify-resignation-request/`, `send-rejection-email/`, `send-invitation-email/` (interview invite; Resend, `dry_run` preview), `send-onboarding-schedule-email/` (onboarding call scheduling; Resend, `dry_run` preview), `send-volunteer-verification/`, `medium-otp-arm/` (Medium OTP forwarding for blog editors), plus LegiScan contact fetch where used
 
 **Exec (executive director):**
 

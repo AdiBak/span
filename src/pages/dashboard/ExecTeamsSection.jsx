@@ -61,7 +61,10 @@ export default function ExecTeamsSection({
                 key={key}
                 type="button"
                 className={`btn ${teamKindTab === key ? 'btn-dark' : 'btn-outline-dark'}`}
-                onClick={() => setTeamKindTab(key)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setTeamKindTab(key)
+                }}
               >
                 {label}
               </button>

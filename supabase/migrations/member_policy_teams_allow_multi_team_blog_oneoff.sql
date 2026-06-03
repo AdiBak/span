@@ -1,6 +1,6 @@
 -- One-time provisioning:
 -- - Allow members to belong to multiple teams in member_policy_teams
--- - Add Arnav Goyal as a lead on Blog Team (while keeping existing Team 2 lead role)
+-- - Add Arnav Goyal to Blog Team as a roster member (member_policy_teams), not as co-lead; Team 2 lead unchanged
 -- - Add Kaulini Chakraborty as a member of Blog Team (while keeping existing Team 2 membership)
 
 -- Remove single-team-per-member constraint so one member can be in multiple teams.
@@ -55,14 +55,18 @@ BEGIN
     RAISE EXCEPTION 'Provisioning failed: member "%" "%" not found.', 'Kaulini', 'Chakraborty';
   END IF;
 
-  -- Ensure Arnav remains/exists on Team 2 as a lead and is also a lead on Blog Team.
+  -- Arnav: Team 2 co-lead only; Blog Team as roster member (same as other dual-team members).
   INSERT INTO public.policy_team_leads (team_id, member_id)
-  VALUES
-    (v_team2_id, v_arnav_id),
-    (v_blog_team_id, v_arnav_id)
+  VALUES (v_team2_id, v_arnav_id)
   ON CONFLICT DO NOTHING;
 
-  -- Ensure Kaulini remains/exists on Team 2 roster and is also on Blog Team roster.
+  INSERT INTO public.member_policy_teams (member_id, team_id)
+  VALUES
+    (v_arnav_id, v_team2_id),
+    (v_arnav_id, v_blog_team_id)
+  ON CONFLICT DO NOTHING;
+
+  -- Kaulini: Team 2 + Blog Team roster.
   INSERT INTO public.member_policy_teams (member_id, team_id)
   VALUES
     (v_kaulini_id, v_team2_id),

@@ -8,7 +8,7 @@ Description of the flow from **public application** through **dashboard review**
 
 **What happens:** A visitor goes to the SPAN homepage and scrolls to the **“Join Our Movement”** section (or clicks “Join Our Movement” / “Get Involved,” which scroll to `#join`). There they see the application form: name, email, phone, grade, school, state, hours per week, referral source, optional LinkedIn/Instagram, optional resume upload, and additional info.
 
-They submit with **no account** as we don’t ask them to log in, of course. The form posts their data to the database and, if they attached a resume, uploads the file to storage. After a successful submission, they see a success message; we don’t email the applicant at this step yet. **Leadership** receives a **Resend** alert (Edge Function `notify-new-application`) with applicant summary and a link to the dashboard Applications section.
+They submit with **no account** as we don’t ask them to log in, of course. The form posts their data to the database and, if they attached a resume, uploads the file to storage. After a successful submission, they see a success message; we don’t email the applicant at this step yet. **Leadership** receives a **Resend** alert (Edge Function `notify-new-application`) with applicant summary and a link to the dashboard Applications section. Default recipients: Joel, Vishank, Ben, and Shayan (`@spanationwide.org`); override with Supabase secret `APPLICATION_NOTIFY_TO` (comma-separated).
 
 **Where it lives:**
 

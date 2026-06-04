@@ -19,7 +19,7 @@ function notifyRecipients(): string[] {
   const raw =
     Deno.env.get("APPLICATION_NOTIFY_TO")?.trim() ||
     Deno.env.get("HR_REPORT_NOTIFY_TO")?.trim() ||
-    "joel.blessan@spanationwide.org,joelvblessan@gmail.com"
+    "joel.blessan@spanationwide.org,joelvblessan@gmail.com,vishank.panchbhavi@spanationwide.org,ben.kurian@spanationwide.org,shayan.saqib@spanationwide.org"
   return raw.split(",").map((s) => s.trim()).filter(Boolean)
 }
 

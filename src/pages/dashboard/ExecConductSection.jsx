@@ -21,6 +21,7 @@ const STRIKE_BTN_OUTLINE = {
 
 export default function ExecConductSection({
   sectionOrder,
+  sectionId,
   removalProposals,
   resignationRows,
   memberStrikeRows,
@@ -84,7 +85,7 @@ export default function ExecConductSection({
   }, [resignations, resignationToView?.resignation_id])
 
   return (
-    <section className="mt-5" style={{ order: sectionOrder }}>
+    <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h3 className="mb-0">Executive Conduct &amp; Resignations</h3>
       </div>

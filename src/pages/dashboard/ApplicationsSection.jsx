@@ -6,6 +6,7 @@ import { applicationStatusBadgeClass, applicationStatusLabel } from './applicati
  */
 export default function ApplicationsSection({
   sectionOrder,
+  sectionId,
   applicationFilter,
   setApplicationFilter,
   effectiveApplications,
@@ -15,7 +16,7 @@ export default function ApplicationsSection({
   onSetMetWithAt,
 }) {
   return (
-    <section className="mt-5" style={{ order: sectionOrder }}>
+    <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h3 className="mb-0">New Member Applications</h3>
         <div className="btn-group flex-wrap" role="group">

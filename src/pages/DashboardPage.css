@@ -147,3 +147,60 @@ tbody tr[draggable="true"]:hover .bi-grip-vertical {
   background: #495057;
 }
 
+/* Section jump nav + scroll targets */
+.dashboard-section-anchor {
+  scroll-margin-top: 5.5rem;
+}
+
+.dashboard-section-nav {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 1020;
+  width: min(220px, calc(100vw - 1rem));
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* Slide off-screen while the main navbar is in view */
+.dashboard-section-nav--hidden {
+  transform: translateX(calc(100% + 0.5rem));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dashboard-section-nav-toggle {
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border-radius: 0 0 0 8px;
+}
+
+.dashboard-section-nav-list {
+  padding: 0.35rem 0;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-top: none;
+  border-radius: 0 0 0 8px;
+  max-height: min(80vh, 520px);
+  overflow-y: auto;
+}
+
+.dashboard-section-nav-link {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.85rem;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 0.875rem;
+  color: #16213e;
+  line-height: 1.35;
+}
+
+.dashboard-section-nav-link:hover,
+.dashboard-section-nav-link:focus-visible {
+  background: #f8f9fa;
+  color: #0b6ef9;
+}
+
+

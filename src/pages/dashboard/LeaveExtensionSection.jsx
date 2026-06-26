@@ -3,6 +3,7 @@ import LeaveExtensionCalendar from '../../components/LeaveExtensionCalendar'
 
 export default function LeaveExtensionSection({
   sectionOrder,
+  sectionId,
   leaveExtensionViewMode,
   setLeaveExtensionViewMode,
   viewAsData,
@@ -127,7 +128,7 @@ export default function LeaveExtensionSection({
   }
 
   return (
-    <section className="mt-5" style={{ order: sectionOrder }}>
+    <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <div className="mb-4">
         <h3 className="mb-2">Leave & Extension Requests</h3>
         <div className="d-flex justify-content-between align-items-center gap-2 flex-wrap w-100">

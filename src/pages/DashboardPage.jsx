@@ -38,6 +38,8 @@ import RemovalNoticeEmailModal from './dashboard/RemovalNoticeEmailModal'
 import { strikeLimitForMember, isAtStrikeLimit } from '../lib/memberStrikeRules'
 import IdeasSuggestionsSection from './dashboard/IdeasSuggestionsSection'
 import LeaveExtensionSection from './dashboard/LeaveExtensionSection'
+import DashboardSectionNav from './dashboard/DashboardSectionNav'
+import { buildDashboardSectionNavItems, DASHBOARD_SECTION_IDS } from './dashboard/dashboardSectionAnchors'
 import LeaveRequestQuickReviewModal from './dashboard/LeaveRequestQuickReviewModal'
 import LeaveRequestSubmitModal from './dashboard/LeaveRequestSubmitModal'
 import LeaveRequestViewModal from './dashboard/LeaveRequestViewModal'
@@ -1956,6 +1958,43 @@ function DashboardPage() {
           schoolsPartners: 99,
           execConduct: 99,
         }
+
+  const dashboardSectionNavItems = useMemo(() => {
+    if (viewAsData || !member?.registration_complete) return []
+
+    const perm = (p) => {
+      const v = member[p]
+      return v === true || v === 'true'
+    }
+    const execUser = perm('volunteer') && perm('applications') && perm('bills') && perm('registration')
+    const teamLeadOnly = isTeamLeadUser && !execUser
+    const showBillManagement = execUser || (teamLeadOnly && perm('bills'))
+    const showBillSubmission = (perm('bills') || memberHasAssignmentWork) && !execUser
+
+    const visibility = {
+      yourInfo: true,
+      leaveExtension: true,
+      billManagement: showBillManagement,
+      billSubmission: showBillSubmission,
+      applications: perm('applications'),
+      ideasSuggestions: true,
+      volunteerHours: true,
+      hrReports: true,
+      execConduct: execUser,
+      memberManagement: perm('registration'),
+      schoolsPartners: execUser,
+      mediumBlog: perm('blog'),
+      changePassword: true,
+      resignFromSpan: true,
+    }
+
+    const labelOverrides = {}
+    if (teamLeadOnly && showBillManagement) {
+      labelOverrides.billManagement = 'Team — Assigned work'
+    }
+
+    return buildDashboardSectionNavItems(dashboardOrder, visibility, labelOverrides)
+  }, [viewAsData, member, isTeamLeadUser, memberHasAssignmentWork, dashboardOrder])
 
   const strikeCountByMember = useMemo(() => {
     const m = {}
@@ -5307,9 +5346,15 @@ function DashboardPage() {
           )}
         </div>
 
+        <DashboardSectionNav items={dashboardSectionNavItems} />
+
         <div style={{ display: 'flex', flexDirection: 'column' }}>
         {/* Your Info Section - Split Design */}
-        <section className="mt-5" style={{ backgroundColor: 'transparent', order: dashboardOrder.yourInfo }}>
+        <section
+          id={DASHBOARD_SECTION_IDS.yourInfo}
+          className="mt-5 dashboard-section-anchor"
+          style={{ backgroundColor: 'transparent', order: dashboardOrder.yourInfo }}
+        >
           <h3 className="mb-4">Your Info</h3>
           <div className="card shadow-sm border-0" style={{ borderRadius: '16px', overflow: 'hidden' }}>
             {/* Top Section - Dark Background */}
@@ -5564,6 +5609,7 @@ function DashboardPage() {
         </section>
 
         <LeaveExtensionSection
+          sectionId={DASHBOARD_SECTION_IDS.leaveExtension}
           sectionOrder={dashboardOrder.leaveExtension}
           leaveExtensionViewMode={leaveExtensionViewMode}
           setLeaveExtensionViewMode={setLeaveExtensionViewMode}
@@ -5597,6 +5643,7 @@ function DashboardPage() {
         />
 
         <IdeasSuggestionsSection
+          sectionId={DASHBOARD_SECTION_IDS.ideasSuggestions}
           sectionOrder={dashboardOrder.ideasSuggestions}
           viewAsData={viewAsData}
           isExec={isExec}
@@ -5616,6 +5663,7 @@ function DashboardPage() {
         />
 
         <VolunteerHoursSection
+          sectionId={DASHBOARD_SECTION_IDS.volunteerHours}
           sectionOrder={dashboardOrder.volunteerHours}
           volunteerFilter={volunteerFilter}
           setVolunteerFilter={setVolunteerFilter}
@@ -5650,6 +5698,7 @@ function DashboardPage() {
           return isExecUser
         })() && (
           <ExecBillManagementSection
+            sectionId={DASHBOARD_SECTION_IDS.billManagement}
             sectionOrder={dashboardOrder.billManagement}
             execBillSectionTab={execBillSectionTab}
             setExecBillSectionTab={setExecBillSectionTab}
@@ -5713,6 +5762,7 @@ function DashboardPage() {
         {/* Policy team lead: assign work within team (RLS-scoped); not shown for full execs (they use Exec Bill Management). */}
         {isTeamLeadOnly && !viewAsData && hasPermission('bills') && (
           <TeamLeadAssignmentsSection
+            sectionId={DASHBOARD_SECTION_IDS.billManagement}
             sectionOrder={dashboardOrder.billManagement}
             currentMemberId={member?.member_id}
             billAssignments={billAssignments}
@@ -5746,6 +5796,7 @@ function DashboardPage() {
           return (hasBills || memberHasAssignmentWork) && !isExecUser
         })() && (
           <BillSubmissionSection
+            sectionId={DASHBOARD_SECTION_IDS.billSubmission}
             sectionOrder={dashboardOrder.billSubmission}
             viewAsData={viewAsData}
             effectiveMember={effectiveMember}
@@ -5789,6 +5840,7 @@ function DashboardPage() {
 
         {hasPermission('registration') && (
           <MemberManagementSection
+            sectionId={DASHBOARD_SECTION_IDS.memberManagement}
             policyTeamsAdminSlot={
               !viewAsData && isExec ? (
                 <ExecTeamsSection
@@ -5842,7 +5894,11 @@ function DashboardPage() {
 
         {/* Schools & Partners - Execs only */}
         {hasPermission('volunteer') && hasPermission('applications') && hasPermission('bills') && hasPermission('registration') && (
-          <section className="mt-5" style={{ order: dashboardOrder.schoolsPartners }}>
+          <section
+            id={DASHBOARD_SECTION_IDS.schoolsPartners}
+            className="mt-5 dashboard-section-anchor"
+            style={{ order: dashboardOrder.schoolsPartners }}
+          >
             <h3 className="mb-4">Schools &amp; Partners</h3>
             <div className="alert alert-info mb-4">
               <i className="bi bi-info-circle me-2"></i>
@@ -6046,6 +6102,7 @@ function DashboardPage() {
 
         {hasPermission('applications') && (
           <ApplicationsSection
+            sectionId={DASHBOARD_SECTION_IDS.applications}
             sectionOrder={dashboardOrder.applications}
             applicationFilter={applicationFilter}
             setApplicationFilter={setApplicationFilter}
@@ -6058,6 +6115,7 @@ function DashboardPage() {
         )}
 
         <HrReportsSection
+          sectionId={DASHBOARD_SECTION_IDS.hrReports}
           sectionOrder={dashboardOrder.hrReports}
           hrReportFilter={hrReportFilter}
           setHrReportFilter={setHrReportFilter}
@@ -6097,6 +6155,7 @@ function DashboardPage() {
           hasPermission('registration') &&
           !viewAsData && (
             <ExecConductSection
+              sectionId={DASHBOARD_SECTION_IDS.execConduct}
               sectionOrder={dashboardOrder.execConduct}
               removalProposals={removalProposals}
               resignationRows={execResignations}
@@ -6114,7 +6173,11 @@ function DashboardPage() {
           )}
 
         {!viewAsData && member && (member.blog === true || member.blog === 'true') && (
-          <section className="mt-5" style={{ order: dashboardOrder.mediumBlog }}>
+          <section
+            id={DASHBOARD_SECTION_IDS.mediumBlog}
+            className="mt-5 dashboard-section-anchor"
+            style={{ order: dashboardOrder.mediumBlog }}
+          >
             <h3>Medium (blog) login</h3>
             <div className="card mt-3 shadow-sm">
               <div className="card-body">
@@ -6157,7 +6220,11 @@ function DashboardPage() {
         )}
 
         {/* Password Change */}
-        <section className="mt-5" style={{ order: dashboardOrder.changePassword }}>
+        <section
+          id={DASHBOARD_SECTION_IDS.changePassword}
+          className="mt-5 dashboard-section-anchor"
+          style={{ order: dashboardOrder.changePassword }}
+        >
           <h3>Change Password</h3>
           <div className="card mt-3">
             <div className="card-body">
@@ -6199,6 +6266,7 @@ function DashboardPage() {
 
         {!viewAsData && member && (
           <ResignFromSpanSection
+            sectionId={DASHBOARD_SECTION_IDS.resignFromSpan}
             sectionOrder={dashboardOrder.resignFromSpan}
             viewAsData={viewAsData}
             activeResignation={activeResignation}

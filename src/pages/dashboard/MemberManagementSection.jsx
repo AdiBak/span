@@ -4,6 +4,7 @@ import { memberLegalName, memberSiteDisplayName } from '../../lib/memberDisplayN
 export default function MemberManagementSection({
   policyTeamsAdminSlot,
   sectionStyleOrder,
+  sectionId,
   imageBaseUrl,
   allMembersForManagement,
   execMemberPhotoInputRef,
@@ -29,7 +30,7 @@ export default function MemberManagementSection({
   const inactive = allMembersForManagement.filter((m) => m.active === false)
 
   return (
-    <section className="mt-5" style={{ order: sectionStyleOrder }}>
+    <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionStyleOrder }}>
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h3>Member Management</h3>
         <button type="button" className="btn btn-dark" onClick={onAddMember}>

@@ -2,6 +2,7 @@ import React from 'react'
 
 export default function IdeasSuggestionsSection({
   sectionOrder,
+  sectionId,
   viewAsData,
   isExec,
   suggestionForm,
@@ -19,7 +20,7 @@ export default function IdeasSuggestionsSection({
   onViewSuggestion,
 }) {
   return (
-    <section className="mt-5" style={{ order: sectionOrder }}>
+    <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <h3 className="mb-4">Ideas & Suggestions</h3>
       <p className="text-muted mb-3">
         Suggest a bill you want to work on, share interests, or propose a web or feature idea. Execs can review and leave

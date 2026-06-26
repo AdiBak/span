@@ -6,6 +6,7 @@ import { IMAGE_BASE_URL } from './constants'
  */
 export default function VolunteerHoursSection({
   sectionOrder,
+  sectionId,
   volunteerFilter,
   setVolunteerFilter,
   effectiveVolunteerEntries,
@@ -25,7 +26,7 @@ export default function VolunteerHoursSection({
   onSendVerification,
 }) {
   return (
-    <section className="mt-5" style={{ order: sectionOrder }}>
+    <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h3 className="mb-0">Volunteer Hours</h3>
         <div className="d-flex align-items-center gap-2">

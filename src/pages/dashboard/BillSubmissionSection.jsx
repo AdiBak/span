@@ -9,6 +9,7 @@ import {
 
 export default function BillSubmissionSection({
   sectionOrder,
+  sectionId,
   viewAsData,
   effectiveMember,
 
@@ -79,7 +80,7 @@ export default function BillSubmissionSection({
   }
 
   return (
-    <section className="mt-5" style={{ order: sectionOrder }}>
+    <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <div>
           <h3 className="mb-0">{viewAsData ? 'Assigned to me' : 'Bill Submission'}</h3>

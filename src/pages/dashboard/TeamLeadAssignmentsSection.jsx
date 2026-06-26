@@ -6,6 +6,7 @@ import BillAssignmentsExecPanel from './BillAssignmentsExecPanel'
  */
 export default function TeamLeadAssignmentsSection({
   sectionOrder,
+  sectionId,
   currentMemberId,
   billAssignments,
   execAssignmentFilter,
@@ -26,7 +27,7 @@ export default function TeamLeadAssignmentsSection({
   onRequestDeleteAssignment,
 }) {
   return (
-    <section className="mt-5" style={{ order: sectionOrder }}>
+    <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <h3 className="mb-2">Team — Assigned work</h3>
       <p className="text-muted small mb-4">
         Assign tasks to members on your policy team and track progress. Publishing bills to the site stays with executives.

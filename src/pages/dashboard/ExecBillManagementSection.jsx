@@ -6,6 +6,7 @@ import { billStateGroupKey, usStateAbbreviation } from '../../lib/usStateCanonic
 
 export default function ExecBillManagementSection({
   sectionOrder,
+  sectionId,
   execBillSectionTab,
   setExecBillSectionTab,
 
@@ -68,7 +69,7 @@ export default function ExecBillManagementSection({
   onRequestDeleteAssignment,
 }) {
   return (
-    <section className="mt-5" style={{ order: sectionOrder }}>
+    <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <div className="mb-3">
         <h3 className="mb-2">Bill Management</h3>
         <div className="btn-group" role="group">

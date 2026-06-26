@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 
 export default function ResignFromSpanSection({
   sectionOrder,
+  sectionId,
   viewAsData,
   activeResignation,
   onSubmitResignation,
@@ -32,7 +33,7 @@ export default function ResignFromSpanSection({
     activeResignation.status !== 'completed'
 
   return (
-    <section className="mt-5 border-top pt-4" style={{ order: sectionOrder }}>
+    <section id={sectionId} className="mt-5 border-top pt-4 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <h3 className="h5 text-muted">Resign from SPAN</h3>
       <div className="card mt-3 border-secondary shadow-sm">
         <div className="card-body">

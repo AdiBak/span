@@ -61,28 +61,14 @@ function Footer() {
           </div>
           <div className="col-md-6 mb-4 mb-md-0">
             <h5>Quick Links</h5>
-            <ul className="list-unstyled">
-              <li className="mb-2">
-                <a href="/index.html" className="text-white text-decoration-none">Home</a>
-              </li>
-              <li className="mb-2">
-                <a href="/our-story.html" className="text-white text-decoration-none">Our Story</a>
-              </li>
-              <li className="mb-2">
-                <a href="/bills.html" className="text-white text-decoration-none">Bills</a>
-              </li>
-              <li className="mb-2">
-                <a href="/directory.html" className="text-white text-decoration-none">Directory</a>
-              </li>
-              <li className="mb-2">
-                <a href="/blog.html" className="text-white text-decoration-none">Blog</a>
-              </li>
-              <li className="mb-2">
-                <a href="/login.html" className="text-white text-decoration-none">Login</a>
-              </li>
-              <li className="mb-2">
-                <a href="/dashboard.html" className="text-white text-decoration-none">Dashboard</a>
-              </li>
+            <ul className="list-unstyled footer-quick-links mb-0">
+              <li><a href="/index.html" className="text-white text-decoration-none">Home</a></li>
+              <li><a href="/our-story.html" className="text-white text-decoration-none">Our Story</a></li>
+              <li><a href="/bills.html" className="text-white text-decoration-none">Bills</a></li>
+              <li><a href="/directory.html" className="text-white text-decoration-none">Directory</a></li>
+              <li><a href="/blog.html" className="text-white text-decoration-none">Blog</a></li>
+              <li><a href="/login.html" className="text-white text-decoration-none">Login</a></li>
+              <li><a href="/dashboard.html" className="text-white text-decoration-none">Dashboard</a></li>
             </ul>
           </div>
         </div>

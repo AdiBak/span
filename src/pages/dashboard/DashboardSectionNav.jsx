@@ -3,27 +3,16 @@ import { scrollToDashboardSection } from './dashboardSectionAnchors'
 
 export default function DashboardSectionNav({ items }) {
   const [desktopOpen, setDesktopOpen] = useState(false)
-  // Hide the corner nav while the main navbar is on screen; reveal it once scrolled past.
-  const [navbarVisible, setNavbarVisible] = useState(true)
+  // Pin just under the main navbar; measure it so there's no gap regardless of its height.
+  const [navOffset, setNavOffset] = useState(0)
 
   useEffect(() => {
     const navbarEl = document.querySelector('.navbar')
-    if (!navbarEl || typeof IntersectionObserver === 'undefined') {
-      setNavbarVisible(false)
-      return
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => setNavbarVisible(entry.isIntersecting),
-      { threshold: 0 }
-    )
-    observer.observe(navbarEl)
-    return () => observer.disconnect()
+    const update = () => setNavOffset(navbarEl ? navbarEl.getBoundingClientRect().height : 0)
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
   }, [])
-
-  useEffect(() => {
-    if (navbarVisible) setDesktopOpen(false)
-  }, [navbarVisible])
 
   if (!items?.length) return null
 
@@ -61,37 +50,36 @@ export default function DashboardSectionNav({ items }) {
         </select>
       </div>
 
-      <nav
-        className={`dashboard-section-nav d-none d-lg-block${navbarVisible ? ' dashboard-section-nav--hidden' : ''}`}
-        aria-label="Dashboard sections"
-        aria-hidden={navbarVisible}
-      >
-        <button
-          type="button"
-          className="dashboard-section-nav-toggle btn btn-sm btn-outline-dark shadow-sm"
-          onClick={() => setDesktopOpen((open) => !open)}
-          aria-expanded={desktopOpen}
-          tabIndex={navbarVisible ? -1 : 0}
-        >
-          <i className={`bi bi-${desktopOpen ? 'chevron-down' : 'list'} me-1`} aria-hidden="true" />
-          Jump to…
-        </button>
-        {desktopOpen && (
-          <ul className="dashboard-section-nav-list list-unstyled mb-0 shadow-sm">
-            {items.map((item) => (
-              <li key={item.key}>
-                <button
-                  type="button"
-                  className="dashboard-section-nav-link"
-                  onClick={() => handleJump(item.id)}
-                >
-                  {item.label}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </nav>
+      {/* Full-bleed, zero-height sticky wrapper: starts at the top-right of the
+          white area (below the hero) and sticks under the navbar on scroll. */}
+      <div className="dashboard-section-nav-sticky d-none d-lg-block" style={{ top: navOffset }}>
+        <nav className="dashboard-section-nav" aria-label="Dashboard sections">
+          <button
+            type="button"
+            className="dashboard-section-nav-toggle btn btn-sm btn-outline-dark shadow-sm"
+            onClick={() => setDesktopOpen((open) => !open)}
+            aria-expanded={desktopOpen}
+          >
+            <i className={`bi bi-${desktopOpen ? 'chevron-down' : 'list'} me-1`} aria-hidden="true" />
+            Jump to…
+          </button>
+          {desktopOpen && (
+            <ul className="dashboard-section-nav-list list-unstyled mb-0 shadow-sm">
+              {items.map((item) => (
+                <li key={item.key}>
+                  <button
+                    type="button"
+                    className="dashboard-section-nav-link"
+                    onClick={() => handleJump(item.id)}
+                  >
+                    {item.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </nav>
+      </div>
     </>
   )
 }

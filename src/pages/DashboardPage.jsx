@@ -5209,6 +5209,8 @@ function DashboardPage() {
           </div>
         )}
 
+        <DashboardSectionNav items={dashboardSectionNavItems} />
+
         {/* Profile Header */}
         <div className="text-center mb-5">
           <input
@@ -5345,8 +5347,6 @@ function DashboardPage() {
             </button>
           )}
         </div>
-
-        <DashboardSectionNav items={dashboardSectionNavItems} />
 
         <div style={{ display: 'flex', flexDirection: 'column' }}>
         {/* Your Info Section - Split Design */}

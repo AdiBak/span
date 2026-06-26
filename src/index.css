@@ -22,6 +22,12 @@ code {
 /* Bootstrap will override these, but keeping base styles */
 html, body {
   width: 100%;
-  overflow-x: hidden;
+}
+
+/* `overflow-x: clip` hides horizontal overflow WITHOUT creating a scroll
+   container, so it doesn't break position: sticky / fixed offset parents
+   the way `overflow-x: hidden` does. */
+body {
+  overflow-x: clip;
 }
 

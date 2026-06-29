@@ -90,7 +90,7 @@ export default function ApplicationsSection({
                 <th>State / region</th>
                 <th>Submitted</th>
                 {applicationFilter === 'met_with' && <th>Met with</th>}
-                {showFollowUpColumn && <th>Follow-ups</th>}
+                {showFollowUpColumn && <th className="text-center text-nowrap">Follow-ups</th>}
                 {showStatusColumn && <th>Status</th>}
                 <th></th>
               </tr>
@@ -125,7 +125,7 @@ export default function ApplicationsSection({
                     </td>
                   )}
                   {showFollowUpColumn && (
-                    <td>
+                    <td className="text-center">
                       <span
                         className={`badge ${(app.follow_up_count || 0) > 0 ? 'bg-info' : 'bg-light text-dark border'}`}
                         title={
@@ -145,11 +145,11 @@ export default function ApplicationsSection({
                       </span>
                     </td>
                   )}
-                  <td className="text-end">
-                    <div className="d-inline-flex gap-2">
+                  <td className="text-end text-nowrap">
+                    <div className="d-inline-flex gap-2 justify-content-end">
                       {showFollowUpColumn && app.status === 'invited' && (
                         <button
-                          className="btn btn-sm btn-outline-info"
+                          className="btn btn-sm btn-outline-info text-nowrap"
                           onClick={() => onFollowUp(app)}
                           disabled={followUpSendingId === app.application_id}
                           title="Send a follow-up to the interview invitation"
@@ -163,7 +163,10 @@ export default function ApplicationsSection({
                           )}
                         </button>
                       )}
-                      <button className="btn btn-sm btn-outline-primary" onClick={() => onViewApplication(app)}>
+                      <button
+                        className="btn btn-sm btn-outline-primary text-nowrap"
+                        onClick={() => onViewApplication(app)}
+                      >
                         <i className="bi bi-eye me-1"></i>View
                       </button>
                     </div>

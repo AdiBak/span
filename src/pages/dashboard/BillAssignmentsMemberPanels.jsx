@@ -92,6 +92,7 @@ export function BillAssignmentsMemberAssignedPanel({
   onAssigneeStatus,
 }) {
   const mine = billAssignments.filter((x) => billAssignmentAssigneeIds(x).includes(effectiveMemberId))
+  const showStatusBadge = memberAssignmentFilter === 'all'
 
   return (
     <>
@@ -160,9 +161,11 @@ export function BillAssignmentsMemberAssignedPanel({
                     >
                       <div className="d-flex w-100 justify-content-between align-items-center flex-wrap gap-2 pe-2">
                         <span className="fw-bold text-start">{billAssignmentDisplayTitle(a)}</span>
-                        <span className={`badge ${billAssignmentStatusBadgeClass(a.status)}`}>
-                          {billAssignmentStatusLabel(a.status)}
-                        </span>
+                        {showStatusBadge && (
+                          <span className={`badge ${billAssignmentStatusBadgeClass(a.status)}`}>
+                            {billAssignmentStatusLabel(a.status)}
+                          </span>
+                        )}
                         {a.due_date && <span className="text-muted small">Due {formatDate(a.due_date)}</span>}
                       </div>
                     </button>

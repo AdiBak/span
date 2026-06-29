@@ -34,6 +34,7 @@ export default function BillAssignmentsExecPanel({
   /** When teamLeadMode, delete only allowed for assignments created by this member. */
   currentMemberId = null,
 }) {
+  const showStatusBadge = execAssignmentFilter === 'all'
   return (
     <>
       <div className="d-flex justify-content-between align-items-center mb-4 gap-2">
@@ -112,9 +113,11 @@ export default function BillAssignmentsExecPanel({
                     >
                       <div className="d-flex w-100 justify-content-between align-items-center flex-wrap gap-2 pe-2">
                         <span className="fw-bold text-start">{billAssignmentDisplayTitle(a)}</span>
-                        <span className={`badge ${billAssignmentStatusBadgeClass(a.status)}`}>
-                          {billAssignmentStatusLabel(a.status)}
-                        </span>
+                        {showStatusBadge && (
+                          <span className={`badge ${billAssignmentStatusBadgeClass(a.status)}`}>
+                            {billAssignmentStatusLabel(a.status)}
+                          </span>
+                        )}
                         {a.status === 'approved' && a.resulting_bill_id != null && (
                           <span className="badge bg-dark text-nowrap">
                             <i className="bi bi-check2-circle me-1" aria-hidden="true" />

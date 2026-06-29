@@ -19,6 +19,7 @@ export default function IdeasSuggestionsSection({
   formatDateLong,
   onViewSuggestion,
 }) {
+  const showStatusColumn = suggestionFilter === 'all'
   return (
     <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <h3 className="mb-4">Ideas & Suggestions</h3>
@@ -152,7 +153,7 @@ export default function IdeasSuggestionsSection({
                 {isExec && !viewAsData && <th>Member</th>}
                 <th>Type</th>
                 <th>Title</th>
-                <th>Status</th>
+                {showStatusColumn && <th>Status</th>}
                 <th>Submitted</th>
                 <th>Actions</th>
               </tr>
@@ -196,21 +197,23 @@ export default function IdeasSuggestionsSection({
                     )}
                   </td>
                   <td>{s.title}</td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        s.status === 'pending'
-                          ? 'bg-warning text-dark'
-                          : s.status === 'under_review'
-                            ? 'bg-info'
-                            : s.status === 'approved'
-                              ? 'bg-success'
-                              : 'bg-danger'
-                      }`}
-                    >
-                      {s.status.replace('_', ' ')}
-                    </span>
-                  </td>
+                  {showStatusColumn && (
+                    <td>
+                      <span
+                        className={`badge ${
+                          s.status === 'pending'
+                            ? 'bg-warning text-dark'
+                            : s.status === 'under_review'
+                              ? 'bg-info'
+                              : s.status === 'approved'
+                                ? 'bg-success'
+                                : 'bg-danger'
+                        }`}
+                      >
+                        {s.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                  )}
                   <td>{formatDateLong(s.created_at)}</td>
                   <td>
                     <button

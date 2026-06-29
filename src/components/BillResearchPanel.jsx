@@ -140,6 +140,7 @@ export default function BillResearchPanel({
   onRefresh,
   getStateFileName,
 }) {
+  const showSpanBillStatusBadge = statusFilter === 'all'
   const [researchSource, setResearchSource] = React.useState('span')
   const [legState, setLegState] = React.useState('GA')
   const [legBillNumber, setLegBillNumber] = React.useState('')
@@ -809,9 +810,11 @@ export default function BillResearchPanel({
                               >
                                 <div className="d-flex w-100 justify-content-between align-items-center flex-wrap gap-2 pe-2">
                                   <span className="fw-bold text-start">{bill.name}</span>
-                                  <span className={`badge ${spanBillStatusBadgeClass(bill.status)}`}>
-                                    {spanBillRowStatusLabel(bill.status)}
-                                  </span>
+                                  {showSpanBillStatusBadge && (
+                                    <span className={`badge ${spanBillStatusBadgeClass(bill.status)}`}>
+                                      {spanBillRowStatusLabel(bill.status)}
+                                    </span>
+                                  )}
                                   {bill.hidden && (
                                     <span className="badge bg-secondary" title="Hidden on public Bills page">
                                       Hidden

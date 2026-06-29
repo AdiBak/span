@@ -25,6 +25,7 @@ export default function VolunteerHoursSection({
   onRequestDeleteEntry,
   onSendVerification,
 }) {
+  const showStatusBadge = volunteerFilter === 'all'
   return (
     <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -125,9 +126,11 @@ export default function VolunteerHoursSection({
                                   <i className="bi bi-calendar-event me-2"></i>
                                   {formatDateLong(start)}
                                 </span>
-                                <span className={`badge ${statusColor.bg} text-capitalize`} style={{ color: statusColor.color }}>
-                                  {entry.approved}
-                                </span>
+                                {showStatusBadge && (
+                                  <span className={`badge ${statusColor.bg} text-capitalize`} style={{ color: statusColor.color }}>
+                                    {entry.approved}
+                                  </span>
+                                )}
                                 <span className="fw-bold ms-3">{duration}</span>
                               </div>
                             </button>

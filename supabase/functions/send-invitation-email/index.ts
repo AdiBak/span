@@ -25,6 +25,7 @@ function invitationCcList(): string[] {
 }
 
 const INVITATION_SUBJECT = "You're invited to interview with SPAN"
+const FOLLOW_UP_SUBJECT = "Following up: your SPAN interview invitation"
 
 function isExec(member: Record<string, unknown> | null): boolean {
   if (!member) return false
@@ -41,10 +42,19 @@ function escapeHtml(s: string): string {
     .replace(/'/g, "&#39;")
 }
 
-function buildInvitationEmailHtml(applicantName: string): string {
+function buildInvitationEmailHtml(applicantName: string, followUp = false): string {
   const name = escapeHtml(String(applicantName).trim() || "there")
   const p =
     "font-size: 15px; color: #212529; line-height: 1.65; margin: 0 0 1rem 0;"
+
+  const intro = followUp
+    ? `This is Joel Blessan, Executive Director of SPAN (Students for Patient Advocacy Nationwide). I&apos;m following up on the interview invitation we sent regarding the application you submitted &mdash; we&apos;d still love to interview you virtually and want to make sure our earlier note reached you.`
+    : `This is Joel Blessan, Executive Director of SPAN (Students for Patient Advocacy Nationwide), and I am writing to you about the application you submitted. After review, we&apos;d like to interview you virtually.`
+
+  const scheduling = followUp
+    ? `If you&apos;re still interested, please reply with your availability this week and next week so we can find a time that works for you. If you have any questions, you can reach us or learn more about SPAN at <a href="https://spanationwide.org" style="color: #0d6efd;">spanationwide.org</a>.`
+    : `Please let me know your availability this week and next week so we can schedule a time that suits you best. In the meantime, you can contact us or learn more about SPAN by visiting our website: <a href="https://spanationwide.org" style="color: #0d6efd;">spanationwide.org</a>.`
+
   return `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 40px 20px;">
         <div style="text-align: center; margin-bottom: 32px;">
@@ -54,11 +64,10 @@ function buildInvitationEmailHtml(applicantName: string): string {
         <div style="background: #ffffff; border: 1px solid #e9ecef; border-radius: 12px; padding: 32px;">
           <p style="font-size: 16px; color: #212529; margin: 0 0 1rem 0;">Hello ${name},</p>
           <p style="${p}">
-            This is Joel Blessan, Executive Director of SPAN (Students for Patient Advocacy Nationwide), and I am writing to you about the application you submitted. After review, we&apos;d like to interview you virtually.
+            ${intro}
           </p>
           <p style="${p}">
-            Please let me know your availability this week and next week so we can schedule a time that suits you best. In the meantime, you can contact us or learn more about SPAN by visiting our website:
-            <a href="https://spanationwide.org" style="color: #0d6efd;">spanationwide.org</a>.
+            ${scheduling}
           </p>
           <p style="${p}">
             To prepare for the interview, be ready to discuss your skills, experiences, values, and motivation.
@@ -97,11 +106,13 @@ serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { applicant_name, applicant_email, dry_run } = body as {
+    const { applicant_name, applicant_email, dry_run, follow_up } = body as {
       applicant_name?: string
       applicant_email?: string
       dry_run?: boolean
+      follow_up?: boolean
     }
+    const isFollowUp = follow_up === true
 
     if (!applicant_name || !applicant_email) {
       return new Response(
@@ -147,14 +158,15 @@ serve(async (req) => {
       )
     }
 
-    const html = buildInvitationEmailHtml(String(applicant_name))
+    const html = buildInvitationEmailHtml(String(applicant_name), isFollowUp)
+    const subject = isFollowUp ? FOLLOW_UP_SUBJECT : INVITATION_SUBJECT
     const cc = invitationCcList()
     const previewPayload = {
       dry_run: true,
       from: FROM_ADDRESS,
       to: [String(applicant_email).trim()],
       cc,
-      subject: INVITATION_SUBJECT,
+      subject,
       html,
     }
 
@@ -183,7 +195,7 @@ serve(async (req) => {
         from: FROM_ADDRESS,
         to: [String(applicant_email).trim()],
         cc: invitationCcList(),
-        subject: INVITATION_SUBJECT,
+        subject,
         html,
       }),
     })
@@ -198,7 +210,12 @@ serve(async (req) => {
     }
 
     const resendData = await resendResponse.json()
-    console.log("Invitation email sent:", resendData.id, "to:", applicant_email)
+    console.log(
+      isFollowUp ? "Invitation follow-up email sent:" : "Invitation email sent:",
+      resendData.id,
+      "to:",
+      applicant_email,
+    )
 
     return new Response(
       JSON.stringify({ ok: true, email_id: resendData.id }),

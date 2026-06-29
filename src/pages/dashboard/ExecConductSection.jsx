@@ -53,6 +53,8 @@ export default function ExecConductSection({
     return resignations.filter((r) => r.status === resignFilter)
   }, [resignations, resignFilter])
 
+  const showResignStatusColumn = resignFilter === 'all'
+
   const awaiting = (removalProposals || []).filter((p) => p.status === 'awaiting_second')
 
   const countResign = (key) =>
@@ -289,7 +291,7 @@ export default function ExecConductSection({
               <tr>
                 <th>Member</th>
                 <th>Submitted</th>
-                <th>Status</th>
+                {showResignStatusColumn && <th>Status</th>}
                 <th>Exec notes</th>
                 <th style={{ width: '100px' }}></th>
               </tr>
@@ -302,11 +304,13 @@ export default function ExecConductSection({
                   <tr key={r.resignation_id}>
                     <td>{name}</td>
                     <td className="text-nowrap small">{formatDateLong(r.created_at)}</td>
-                    <td style={{ minWidth: '140px' }}>
-                      <span className={`badge ${resignStatusBadgeClass(r.status)}`}>
-                        {RESIGN_STATUS_LABEL[r.status] || LEGACY_RESIGN_STATUS_LABEL[r.status] || r.status}
-                      </span>
-                    </td>
+                    {showResignStatusColumn && (
+                      <td style={{ minWidth: '140px' }}>
+                        <span className={`badge ${resignStatusBadgeClass(r.status)}`}>
+                          {RESIGN_STATUS_LABEL[r.status] || LEGACY_RESIGN_STATUS_LABEL[r.status] || r.status}
+                        </span>
+                      </td>
+                    )}
                     <td style={{ minWidth: '180px' }}>
                       <textarea
                         className="form-control form-control-sm"

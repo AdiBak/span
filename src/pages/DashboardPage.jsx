@@ -244,6 +244,12 @@ function DashboardPage() {
   const [inviteEmailPreviewLoading, setInviteEmailPreviewLoading] = useState(false)
   const [inviteEmailPreview, setInviteEmailPreview] = useState(null)
   const [inviteEmailSending, setInviteEmailSending] = useState(false)
+  /** Preview + send invitation follow-up (invited stage) via Resend */
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false)
+  const [followUpApplication, setFollowUpApplication] = useState(null)
+  const [followUpPreview, setFollowUpPreview] = useState(null)
+  const [followUpPreviewLoading, setFollowUpPreviewLoading] = useState(false)
+  const [followUpSending, setFollowUpSending] = useState(false)
   /** Preview + send onboarding scheduling email (→ onboard) via Resend */
   const [showOnboardScheduleEmailModal, setShowOnboardScheduleEmailModal] = useState(false)
   const [onboardScheduleEmailPreviewLoading, setOnboardScheduleEmailPreviewLoading] = useState(false)
@@ -4207,6 +4213,127 @@ function DashboardPage() {
     }
   }
 
+  const closeFollowUpModal = () => {
+    setShowFollowUpModal(false)
+    setFollowUpApplication(null)
+    setFollowUpPreview(null)
+    setFollowUpPreviewLoading(false)
+  }
+
+  const openFollowUpPreviewModal = async (app) => {
+    if (!app) return
+    const email = (app.email || '').trim()
+    if (!email) {
+      alert('This application has no email address. Add an email before sending a follow-up.')
+      return
+    }
+    setFollowUpApplication(app)
+    setShowFollowUpModal(true)
+    setFollowUpPreview(null)
+    setFollowUpPreviewLoading(true)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in.')
+        closeFollowUpModal()
+        return
+      }
+      const base = import.meta.env.VITE_SUPABASE_URL
+      const resp = await fetch(`${base}/functions/v1/send-invitation-email`, {
+        method: 'POST',
+        headers: supabaseInvokeHeaders(session.access_token),
+        body: JSON.stringify({
+          dry_run: true,
+          follow_up: true,
+          applicant_name: app.full_name,
+          applicant_email: email,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(
+          typeof data.error === 'string' ? data.error : data.details || 'Could not load follow-up preview'
+        )
+      }
+      setFollowUpPreview(data)
+    } catch (err) {
+      console.error('Follow-up preview error:', err)
+      alert(err.message || 'Could not load follow-up preview.')
+      closeFollowUpModal()
+    } finally {
+      setFollowUpPreviewLoading(false)
+    }
+  }
+
+  const handleSendFollowUpEmail = async () => {
+    const app = followUpApplication
+    if (!app) return
+    const email = (app.email || '').trim()
+    if (!email) {
+      alert('This application has no email address.')
+      return
+    }
+    if (app.status !== 'invited') {
+      alert('Follow-ups can only be sent for applications in the Invited stage.')
+      closeFollowUpModal()
+      return
+    }
+
+    setFollowUpSending(true)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in.')
+        return
+      }
+      const base = import.meta.env.VITE_SUPABASE_URL
+      const resp = await fetch(`${base}/functions/v1/send-invitation-email`, {
+        method: 'POST',
+        headers: supabaseInvokeHeaders(session.access_token),
+        body: JSON.stringify({
+          dry_run: false,
+          follow_up: true,
+          applicant_name: app.full_name,
+          applicant_email: email,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(
+          typeof data.error === 'string' ? data.error : data.details || 'Failed to send follow-up email'
+        )
+      }
+
+      const { error } = await supabase
+        .from('applications')
+        .update({
+          follow_up_count: (app.follow_up_count || 0) + 1,
+          last_follow_up_at: new Date().toISOString(),
+        })
+        .eq('application_id', app.application_id)
+
+      if (error) {
+        console.error('Error updating follow-up count:', error)
+        alert(
+          'The follow-up email was sent, but updating the follow-up count failed: ' +
+            error.message
+        )
+      }
+
+      await loadApplications()
+      closeFollowUpModal()
+    } catch (err) {
+      console.error('Send follow-up error:', err)
+      alert(err.message || 'Failed to send follow-up email.')
+    } finally {
+      setFollowUpSending(false)
+    }
+  }
+
   const loadOnboardScheduleEmailPreview = async (when2meetUrlStr, deadlineNoteStr) => {
     if (!selectedApplication) return
     const email = (selectedApplication.email || '').trim()
@@ -6111,6 +6238,8 @@ function DashboardPage() {
             formatDateLong={formatDateLong}
             onViewApplication={handleViewApplication}
             onSetMetWithAt={handleSetMetWithAt}
+            onFollowUp={openFollowUpPreviewModal}
+            followUpSendingId={followUpSending ? followUpApplication?.application_id : null}
           />
         )}
 
@@ -6634,6 +6763,34 @@ function DashboardPage() {
                       }
                     }}
         onSend={handleSendInvitationEmailAndMarkInvited}
+      />
+
+      <ApplicationInviteEmailPreviewModal
+        open={showFollowUpModal && !!followUpApplication}
+        application={followUpApplication}
+        inviteEmailPreview={followUpPreview}
+        inviteEmailPreviewLoading={followUpPreviewLoading}
+        inviteEmailSending={followUpSending}
+        title="Send invitation follow-up"
+        titleIcon="bi-arrow-repeat"
+        description={
+          <>
+            Review the follow-up message below. When you confirm, the email is sent via Resend and this applicant&apos;s
+            follow-up count is increased by one. The application stays in the <strong>Invited</strong> stage.
+          </>
+        }
+        confirmLabel="Send follow-up"
+        confirmingLabel="Sending…"
+        onBackdropClose={() => {
+          if (!followUpSending && !followUpPreviewLoading) closeFollowUpModal()
+        }}
+        onHeaderClose={() => {
+          if (!followUpSending && !followUpPreviewLoading) closeFollowUpModal()
+        }}
+        onCancel={() => {
+          if (!followUpSending) closeFollowUpModal()
+        }}
+        onSend={handleSendFollowUpEmail}
       />
 
       <ApplicationOnboardScheduleEmailPreviewModal

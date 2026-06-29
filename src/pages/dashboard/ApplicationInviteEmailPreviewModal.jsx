@@ -10,8 +10,21 @@ export default function ApplicationInviteEmailPreviewModal({
   onHeaderClose,
   onCancel,
   onSend,
+  title = 'Send interview invitation',
+  titleIcon = 'bi-envelope-check',
+  description,
+  confirmLabel = 'Send email & mark Invited',
+  confirmingLabel = 'Sending…',
+  confirmIcon = 'bi-send',
 }) {
   if (!open || !application) return null
+
+  const defaultDescription = (
+    <>
+      Review the message below. When you confirm, the email is sent via Resend and the application is set to{' '}
+      <strong>Invited</strong>.
+    </>
+  )
 
   return (
     <>
@@ -28,8 +41,8 @@ export default function ApplicationInviteEmailPreviewModal({
           <div className="modal-content">
             <div className="modal-header">
               <h5 className="modal-title">
-                <i className="bi bi-envelope-check me-2"></i>
-                Send interview invitation
+                <i className={`bi ${titleIcon} me-2`}></i>
+                {title}
               </h5>
               <button
                 type="button"
@@ -39,10 +52,7 @@ export default function ApplicationInviteEmailPreviewModal({
               ></button>
             </div>
             <div className="modal-body">
-              <p className="text-muted small">
-                Review the message below. When you confirm, the email is sent via Resend and the application is set to{' '}
-                <strong>Invited</strong>.
-              </p>
+              <p className="text-muted small">{description || defaultDescription}</p>
               {inviteEmailPreviewLoading && (
                 <div className="text-center py-5 text-muted">
                   <div className="spinner-border text-primary" role="status">
@@ -89,12 +99,12 @@ export default function ApplicationInviteEmailPreviewModal({
                 {inviteEmailSending ? (
                   <>
                     <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                    Sending…
+                    {confirmingLabel}
                   </>
                 ) : (
                   <>
-                    <i className="bi bi-send me-1"></i>
-                    Send email &amp; mark Invited
+                    <i className={`bi ${confirmIcon} me-1`}></i>
+                    {confirmLabel}
                   </>
                 )}
               </button>

@@ -68,6 +68,8 @@ export default function ExecBillManagementSection({
   onEditAssignment,
   onRequestDeleteAssignment,
 }) {
+  // Hide the redundant status badge when filtering bills by a specific status.
+  const showBillStatusBadge = billFilter === 'all'
   return (
     <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <div className="mb-3">
@@ -286,7 +288,7 @@ export default function ExecBillManagementSection({
                                         >
                                           {bill.position}
                                         </span>
-                                        {bill.status && bill.status !== 'approved' && (
+                                        {showBillStatusBadge && bill.status && bill.status !== 'approved' && (
                                           <span
                                             className={`badge ${
                                               bill.status === 'under_review'

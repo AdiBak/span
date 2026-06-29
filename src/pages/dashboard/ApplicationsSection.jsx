@@ -14,7 +14,11 @@ export default function ApplicationsSection({
   formatDateLong,
   onViewApplication,
   onSetMetWithAt,
+  onFollowUp,
+  followUpSendingId,
 }) {
+  const showFollowUpColumn = applicationFilter === 'invited'
+  const showStatusColumn = applicationFilter === 'all'
   return (
     <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -86,7 +90,8 @@ export default function ApplicationsSection({
                 <th>State / region</th>
                 <th>Submitted</th>
                 {applicationFilter === 'met_with' && <th>Met with</th>}
-                <th>Status</th>
+                {showFollowUpColumn && <th>Follow-ups</th>}
+                {showStatusColumn && <th>Status</th>}
                 <th></th>
               </tr>
             </thead>
@@ -119,15 +124,49 @@ export default function ApplicationsSection({
                       />
                     </td>
                   )}
-                  <td>
-                    <span className={`badge ${applicationStatusBadgeClass(app.status)}`}>
-                      {applicationStatusLabel(app.status)}
-                    </span>
-                  </td>
+                  {showFollowUpColumn && (
+                    <td>
+                      <span
+                        className={`badge ${(app.follow_up_count || 0) > 0 ? 'bg-info' : 'bg-light text-dark border'}`}
+                        title={
+                          app.last_follow_up_at
+                            ? `Last follow-up: ${formatDateLong(app.last_follow_up_at)}`
+                            : 'No follow-ups sent yet'
+                        }
+                      >
+                        {app.follow_up_count || 0}
+                      </span>
+                    </td>
+                  )}
+                  {showStatusColumn && (
+                    <td>
+                      <span className={`badge ${applicationStatusBadgeClass(app.status)}`}>
+                        {applicationStatusLabel(app.status)}
+                      </span>
+                    </td>
+                  )}
                   <td className="text-end">
-                    <button className="btn btn-sm btn-outline-primary" onClick={() => onViewApplication(app)}>
-                      <i className="bi bi-eye me-1"></i>View
-                    </button>
+                    <div className="d-inline-flex gap-2">
+                      {showFollowUpColumn && app.status === 'invited' && (
+                        <button
+                          className="btn btn-sm btn-outline-info"
+                          onClick={() => onFollowUp(app)}
+                          disabled={followUpSendingId === app.application_id}
+                          title="Send a follow-up to the interview invitation"
+                        >
+                          {followUpSendingId === app.application_id ? (
+                            <span className="spinner-border spinner-border-sm" role="status"></span>
+                          ) : (
+                            <>
+                              <i className="bi bi-arrow-repeat me-1"></i>Follow up
+                            </>
+                          )}
+                        </button>
+                      )}
+                      <button className="btn btn-sm btn-outline-primary" onClick={() => onViewApplication(app)}>
+                        <i className="bi bi-eye me-1"></i>View
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -25,6 +25,8 @@ export default function LeaveExtensionSection({
 }) {
   const isExecDisplay = showExecRequestFilters
   const requests = effectiveRequests
+  // Status filter only exists for execs; hide the redundant Status column when a specific status is active.
+  const showStatusColumn = !isExecDisplay || memberRequestFilter === 'all'
 
   let body
   if (requests.length > 0) {
@@ -47,7 +49,7 @@ export default function LeaveExtensionSection({
                 <th>Type</th>
                 <th>Reason</th>
                 <th>Details</th>
-                <th>Status</th>
+                {showStatusColumn && <th>Status</th>}
                 <th>Submitted</th>
                 <th>Actions</th>
               </tr>
@@ -88,19 +90,21 @@ export default function LeaveExtensionSection({
                             .join(' · ')
                         : '—'}
                   </td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        req.status === 'approved'
-                          ? 'bg-success'
-                          : req.status === 'declined'
-                            ? 'bg-danger'
-                            : 'bg-warning text-dark'
-                      }`}
-                    >
-                      {req.status}
-                    </span>
-                  </td>
+                  {showStatusColumn && (
+                    <td>
+                      <span
+                        className={`badge ${
+                          req.status === 'approved'
+                            ? 'bg-success'
+                            : req.status === 'declined'
+                              ? 'bg-danger'
+                              : 'bg-warning text-dark'
+                        }`}
+                      >
+                        {req.status}
+                      </span>
+                    </td>
+                  )}
                   <td>{formatDateLong(req.created_at)}</td>
                   <td>
                     <button className="btn btn-sm btn-outline-primary" onClick={() => onViewRequest(req)}>

@@ -18,6 +18,8 @@ export default function HrReportsSection({
   onOpenSubmitHrReport,
   onViewReport,
 }) {
+  // Status filter is exec-only; hide the redundant Status column when a specific status is selected.
+  const showExecStatusColumn = hrReportFilter === 'all'
   return (
     <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
@@ -85,7 +87,7 @@ export default function HrReportsSection({
                     <th>Nature of Complaint</th>
                     <th>Regarding</th>
                     <th>Date Occurred</th>
-                    <th>Status</th>
+                    {showExecStatusColumn && <th>Status</th>}
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -105,21 +107,23 @@ export default function HrReportsSection({
                           : report.regarding_name || 'N/A'}
                       </td>
                       <td>{formatDate(report.date_occurred)}</td>
-                      <td>
-                        <span
-                          className={`badge ${
-                            report.status === 'pending'
-                              ? 'bg-warning text-dark'
-                              : report.status === 'resolved'
-                                ? 'bg-success'
-                                : report.status === 'dismissed'
-                                  ? 'bg-secondary'
-                                  : 'bg-info'
-                          }`}
-                        >
-                          {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
-                        </span>
-                      </td>
+                      {showExecStatusColumn && (
+                        <td>
+                          <span
+                            className={`badge ${
+                              report.status === 'pending'
+                                ? 'bg-warning text-dark'
+                                : report.status === 'resolved'
+                                  ? 'bg-success'
+                                  : report.status === 'dismissed'
+                                    ? 'bg-secondary'
+                                    : 'bg-info'
+                            }`}
+                          >
+                            {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
+                          </span>
+                        </td>
+                      )}
                       <td>
                         <button
                           className="btn btn-sm btn-outline-primary"

@@ -1,4 +1,6 @@
 import React from 'react'
+import AiCheckResultPanel from '../../components/AiCheckResultPanel'
+import { assignmentDeliverablePdfUrl } from '../../lib/checkAiText'
 import {
   billAssignmentAssigneeIds,
   billAssignmentDisplayTitle,
@@ -33,6 +35,9 @@ export default function BillAssignmentsExecPanel({
   teamLeadMode = false,
   /** When teamLeadMode, delete only allowed for assignments created by this member. */
   currentMemberId = null,
+  assignmentAiChecks = {},
+  assignmentAiCheckLoadingId = null,
+  onCheckAssignmentProposalAi,
 }) {
   const showStatusBadge = execAssignmentFilter === 'all'
   return (
@@ -181,6 +186,33 @@ export default function BillAssignmentsExecPanel({
                           )}
                         </div>
                       )}
+                      {(a.status === 'in_review' || a.status === 'completed') &&
+                        assignmentDeliverablePdfUrl(a) &&
+                        onCheckAssignmentProposalAi && (
+                          <div className="mb-3">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-secondary"
+                              disabled={assignmentAiCheckLoadingId === a.assignment_id}
+                              title="Extract text from deliverable PDF and run ScreenComply AI detection"
+                              onClick={() => onCheckAssignmentProposalAi(a)}
+                            >
+                              {assignmentAiCheckLoadingId === a.assignment_id ? (
+                                <>
+                                  <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                                  Checking…
+                                </>
+                              ) : (
+                                <>
+                                  <i className="bi bi-robot me-1"></i>Check AI (PDF)
+                                </>
+                              )}
+                            </button>
+                            {assignmentAiChecks[a.assignment_id] && (
+                              <AiCheckResultPanel result={assignmentAiChecks[a.assignment_id]} />
+                            )}
+                          </div>
+                        )}
                       <div className="d-flex flex-wrap gap-2 align-items-center w-100">
                         {!teamLeadMode && a.status === 'completed' && (
                           <>

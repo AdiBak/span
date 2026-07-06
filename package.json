@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/Joelblessan123/span#readme",
   "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
     "@marsidev/react-turnstile": "^1.5.1",
     "@supabase/supabase-js": "^2.57.0",
     "bootstrap": "^5.3.7",

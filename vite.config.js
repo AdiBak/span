@@ -69,7 +69,8 @@ export default defineConfig(({ mode }) => {
           // React must be in a single chunk and loaded first
           'react-vendor': ['react', 'react-dom'],
           'supabase': ['@supabase/supabase-js'],
-          'pdf-vendor': ['pdfjs-dist', 'react-pdf']
+          'pdf-vendor': ['pdfjs-dist', 'react-pdf'],
+          'ai-detector': ['@huggingface/transformers'],
         },
         chunkFileNames: 'assets/js/[name]-[hash].js',
         entryFileNames: 'assets/js/[name]-[hash].js',
@@ -84,6 +85,9 @@ export default defineConfig(({ mode }) => {
   server: {
     port: 3000,
     open: true,
+  },
+  optimizeDeps: {
+    exclude: ['@huggingface/transformers'],
   },
 }
 })

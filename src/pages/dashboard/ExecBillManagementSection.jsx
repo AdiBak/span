@@ -1,6 +1,7 @@
 import React from 'react'
 import BillOutreachPanel from '../../components/BillOutreachPanel'
 import BillResearchPanel from '../../components/BillResearchPanel'
+import AiCheckResultPanel from '../../components/AiCheckResultPanel'
 import BillAssignmentsExecPanel from './BillAssignmentsExecPanel'
 import { billStateGroupKey, usStateAbbreviation } from '../../lib/usStateCanonical'
 
@@ -67,6 +68,12 @@ export default function ExecBillManagementSection({
   onReopenPublish,
   onEditAssignment,
   onRequestDeleteAssignment,
+  billProposalAiChecks = {},
+  billProposalAiCheckLoadingId = null,
+  onCheckBillProposalAi,
+  assignmentAiChecks = {},
+  assignmentAiCheckLoadingId = null,
+  onCheckAssignmentProposalAi,
 }) {
   // Hide the redundant status badge when filtering bills by a specific status.
   const showBillStatusBadge = billFilter === 'all'
@@ -387,6 +394,26 @@ export default function ExecBillManagementSection({
                                           <i className="bi bi-link-45deg me-1"></i>Proposal (Google Doc)
                                         </a>
                                       )}
+                                      {bill.status === 'under_review' && bill.pdfExists && onCheckBillProposalAi && (
+                                        <button
+                                          type="button"
+                                          className="btn btn-sm btn-outline-secondary"
+                                          disabled={billProposalAiCheckLoadingId === bill.bill_id}
+                                          title="Extract text from proposal PDF and run ScreenComply AI detection"
+                                          onClick={() => onCheckBillProposalAi(bill)}
+                                        >
+                                          {billProposalAiCheckLoadingId === bill.bill_id ? (
+                                            <>
+                                              <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                                              Checking…
+                                            </>
+                                          ) : (
+                                            <>
+                                              <i className="bi bi-robot me-1"></i>Check AI (PDF)
+                                            </>
+                                          )}
+                                        </button>
+                                      )}
 
                                       {bill.status === 'under_review' ? (
                                         <>
@@ -467,6 +494,9 @@ export default function ExecBillManagementSection({
                                         </>
                                       )}
                                     </div>
+                                    {billProposalAiChecks[bill.bill_id] && (
+                                      <AiCheckResultPanel result={billProposalAiChecks[bill.bill_id]} />
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -507,6 +537,9 @@ export default function ExecBillManagementSection({
           onReopenPublish={onReopenPublish}
           onEditAssignment={onEditAssignment}
           onRequestDeleteAssignment={onRequestDeleteAssignment}
+          assignmentAiChecks={assignmentAiChecks}
+          assignmentAiCheckLoadingId={assignmentAiCheckLoadingId}
+          onCheckAssignmentProposalAi={onCheckAssignmentProposalAi}
         />
       )}
     </section>

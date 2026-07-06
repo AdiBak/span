@@ -7,56 +7,7 @@ import {
 } from './applications'
 
 import { APPLICATIONS_RESUMES_BASE_URL } from './constants'
-
-function AiScoreBadge({ aiScore }) {
-  if (aiScore == null) return null
-  const pct = Math.round(aiScore * 100)
-  let badgeClass = 'bg-success'
-  let label = 'Likely human'
-  // Conservative thresholds — raw % is always shown; flag only at higher confidence
-  if (pct >= 85) {
-    badgeClass = 'bg-danger'
-    label = 'Likely AI-generated'
-  } else if (pct >= 55) {
-    badgeClass = 'bg-warning text-dark'
-    label = 'Uncertain'
-  }
-  return (
-    <span className={`badge ${badgeClass}`} title={`Raw model score: ${pct}% AI`}>
-      <i className="bi bi-robot me-1"></i>
-      {pct}% AI — {label}
-    </span>
-  )
-}
-
-function AiCheckResultPanel({ result }) {
-  if (!result || result.ai_score == null) return null
-
-  return (
-    <div className="border rounded p-3 bg-light small mt-2">
-      <div className="d-flex flex-wrap align-items-center gap-2 mb-2">
-        <AiScoreBadge aiScore={result.ai_score} />
-        {result.predicted_label_display && (
-          <span className="text-muted">{result.predicted_label_display}</span>
-        )}
-        {result.text_length != null && (
-          <span className="text-muted">
-            Analyzed {result.word_count != null
-              ? `${result.word_count.toLocaleString()} words`
-              : `${result.text_length.toLocaleString()} characters`}
-          </span>
-        )}
-        {result.fallback_used && (
-          <span className="badge bg-secondary">Fakespot fallback</span>
-        )}
-      </div>
-
-      {result.explanation && (
-        <p className="mb-0 text-muted">{result.explanation}</p>
-      )}
-    </div>
-  )
-}
+import AiCheckResultPanel from '../../components/AiCheckResultPanel'
 
 export default function ApplicationViewModal({
   open,
@@ -200,12 +151,12 @@ export default function ApplicationViewModal({
                         className="btn btn-sm btn-outline-secondary"
                         onClick={() => onCheckAi(application.additional_info)}
                         disabled={aiCheckLoading}
-                        title="Run DivEye AI text detection (needs 15+ words; may take up to ~2 min on GPU queue)"
+                        title="Run AI text detection (ScreenComply TMR ensemble via server)"
                       >
                         {aiCheckLoading ? (
                           <>
                             <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                            Checking… (GPU queue)
+                            Checking…
                           </>
                         ) : (
                           <>

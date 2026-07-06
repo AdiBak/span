@@ -70,6 +70,7 @@ import {
   SCHOOLS_IMAGES_BASE_URL,
 } from './dashboard/constants'
 import { supabaseInvokeHeaders } from './dashboard/supabaseInvoke'
+import { runAiTextCheck, checkAiFromBill, checkAiFromAssignment } from '../lib/checkAiText'
 import './DashboardPage.css'
 
 /** Lead member ids merged from `policy_team_leads` in `loadPolicyTeams`. */
@@ -253,6 +254,12 @@ function DashboardPage() {
   /** AI text detection for application writing */
   const [aiCheckResult, setAiCheckResult] = useState(null)
   const [aiCheckLoading, setAiCheckLoading] = useState(false)
+  /** AI text detection for bill proposals (keyed by bill_id) */
+  const [billProposalAiChecks, setBillProposalAiChecks] = useState({})
+  const [billProposalAiCheckLoadingId, setBillProposalAiCheckLoadingId] = useState(null)
+  /** AI text detection for assignment deliverables (keyed by assignment_id) */
+  const [assignmentAiChecks, setAssignmentAiChecks] = useState({})
+  const [assignmentAiCheckLoadingId, setAssignmentAiCheckLoadingId] = useState(null)
   /** Preview + send onboarding scheduling email (→ onboard) via Resend */
   const [showOnboardScheduleEmailModal, setShowOnboardScheduleEmailModal] = useState(false)
   const [onboardScheduleEmailPreviewLoading, setOnboardScheduleEmailPreviewLoading] = useState(false)
@@ -4110,24 +4117,57 @@ function DashboardPage() {
         alert('You must be signed in.')
         return
       }
-      const base = import.meta.env.VITE_SUPABASE_URL
-      const resp = await fetch(`${base}/functions/v1/check-ai-text`, {
-        method: 'POST',
-        headers: supabaseInvokeHeaders(session.access_token),
-        body: JSON.stringify({ text }),
-      })
-      const data = await resp.json().catch(() => ({}))
-      if (!resp.ok) {
-        throw new Error(
-          typeof data.error === 'string' ? data.error : data.details || 'AI check failed'
-        )
-      }
+      const data = await runAiTextCheck(text.trim(), session.access_token)
       setAiCheckResult(data)
     } catch (err) {
       console.error('AI text check error:', err)
       alert(err.message || 'AI text detection failed.')
     } finally {
       setAiCheckLoading(false)
+    }
+  }
+
+  const handleCheckBillProposalAi = async (bill) => {
+    if (!bill?.bill_id) return
+    const id = bill.bill_id
+    setBillProposalAiCheckLoadingId(id)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in.')
+        return
+      }
+      const data = await checkAiFromBill(bill, session.access_token, getBillPdfUrl)
+      setBillProposalAiChecks((prev) => ({ ...prev, [id]: data }))
+    } catch (err) {
+      console.error('Bill proposal AI check error:', err)
+      alert(err.message || 'AI text detection failed.')
+    } finally {
+      setBillProposalAiCheckLoadingId(null)
+    }
+  }
+
+  const handleCheckAssignmentProposalAi = async (assignment) => {
+    if (!assignment?.assignment_id) return
+    const id = assignment.assignment_id
+    setAssignmentAiCheckLoadingId(id)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in.')
+        return
+      }
+      const data = await checkAiFromAssignment(assignment, session.access_token)
+      setAssignmentAiChecks((prev) => ({ ...prev, [id]: data }))
+    } catch (err) {
+      console.error('Assignment proposal AI check error:', err)
+      alert(err.message || 'AI text detection failed.')
+    } finally {
+      setAssignmentAiCheckLoadingId(null)
     }
   }
 
@@ -5921,6 +5961,12 @@ function DashboardPage() {
                                           setDeleteAssignmentError('')
                                           setShowDeleteAssignmentModal(true)
                                         }}
+            billProposalAiChecks={billProposalAiChecks}
+            billProposalAiCheckLoadingId={billProposalAiCheckLoadingId}
+            onCheckBillProposalAi={handleCheckBillProposalAi}
+            assignmentAiChecks={assignmentAiChecks}
+            assignmentAiCheckLoadingId={assignmentAiCheckLoadingId}
+            onCheckAssignmentProposalAi={handleCheckAssignmentProposalAi}
           />
         )}
 

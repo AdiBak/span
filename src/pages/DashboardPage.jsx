@@ -250,6 +250,9 @@ function DashboardPage() {
   const [followUpPreview, setFollowUpPreview] = useState(null)
   const [followUpPreviewLoading, setFollowUpPreviewLoading] = useState(false)
   const [followUpSending, setFollowUpSending] = useState(false)
+  /** AI text detection for application writing */
+  const [aiCheckResult, setAiCheckResult] = useState(null)
+  const [aiCheckLoading, setAiCheckLoading] = useState(false)
   /** Preview + send onboarding scheduling email (→ onboard) via Resend */
   const [showOnboardScheduleEmailModal, setShowOnboardScheduleEmailModal] = useState(false)
   const [onboardScheduleEmailPreviewLoading, setOnboardScheduleEmailPreviewLoading] = useState(false)
@@ -4091,6 +4094,41 @@ function DashboardPage() {
     setShowOnboardScheduleEmailModal(false)
     setOnboardScheduleEmailPreview(null)
     setOnboardScheduleEmailPreviewLoading(false)
+    setAiCheckResult(null)
+    setAiCheckLoading(false)
+  }
+
+  const handleCheckAiText = async (text) => {
+    if (!text || text.trim().length === 0) return
+    setAiCheckResult(null)
+    setAiCheckLoading(true)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in.')
+        return
+      }
+      const base = import.meta.env.VITE_SUPABASE_URL
+      const resp = await fetch(`${base}/functions/v1/check-ai-text`, {
+        method: 'POST',
+        headers: supabaseInvokeHeaders(session.access_token),
+        body: JSON.stringify({ text }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(
+          typeof data.error === 'string' ? data.error : data.details || 'AI check failed'
+        )
+      }
+      setAiCheckResult(data)
+    } catch (err) {
+      console.error('AI text check error:', err)
+      alert(err.message || 'AI text detection failed.')
+    } finally {
+      setAiCheckLoading(false)
+    }
   }
 
   const openInviteEmailPreviewModal = async () => {
@@ -6634,6 +6672,9 @@ function DashboardPage() {
                             }
                           }}
         onOpenDeleteModal={() => setShowDeleteApplicationModal(true)}
+        aiCheckResult={aiCheckResult}
+        aiCheckLoading={aiCheckLoading}
+        onCheckAi={handleCheckAiText}
       />
 
       <ImportApplicationModal

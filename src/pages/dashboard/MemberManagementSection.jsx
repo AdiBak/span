@@ -1,5 +1,6 @@
 import React from 'react'
 import { memberLegalName, memberSiteDisplayName } from '../../lib/memberDisplayName'
+import { MEMBER_GRADE_FILTER_OPTIONS, matchesMemberGradeFilter } from '../../lib/memberGrades'
 
 export default function MemberManagementSection({
   policyTeamsAdminSlot,
@@ -25,9 +26,15 @@ export default function MemberManagementSection({
   memberAtStrikeLimit,
   onOpenStrikeModal,
   onOpenRemovalModal,
+  memberGradeFilter,
+  setMemberGradeFilter,
 }) {
-  const active = allMembersForManagement.filter((m) => m.active !== false)
-  const inactive = allMembersForManagement.filter((m) => m.active === false)
+  const filteredMembers = (allMembersForManagement || []).filter((m) =>
+    matchesMemberGradeFilter(m.grade, memberGradeFilter),
+  )
+  const active = filteredMembers.filter((m) => m.active !== false)
+  const inactive = filteredMembers.filter((m) => m.active === false)
+  const gradeFilterActive = memberGradeFilter && memberGradeFilter !== 'all'
 
   return (
     <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionStyleOrder }}>
@@ -44,6 +51,33 @@ export default function MemberManagementSection({
       </div>
 
       {policyTeamsAdminSlot}
+
+      <div className="row g-2 align-items-end mb-3">
+        <div className="col-md-4 col-lg-3">
+          <label className="form-label mb-1" htmlFor="memberGradeFilter">
+            Filter by grade
+          </label>
+          <select
+            id="memberGradeFilter"
+            className="form-select form-select-sm"
+            value={memberGradeFilter || 'all'}
+            onChange={(e) => setMemberGradeFilter(e.target.value)}
+          >
+            {MEMBER_GRADE_FILTER_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {gradeFilterActive && (
+          <div className="col-auto">
+            <span className="badge bg-secondary">
+              {active.length + inactive.length} member{active.length + inactive.length === 1 ? '' : 's'}
+            </span>
+          </div>
+        )}
+      </div>
 
       <input
         ref={execMemberPhotoInputRef}
@@ -112,6 +146,9 @@ export default function MemberManagementSection({
                                 <small className="text-muted">Legal: {memberLegalName(memberItem)}</small>
                               )}
                               <small className="text-muted d-block">{memberItem.email}</small>
+                              {memberItem.grade && (
+                                <small className="text-muted d-block">{memberItem.grade}</small>
+                              )}
                             </div>
                           </div>
                         </button>
@@ -194,6 +231,10 @@ export default function MemberManagementSection({
                                 <p className="mt-1 mb-0">{memberItem.school_name}</p>
                               </div>
                             )}
+                            <div className="col-md-6">
+                              <strong>Grade:</strong>
+                              <p className="mt-1 mb-0">{memberItem.grade || '—'}</p>
+                            </div>
                             {(memberItem.city || memberItem.state) && (
                               <div className="col-md-6">
                                 <strong>Location:</strong>
@@ -293,7 +334,9 @@ export default function MemberManagementSection({
                   ))}
                 </div>
               ) : (
-                <p className="text-muted">No active members found.</p>
+                <p className="text-muted">
+                  {gradeFilterActive ? 'No active members match this grade filter.' : 'No active members found.'}
+                </p>
               )}
             </div>
           </div>
@@ -354,6 +397,9 @@ export default function MemberManagementSection({
                                 <small className="text-muted">Legal: {memberLegalName(memberItem)}</small>
                               )}
                               <small className="text-muted d-block">{memberItem.email}</small>
+                              {memberItem.grade && (
+                                <small className="text-muted d-block">{memberItem.grade}</small>
+                              )}
                             </div>
                           </div>
                         </button>
@@ -436,6 +482,10 @@ export default function MemberManagementSection({
                                 <p className="mt-1 mb-0">{memberItem.school_name}</p>
                               </div>
                             )}
+                            <div className="col-md-6">
+                              <strong>Grade:</strong>
+                              <p className="mt-1 mb-0">{memberItem.grade || '—'}</p>
+                            </div>
                             {(memberItem.city || memberItem.state) && (
                               <div className="col-md-6">
                                 <strong>Location:</strong>
@@ -523,7 +573,9 @@ export default function MemberManagementSection({
                   ))}
                 </div>
               ) : (
-                <p className="text-muted">No inactive members found.</p>
+                <p className="text-muted">
+                  {gradeFilterActive ? 'No inactive members match this grade filter.' : 'No inactive members found.'}
+                </p>
               )}
             </div>
           </div>

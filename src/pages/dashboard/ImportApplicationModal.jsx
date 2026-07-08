@@ -40,6 +40,7 @@ export default function ImportApplicationModal({
                       <tr>
                         <th>Name</th>
                         <th>Email</th>
+                        <th>Grade</th>
                         <th>School</th>
                         <th>Country</th>
                         <th>State / region</th>
@@ -53,6 +54,7 @@ export default function ImportApplicationModal({
                         <tr key={app.application_id}>
                           <td>{app.full_name}</td>
                           <td>{app.email}</td>
+                          <td>{app.grade || '—'}</td>
                           <td>{app.school || '-'}</td>
                           <td>{app.country || '—'}</td>
                           <td>{app.state || '-'}</td>

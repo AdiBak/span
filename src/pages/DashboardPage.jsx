@@ -5,6 +5,7 @@ import RegistrationForm from '../components/RegistrationForm'
 import BillResearchPanel from '../components/BillResearchPanel'
 import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import { memberLegalName, memberSiteDisplayName } from '../lib/memberDisplayName'
+import { resolveMemberGrade, splitMemberGradeForForm } from '../lib/memberGrades'
 import { billStateGroupKey, canonicalUSStateName } from '../lib/usStateCanonical'
 import { fetchLegiscanBillBySearch, isLegiscanBillNumberShape } from '../lib/legiscan'
 import { isAllowedApplicationStatusTransition } from './dashboard/applications'
@@ -208,6 +209,8 @@ function DashboardPage() {
     active: true,
     startDate: '',
     dob: '',
+    grade: '',
+    gradeOther: '',
     schoolName: '',
     city: '',
     state: '',
@@ -224,6 +227,7 @@ function DashboardPage() {
   })
   const [memberError, setMemberError] = useState('')
   const [memberSuccess, setMemberSuccess] = useState('')
+  const [memberGradeFilter, setMemberGradeFilter] = useState('all')
   const [applications, setApplications] = useState([])
   const [applicationFilter, setApplicationFilter] = useState('pending') // 'all', 'pending', 'invited', 'met_with', 'onboard', 'accepted', 'rejected'
   const [selectedApplication, setSelectedApplication] = useState(null)
@@ -3686,6 +3690,8 @@ function DashboardPage() {
       active: true,
       startDate: '',
       dob: '',
+      grade: '',
+      gradeOther: '',
       schoolName: '',
       city: '',
       state: '',
@@ -3721,6 +3727,7 @@ function DashboardPage() {
         ? `Country (from application): ${String(application.country).trim()}`
         : ''
     const mergedNotes = [baseNotes, countryNote].filter(Boolean).join('\n\n')
+    const { grade, gradeOther } = splitMemberGradeForForm(application.grade)
 
     setMemberForm({
       firstName: firstName,
@@ -3733,6 +3740,8 @@ function DashboardPage() {
       active: true,
       startDate: '',
       dob: '',
+      grade,
+      gradeOther,
       schoolName: application.school || '',
       city: '',
       state: application.state || '',
@@ -3848,6 +3857,7 @@ function DashboardPage() {
 
   const handleEditMember = (memberToEdit) => {
     setEditingMemberId(memberToEdit.member_id)
+    const { grade, gradeOther } = splitMemberGradeForForm(memberToEdit.grade)
     setMemberForm({
       firstName: memberToEdit.first_name || '',
       lastName: memberToEdit.last_name || '',
@@ -3859,6 +3869,8 @@ function DashboardPage() {
       active: memberToEdit.active !== false,
       startDate: memberToEdit.start_date || '',
       dob: memberToEdit.dob || '',
+      grade,
+      gradeOther,
       schoolName: memberToEdit.school_name || '',
       city: memberToEdit.city || '',
       state: memberToEdit.state || '',
@@ -3890,6 +3902,8 @@ function DashboardPage() {
       active,
       startDate,
       dob,
+      grade,
+      gradeOther,
       schoolName,
       city,
       state,
@@ -3924,6 +3938,12 @@ function DashboardPage() {
       return
     }
 
+    const resolvedGrade = resolveMemberGrade(grade, gradeOther)
+    if (grade === 'Other' && !resolvedGrade) {
+      setMemberError('Please specify the member grade.')
+      return
+    }
+
     try {
       if (editingMemberId) {
         // Update existing member
@@ -3939,6 +3959,7 @@ function DashboardPage() {
           p_active: active,
           p_start_date: startDate || null,
           p_dob: dob || null,
+          p_grade: resolvedGrade,
           p_school_name: schoolName.trim() || null,
           p_city: city.trim() || null,
           p_state: state.trim() || null,
@@ -3974,6 +3995,7 @@ function DashboardPage() {
           p_active: active,
           p_start_date: startDate || null,
           p_dob: dob || null,
+          p_grade: resolvedGrade,
           p_school_name: schoolName.trim() || null,
           p_city: city.trim() || null,
           p_state: state.trim() || null,
@@ -6100,6 +6122,8 @@ function DashboardPage() {
               setRemovalModalMember(row)
               setShowRemovalModal(true)
             }}
+            memberGradeFilter={memberGradeFilter}
+            setMemberGradeFilter={setMemberGradeFilter}
           />
         )}
 

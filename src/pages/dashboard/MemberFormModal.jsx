@@ -1,4 +1,5 @@
 import React from 'react'
+import { MEMBER_GRADE_OPTIONS } from '../../lib/memberGrades'
 
 /**
  * Add / edit member (registration permission). Exec-only permission checkboxes.
@@ -201,6 +202,34 @@ export default function MemberFormModal({
                   />
                 </div>
 
+                <div className="col-md-6">
+                  <label className="form-label">School grade</label>
+                  <select
+                    className="form-select"
+                    value={memberForm.grade}
+                    onChange={(e) => setMemberForm({ ...memberForm, grade: e.target.value })}
+                  >
+                    <option value="">Not specified</option>
+                    {MEMBER_GRADE_OPTIONS.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                {memberForm.grade === 'Other' && (
+                  <div className="col-md-6">
+                    <label className="form-label">Grade (other)</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={memberForm.gradeOther}
+                      onChange={(e) => setMemberForm({ ...memberForm, gradeOther: e.target.value })}
+                      placeholder="e.g. 8th grade"
+                    />
+                  </div>
+                )}
                 <div className="col-md-12">
                   <label className="form-label">School Name</label>
                   <input

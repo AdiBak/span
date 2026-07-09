@@ -7,6 +7,21 @@ export const MEMBER_GRADE_OPTIONS = [
   'Collegiate/Graduate',
 ]
 
+/** Standard HS grades advanced each school year (May 31); Collegiate/Graduate unchanged. */
+export const MEMBER_GRADE_ADVANCE_MAP = {
+  'HS Freshman': 'HS Sophomore',
+  'HS Sophomore': 'HS Junior',
+  'HS Junior': 'HS Senior',
+  'HS Senior': 'Collegiate/Graduate',
+}
+
+/** @returns {string | null} Next standard grade, or null if not auto-advanced (unknown / collegiate). */
+export function advanceMemberGrade(grade) {
+  const g = String(grade || '').trim()
+  if (!g) return null
+  return MEMBER_GRADE_ADVANCE_MAP[g] ?? null
+}
+
 export const MEMBER_GRADE_FILTER_OPTIONS = [
   { value: 'all', label: 'All grades' },
   { value: 'unknown', label: 'Unknown' },

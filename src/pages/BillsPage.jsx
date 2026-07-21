@@ -448,14 +448,31 @@ function BillsPage() {
 
   const totalPages = Math.ceil(filteredBills.length / ITEMS_PER_PAGE)
 
-  // Handle URL params for search (e.g., ?search=Texas)
+  // Handle URL params for search / open public suggestion form (e.g. ?search=Texas, ?suggest=1)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const searchParam = params.get('search')
     if (searchParam) {
       setSearchQuery(searchParam)
     }
+    const suggestParam = params.get('suggest')
+    if (suggestParam === '1' || suggestParam === 'true') {
+      setShowPublicBillForm(true)
+    }
   }, [])
+
+  useEffect(() => {
+    if (!showPublicBillForm) return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('suggest') !== '1' && params.get('suggest') !== 'true') return
+    const t = window.setTimeout(() => {
+      document.getElementById('public-bill-suggestion-panel')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    }, 150)
+    return () => window.clearTimeout(t)
+  }, [showPublicBillForm])
 
   // Initialize AOS animations after component mounts
   useEffect(() => {

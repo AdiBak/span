@@ -37,6 +37,7 @@ function HomePage() {
               <div className="d-flex flex-wrap justify-content-center gap-3" data-aos="fade" data-aos-duration="2000" data-aos-delay="1000">
                 <a href="#join" className="btn btn-outline-light btn-lg px-4 shadow-sm">Join Our Movement</a>
                 <a href="#impact" className="btn btn-outline-light btn-lg px-4">See Our Impact</a>
+                <a href="/bills.html?suggest=1" className="btn btn-outline-light btn-lg px-4">Suggest a Bill or Issue</a>
               </div>
             </div>
           </div>

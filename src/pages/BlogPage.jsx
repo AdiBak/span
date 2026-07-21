@@ -3,10 +3,10 @@ import Pagination from '../components/Pagination'
 import BlogCard from '../components/BlogCard'
 import { supabase } from '../lib/supabase'
 import { memberNameLookupKeys, memberSiteDisplayName } from '../lib/memberDisplayName'
+import { fetchMediumBlogItems } from '../lib/mediumBlog'
 import '../pages/BlogPage.css'
 
-const RSS_FEED_URL = 'https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fmedium.com%2Ffeed%2F%40spanationwide'
-const ITEMS_PER_PAGE = 5
+const ITEMS_PER_PAGE = 6
 const FALLBACK_IMAGE = 'https://via.placeholder.com/600x338?text=No+Image'
 const MEMBER_IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
 const DEFAULT_AUTHOR = {
@@ -123,17 +123,54 @@ const resolveAuthor = (item, memberLookup) => {
   return { ...DEFAULT_AUTHOR }
 }
 
-function normalizePost(item, memberLookup) {
-  const descriptionMatch = item.description?.match(/<img[^>]+src="([^"]+)"/)
-  const image = descriptionMatch ? descriptionMatch[1] : FALLBACK_IMAGE
-
-  const estDate = new Date(`${item.pubDate.replace(' ', 'T')}Z`)
+function pubDateParts(pubDate) {
+  const estDate = new Date(`${String(pubDate || '').replace(' ', 'T')}Z`)
+  if (Number.isNaN(estDate.getTime())) {
+    return { estDate: null, formattedDate: '', year: null, month: null }
+  }
   const formattedDate = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric',
     month: 'long',
     day: 'numeric'
   }).format(estDate)
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: 'numeric'
+  }).formatToParts(estDate)
+  const year = Number(parts.find((p) => p.type === 'year')?.value) || null
+  const month = Number(parts.find((p) => p.type === 'month')?.value) || null
+  return { estDate, formattedDate, year, month }
+}
+
+const MONTH_OPTIONS = [
+  { value: '1', label: 'January' },
+  { value: '2', label: 'February' },
+  { value: '3', label: 'March' },
+  { value: '4', label: 'April' },
+  { value: '5', label: 'May' },
+  { value: '6', label: 'June' },
+  { value: '7', label: 'July' },
+  { value: '8', label: 'August' },
+  { value: '9', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' },
+]
+
+function normalizePost(item, memberLookup) {
+  const descriptionMatch = item.description?.match(/<img[^>]+src="([^"]+)"/)
+  const fromDescription = descriptionMatch?.[1] || ''
+  const fromThumbnail = item.thumbnail && String(item.thumbnail).trim()
+  // Prefer a real hero image over tiny Medium byline/avatars.
+  const candidates = [fromThumbnail, fromDescription].filter(Boolean)
+  const image =
+    candidates.find((src) => !/resize:fill:(?:32|48|64|96):/.test(src)) ||
+    candidates[0] ||
+    FALLBACK_IMAGE
+
+  const { formattedDate, year, month } = pubDateParts(item.pubDate)
 
   const cleanContent = item.content
     ?.replace(/<figcaption>.*?<\/figcaption>/gs, '')
@@ -155,6 +192,8 @@ function normalizePost(item, memberLookup) {
     internalLink: `/blog-post.html?id=${encodeURIComponent(postId)}`, // Internal link
     image,
     formattedDate,
+    pubYear: year,
+    pubMonth: month,
     author,
     excerpt
   }
@@ -166,6 +205,10 @@ function BlogPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [authorFilter, setAuthorFilter] = useState('')
+  const [yearFilter, setYearFilter] = useState('')
+  const [monthFilter, setMonthFilter] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     let isMounted = true
@@ -173,10 +216,9 @@ function BlogPage() {
     async function fetchData() {
       try {
         setLoading(true)
-        const res = await fetch(RSS_FEED_URL)
-        if (!res.ok) throw new Error('Failed to fetch blog posts')
-        const data = await res.json()
-        const items = data.items || []
+        const feed = await fetchMediumBlogItems()
+        if (!feed.ok && !feed.items.length) throw new Error(feed.error || 'Failed to fetch blog posts')
+        const items = feed.items || []
 
         let membersData = []
         try {
@@ -226,6 +268,46 @@ function BlogPage() {
     [rawPosts, memberLookup]
   )
 
+  const authorOptions = useMemo(() => {
+    const names = new Set()
+    for (const post of normalizedPosts) {
+      const name = post.author?.name?.trim()
+      if (name) names.add(name)
+    }
+    return [...names].sort((a, b) => a.localeCompare(b))
+  }, [normalizedPosts])
+
+  const yearOptions = useMemo(() => {
+    const years = new Set()
+    for (const post of normalizedPosts) {
+      if (post.pubYear) years.add(post.pubYear)
+    }
+    return [...years].sort((a, b) => b - a)
+  }, [normalizedPosts])
+
+  const filteredPosts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    return normalizedPosts.filter((post) => {
+      if (authorFilter && post.author?.name !== authorFilter) return false
+      if (yearFilter && String(post.pubYear) !== yearFilter) return false
+      if (monthFilter && String(post.pubMonth) !== monthFilter) return false
+      if (q) {
+        const haystack = [post.title, post.excerpt, post.author?.name, post.formattedDate]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        if (!haystack.includes(q)) return false
+      }
+      return true
+    })
+  }, [normalizedPosts, authorFilter, yearFilter, monthFilter, searchQuery])
+
+  const filtersActive = Boolean(authorFilter || yearFilter || monthFilter || searchQuery.trim())
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [authorFilter, yearFilter, monthFilter, searchQuery])
+
   useEffect(() => {
     if (window.AOS && typeof window.AOS.init === 'function') {
       window.AOS.init()
@@ -233,21 +315,31 @@ function BlogPage() {
         window.AOS.refreshHard()
       }
     }
-  }, [normalizedPosts])
+  }, [filteredPosts, currentPage])
 
-  const featuredPost = normalizedPosts[0]
-  const otherPosts = useMemo(() => normalizedPosts.slice(1), [normalizedPosts])
+  const featuredPost = !filtersActive ? filteredPosts[0] : null
+  const listPosts = useMemo(
+    () => (featuredPost ? filteredPosts.slice(1) : filteredPosts),
+    [filteredPosts, featuredPost]
+  )
 
   const paginatedPosts = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE
-    return otherPosts.slice(start, start + ITEMS_PER_PAGE)
-  }, [otherPosts, currentPage])
+    return listPosts.slice(start, start + ITEMS_PER_PAGE)
+  }, [listPosts, currentPage])
 
-  const totalPages = Math.max(1, Math.ceil(otherPosts.length / ITEMS_PER_PAGE))
+  const totalPages = Math.max(1, Math.ceil(listPosts.length / ITEMS_PER_PAGE))
 
   const handlePageChange = (page) => {
     setCurrentPage(page)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const clearFilters = () => {
+    setAuthorFilter('')
+    setYearFilter('')
+    setMonthFilter('')
+    setSearchQuery('')
   }
 
   const renderPosts = () => {
@@ -266,12 +358,18 @@ function BlogPage() {
     }
 
     if (!featuredPost && paginatedPosts.length === 0) {
-      return <p className="text-center text-muted mt-4">No blog posts available at this time.</p>
+      return (
+        <p className="text-center text-muted mt-4">
+          {filtersActive
+            ? 'No blog posts match these filters.'
+            : 'No blog posts available at this time.'}
+        </p>
+      )
     }
 
     return (
       <>
-        <div className="mt-5 row">
+        <div className="blog-posts-grid mt-4">
           {currentPage === 1 && featuredPost && (
             <BlogCard post={featuredPost} variant="featured" />
           )}
@@ -308,6 +406,87 @@ function BlogPage() {
       <main className="p-3 p-md-5 m-md-3 bg-light">
         <div className="container py-5">
           <h2 className="text-center display-5 fw-bold">Latest Posts</h2>
+
+          {!loading && !error && normalizedPosts.length > 0 && (
+            <div className="blog-filters mt-4 d-flex flex-wrap align-items-end gap-2 justify-content-between">
+              <div className="blog-filters-left d-flex flex-wrap align-items-end gap-2">
+                <div className="blog-filter-field blog-filter-author">
+                  <label className="form-label small text-muted mb-1" htmlFor="blog-filter-author">
+                    Author
+                  </label>
+                  <select
+                    id="blog-filter-author"
+                    className="form-select"
+                    value={authorFilter}
+                    onChange={(e) => setAuthorFilter(e.target.value)}
+                  >
+                    <option value="">All authors</option>
+                    {authorOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="blog-filter-field blog-filter-year">
+                  <label className="form-label small text-muted mb-1" htmlFor="blog-filter-year">
+                    Year
+                  </label>
+                  <select
+                    id="blog-filter-year"
+                    className="form-select"
+                    value={yearFilter}
+                    onChange={(e) => setYearFilter(e.target.value)}
+                  >
+                    <option value="">All years</option>
+                    {yearOptions.map((year) => (
+                      <option key={year} value={String(year)}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="blog-filter-field blog-filter-month">
+                  <label className="form-label small text-muted mb-1" htmlFor="blog-filter-month">
+                    Month
+                  </label>
+                  <select
+                    id="blog-filter-month"
+                    className="form-select"
+                    value={monthFilter}
+                    onChange={(e) => setMonthFilter(e.target.value)}
+                  >
+                    <option value="">All months</option>
+                    {MONTH_OPTIONS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {filtersActive && (
+                  <button type="button" className="btn btn-outline-secondary" onClick={clearFilters}>
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="blog-filters-right blog-filter-field blog-filter-search">
+                <label className="form-label small text-muted mb-1" htmlFor="blog-filter-search">
+                  Search
+                </label>
+                <input
+                  id="blog-filter-search"
+                  type="search"
+                  className="form-control"
+                  placeholder="Search by keyword…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  aria-label="Search blog posts"
+                />
+              </div>
+            </div>
+          )}
+
           {renderPosts()}
         </div>
       </main>

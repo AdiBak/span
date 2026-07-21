@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { memberNameLookupKeys, memberSiteDisplayName } from '../lib/memberDisplayName'
+import { fetchMediumBlogItems, findMediumBlogItem } from '../lib/mediumBlog'
 import '../pages/BlogPage.css'
 
-const RSS_FEED_URL = 'https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fmedium.com%2Ffeed%2F%40spanationwide'
 const MEMBER_IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
 
 // Helper functions from BlogPage
@@ -157,17 +157,13 @@ function BlogPostPage({ postId }) {
           .eq('active', true)
         setMembers(membersData || [])
 
-        // Fetch RSS feed
-        const res = await fetch(RSS_FEED_URL)
-        if (!res.ok) throw new Error('Failed to fetch blog posts')
-        const data = await res.json()
-        const items = data.items || []
+        // Fetch Medium posts (live RSS + archived older stories)
+        const feed = await fetchMediumBlogItems()
+        if (!feed.ok && !feed.items.length) throw new Error(feed.error || 'Failed to fetch blog posts')
+        const items = feed.items || []
 
         // Find the post by ID (using guid or link)
-        const foundPost = items.find(item => {
-          const itemId = item.guid || item.link
-          return itemId === postId || itemId.includes(postId) || postId.includes(itemId)
-        })
+        const foundPost = findMediumBlogItem(items, postId)
 
         if (!foundPost) {
           setError('Post not found')
@@ -190,7 +186,10 @@ function BlogPostPage({ postId }) {
 
         // Get featured image
         const descriptionMatch = foundPost.description?.match(/<img[^>]+src="([^"]+)"/)
-        const image = descriptionMatch ? descriptionMatch[1] : null
+        const image =
+          descriptionMatch?.[1] ||
+          (foundPost.thumbnail && String(foundPost.thumbnail).trim()) ||
+          null
 
         // Sanitize and prepare content (remove featured image if it appears in content)
         const content = sanitizeContent(foundPost.content, image)

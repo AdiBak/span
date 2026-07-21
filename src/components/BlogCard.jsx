@@ -32,11 +32,11 @@ function AuthorInfo({ author }) {
 }
 
 function BlogCard({ post, variant = 'default' }) {
-  const columnClass = variant === 'featured' ? 'col-md-8 mb-4' : 'col-md-4 mb-4'
+  const wrapClass = `blog-card-wrap${variant === 'featured' ? ' blog-card-featured' : ''}`
   const cardClasses = `impact-card card h-100 shadow-sm news-card ${variant === 'featured' ? 'featured-news' : ''}`
 
   return (
-    <div className={columnClass}>
+    <div className={wrapClass}>
       <div className={cardClasses}>
         <img
           src={post.image}
@@ -72,4 +72,3 @@ function BlogCard({ post, variant = 'default' }) {
 }
 
 export default BlogCard
-

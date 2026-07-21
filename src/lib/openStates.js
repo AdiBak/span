@@ -145,11 +145,13 @@ export async function enrichCommitteeMembersWithPeopleDetails(baseMembers) {
     if (!full) return m
     const ch = extractPersonContactChannels(full)
     const fromFull = legislativeGreetingTitleFromOpenStatesPerson(full)
+    const chamberFromFull = chamberFromOpenStatesPerson(full)
     return {
       ...m,
       email: m.email || ch.email,
       webmailUrl: m.webmailUrl || ch.webmailUrl,
       phone: m.phone || ch.phone,
+      chamber: chamberFromFull || m.chamber || null,
       legislativeGreetingTitle: fromFull || m.legislativeGreetingTitle || null,
     }
   })
@@ -265,27 +267,39 @@ export function extractPersonContactChannels(person) {
 }
 
 /**
- * Infer Senator / Representative from Open States person roles (when present).
+ * Open States chamber: upper (Senate) | lower (House) | null.
  * @param {Record<string, unknown> | null} person
- * @returns {'Senator' | 'Representative' | null}
+ * @returns {'upper' | 'lower' | null}
  */
-export function legislativeGreetingTitleFromOpenStatesPerson(person) {
+export function chamberFromOpenStatesPerson(person) {
   if (!person || typeof person !== 'object') return null
   const roles = person.roles
   if (Array.isArray(roles)) {
     for (const r of roles) {
       if (!r || typeof r !== 'object') continue
       const oc = String(/** @type {Record<string, unknown>} */ (r).org_classification || '').toLowerCase()
-      if (oc === 'upper') return 'Senator'
-      if (oc === 'lower') return 'Representative'
+      if (oc === 'upper') return 'upper'
+      if (oc === 'lower') return 'lower'
     }
   }
   const cr = person.current_role
   if (cr && typeof cr === 'object') {
     const oc = String(/** @type {Record<string, unknown>} */ (cr).org_classification || '').toLowerCase()
-    if (oc === 'upper') return 'Senator'
-    if (oc === 'lower') return 'Representative'
+    if (oc === 'upper') return 'upper'
+    if (oc === 'lower') return 'lower'
   }
+  return null
+}
+
+/**
+ * Infer Senator / Representative from Open States person roles (when present).
+ * @param {Record<string, unknown> | null} person
+ * @returns {'Senator' | 'Representative' | null}
+ */
+export function legislativeGreetingTitleFromOpenStatesPerson(person) {
+  const chamber = chamberFromOpenStatesPerson(person)
+  if (chamber === 'upper') return 'Senator'
+  if (chamber === 'lower') return 'Representative'
   return null
 }
 
@@ -301,10 +315,19 @@ export function legislativeGreetingTitleFromCommitteeChamber(committeeChamber) {
   return null
 }
 
+/** @param {string | null | undefined} chamber */
+export function openStatesChamberLabel(chamber) {
+  const c = String(chamber || '').toLowerCase()
+  if (c === 'upper') return 'Senate'
+  if (c === 'lower') return 'House'
+  if (c === 'legislature') return 'Legislature'
+  return ''
+}
+
 /**
  * @param {Record<string, unknown> | null} committeeObj
  * @param {string} [committeeId] — used for name-only membership keys
- * @returns {{ personId: string | null, sponsorKey: string, name: string, party: string | null, role: string | null, email: string | null, webmailUrl: string | null, phone: string | null, legislativeGreetingTitle: 'Senator' | 'Representative' | null }[]}
+ * @returns {{ personId: string | null, sponsorKey: string, name: string, party: string | null, role: string | null, email: string | null, webmailUrl: string | null, phone: string | null, chamber: 'upper' | 'lower' | null, legislativeGreetingTitle: 'Senator' | 'Representative' | null }[]}
  */
 export function membershipsFromCommittee(committeeObj, committeeId = '') {
   if (!committeeObj) return []
@@ -316,6 +339,8 @@ export function membershipsFromCommittee(committeeObj, committeeId = '') {
           .trim()
           .toLowerCase() || null
       : null
+  const committeeChamberAsMember =
+    committeeChamber === 'upper' || committeeChamber === 'lower' ? committeeChamber : null
   const out = []
   const seen = new Set()
   const cid = String(committeeObj.id || committeeId || '').trim()
@@ -334,6 +359,7 @@ export function membershipsFromCommittee(committeeObj, committeeId = '') {
     if (!sponsorKey || seen.has(sponsorKey)) continue
     seen.add(sponsorKey)
     const channels = extractPersonContactChannels(person)
+    const chamber = chamberFromOpenStatesPerson(person) || committeeChamberAsMember
     const fromPerson = legislativeGreetingTitleFromOpenStatesPerson(person)
     const fromCommittee = legislativeGreetingTitleFromCommitteeChamber(committeeChamber)
     const legislativeGreetingTitle = fromPerson || fromCommittee || null
@@ -346,6 +372,7 @@ export function membershipsFromCommittee(committeeObj, committeeId = '') {
       email: channels.email,
       webmailUrl: channels.webmailUrl,
       phone: channels.phone,
+      chamber,
       legislativeGreetingTitle,
     })
   }

@@ -14,6 +14,7 @@ import {
   extractCommitteesList,
   invokeOpenStatesProxy,
   membershipsFromCommittee,
+  openStatesChamberLabel,
   outreachNameMatchKeys,
 } from '../lib/openStates'
 import { usStateAbbreviation } from '../lib/usStateCanonical'
@@ -198,9 +199,11 @@ export default function BillOutreachPanel({ bills, member }) {
   const [osListLoading, setOsListLoading] = useState(false)
   const [osListError, setOsListError] = useState('')
   const [osSearch, setOsSearch] = useState('')
-  const [osPick, setOsPick] = useState(null)
+  const [osPicks, setOsPicks] = useState([])
   const [osMembers, setOsMembers] = useState([])
-  const [osDetailLoading, setOsDetailLoading] = useState(false)
+  const [osMemberChamber, setOsMemberChamber] = useState('')
+  /** Committee ids currently loading memberships. */
+  const [osLoadingIds, setOsLoadingIds] = useState(() => new Set())
   const [osDetailError, setOsDetailError] = useState('')
   const [osImporting, setOsImporting] = useState(false)
   const [prospectLegiscanMatching, setProspectLegiscanMatching] = useState(false)
@@ -265,6 +268,22 @@ export default function BillOutreachPanel({ bills, member }) {
     })
   }, [osCommittees, osSearch])
 
+  const filteredOsMembers = useMemo(() => {
+    if (!osMemberChamber) return osMembers
+    return osMembers.filter((m) => m.chamber === osMemberChamber)
+  }, [osMembers, osMemberChamber])
+
+  const uniqueFilteredMemberCount = useMemo(() => {
+    const seen = new Set()
+    for (const m of filteredOsMembers) {
+      if (m.sponsorKey) seen.add(m.sponsorKey)
+    }
+    return seen.size
+  }, [filteredOsMembers])
+
+  const osPickIds = useMemo(() => new Set(osPicks.map((p) => p.id)), [osPicks])
+  const osDetailLoading = osLoadingIds.size > 0
+
   const resetOsWizard = useCallback(() => {
     setOsChamber('')
     setOsCommittees([])
@@ -272,8 +291,10 @@ export default function BillOutreachPanel({ bills, member }) {
     setOsCanLoadMore(false)
     setOsListError('')
     setOsSearch('')
-    setOsPick(null)
+    setOsPicks([])
     setOsMembers([])
+    setOsMemberChamber('')
+    setOsLoadingIds(new Set())
     setOsDetailError('')
   }, [])
 
@@ -333,27 +354,64 @@ export default function BillOutreachPanel({ bills, member }) {
     loadCommitteesPage(osPage + 1, true)
   }
 
-  const selectCommittee = async (c) => {
-    if (!c?.id) return
-    setOsPick(c)
-    setOsMembers([])
-    setOsDetailError('')
-    setOsDetailLoading(true)
-    try {
-      const res = await invokeOpenStatesProxy({
-        op: 'committee_detail',
-        committee_id: c.id,
-      })
-      if (!res.ok) {
-        setOsDetailError(res.error || 'Failed to load committee.')
-        return
+  const fetchCommitteeMembers = async (c) => {
+    const res = await invokeOpenStatesProxy({
+      op: 'committee_detail',
+      committee_id: c.id,
+    })
+    if (!res.ok) {
+      throw new Error(res.error || 'Failed to load committee.')
+    }
+    const detail = extractCommitteeDetailRecord(res.data)
+    let members = membershipsFromCommittee(detail, c.id).map((m) => ({
+      ...m,
+      committeeId: String(c.id),
+      committeeName: c.name || c.id,
+    }))
+    const committeeChamber = String(detail?.chamber || c.chamber || '')
+      .trim()
+      .toLowerCase()
+    const needPersonChamber =
+      committeeChamber === 'legislature' ||
+      !committeeChamber ||
+      members.some((m) => !m.chamber)
+    if (needPersonChamber && members.some((m) => m.personId)) {
+      try {
+        members = await enrichCommitteeMembersWithPeopleDetails(members)
+      } catch (e) {
+        console.warn('[outreach] enrich members for chamber failed', e)
       }
-      const detail = extractCommitteeDetailRecord(res.data)
-      setOsMembers(membershipsFromCommittee(detail, c.id))
+    }
+    return members
+  }
+
+  const toggleCommittee = async (c) => {
+    if (!c?.id) return
+    if (osPickIds.has(c.id)) {
+      setOsPicks((prev) => prev.filter((p) => p.id !== c.id))
+      setOsMembers((prev) => prev.filter((m) => m.committeeId !== c.id))
+      setOsDetailError('')
+      return
+    }
+    setOsDetailError('')
+    setOsLoadingIds((prev) => {
+      const next = new Set(prev)
+      next.add(c.id)
+      return next
+    })
+    setOsPicks((prev) => (prev.some((p) => p.id === c.id) ? prev : [...prev, c]))
+    try {
+      const members = await fetchCommitteeMembers(c)
+      setOsMembers((prev) => [...prev.filter((m) => m.committeeId !== c.id), ...members])
     } catch (e) {
+      setOsPicks((prev) => prev.filter((p) => p.id !== c.id))
       setOsDetailError(e.message || 'Failed to load committee.')
     } finally {
-      setOsDetailLoading(false)
+      setOsLoadingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(c.id)
+        return next
+      })
     }
   }
 
@@ -534,7 +592,7 @@ export default function BillOutreachPanel({ bills, member }) {
   }
 
   const importCommitteeMembers = async () => {
-    if (!selectedBill || !osPick?.id || !osMembers.length) return
+    if (!selectedBill || !osPicks.length || !uniqueFilteredMemberCount) return
     setOsImporting(true)
     setLoadError('')
     try {
@@ -547,12 +605,22 @@ export default function BillOutreachPanel({ bills, member }) {
 
       if (existingRes.error) throw existingRes.error
 
-      let membersToImport = osMembers
+      let membersToImport = filteredOsMembers
       try {
-        membersToImport = await enrichCommitteeMembersWithPeopleDetails(osMembers)
+        membersToImport = await enrichCommitteeMembersWithPeopleDetails(filteredOsMembers)
       } catch (e) {
         console.warn('[outreach] enrichCommitteeMembersWithPeopleDetails failed', e)
       }
+
+      // Same legislator can sit on multiple selected committees — one outreach row per person.
+      const dedupedBySponsor = []
+      const seenSponsor = new Set()
+      for (const m of membersToImport) {
+        if (!m.sponsorKey || seenSponsor.has(m.sponsorKey)) continue
+        seenSponsor.add(m.sponsorKey)
+        dedupedBySponsor.push(m)
+      }
+      membersToImport = dedupedBySponsor
 
       const existingByKey = new Map((existingRes.data || []).map((r) => [r.sponsor_key, r]))
       const legiscanByName = new Map()
@@ -561,14 +629,15 @@ export default function BillOutreachPanel({ bills, member }) {
           if (k && !legiscanByName.has(k)) legiscanByName.set(k, t)
         }
       }
-      const committeeId = String(osPick.id)
       const rows = []
       /** @type {Record<string, unknown>} */
       const importLog = {
         flow: 'import_openstates_committee',
         billId: selectedBill.bill_id,
         state: selectedBill?.state ?? null,
-        memberCount: osMembers.length,
+        committeeCount: osPicks.length,
+        memberCount: membersToImport.length,
+        previewRows: filteredOsMembers.length,
         sponsorMatches: 0,
         statewideLookups: 0,
         sessionPeopleCount: null,
@@ -628,7 +697,7 @@ export default function BillOutreachPanel({ bills, member }) {
           notes: existing?.notes || null,
           target_source: 'openstates_committee',
           openstates_person_id: m.personId || null,
-          openstates_committee_id: committeeId,
+          openstates_committee_id: m.committeeId || osPicks[0]?.id || null,
           updated_by_member_id: member?.member_id || null,
           greeting_title: m.legislativeGreetingTitle ?? existing?.greeting_title ?? null,
         })
@@ -1047,14 +1116,18 @@ export default function BillOutreachPanel({ bills, member }) {
                       )}
                       {osCommittees.length > 0 && (
                         <div className="mb-2">
-                      <input
+                          <input
                             type="search"
-                        className="form-control form-control-sm"
+                            className="form-control form-control-sm"
                             placeholder="Filter committees by name…"
                             value={osSearch}
                             onChange={(e) => setOsSearch(e.target.value)}
                             aria-label="Filter committees"
                           />
+                          <p className="small text-muted mb-0 mt-1">
+                            Select one or more committees to import. Click again to deselect.
+                            {osPicks.length > 0 ? ` ${osPicks.length} selected.` : ''}
+                          </p>
                         </div>
                       )}
                       <div className="border rounded mb-3" style={{ maxHeight: '220px', overflow: 'auto' }}>
@@ -1062,27 +1135,66 @@ export default function BillOutreachPanel({ bills, member }) {
                           <p className="text-muted small p-2 mb-0">No committees match this filter.</p>
                         ) : (
                           <ul className="list-group list-group-flush small mb-0">
-                            {filteredOsCommittees.map((c) => (
-                              <li key={c.id} className="list-group-item list-group-item-action py-2">
-                                <button
-                                  type="button"
-                                  className="btn btn-link btn-sm text-start p-0 text-decoration-none"
-                                  onClick={() => selectCommittee(c)}
-                                >
-                                  {c.name || c.id}
-                                </button>
-                                {osPick?.id === c.id && (
-                                  <span className="badge bg-secondary ms-2">selected</span>
-                                )}
-                              </li>
-                            ))}
+                            {filteredOsCommittees.map((c) => {
+                              const selected = osPickIds.has(c.id)
+                              const loading = osLoadingIds.has(c.id)
+                              return (
+                                <li key={c.id} className="list-group-item py-2">
+                                  <label className="d-flex align-items-center gap-2 mb-0 w-100" style={{ cursor: 'pointer' }}>
+                                    <input
+                                      type="checkbox"
+                                      className="form-check-input mt-0 flex-shrink-0"
+                                      checked={selected}
+                                      disabled={loading}
+                                      onChange={() => toggleCommittee(c)}
+                                      aria-label={`Select ${c.name || c.id}`}
+                                    />
+                                    <span className="flex-grow-1">
+                                      {c.name || c.id}
+                                      {openStatesChamberLabel(c.chamber) && (
+                                        <span className="badge bg-light text-dark border ms-2">
+                                          {openStatesChamberLabel(c.chamber)}
+                                        </span>
+                                      )}
+                                      {loading && (
+                                        <span className="spinner-border spinner-border-sm ms-2" role="status" />
+                                      )}
+                                    </span>
+                                  </label>
+                                </li>
+                              )
+                            })}
                           </ul>
                         )}
                       </div>
 
-                      {osPick && (
+                      {osPicks.length > 0 && (
                         <>
-                          <h6 className="small text-muted mb-2">Members — {osPick.name || osPick.id}</h6>
+                          <div className="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-2">
+                            <h6 className="small text-muted mb-0">
+                              Members — {osPicks.length} committee{osPicks.length === 1 ? '' : 's'}
+                              {osPicks.length <= 3
+                                ? ` (${osPicks.map((p) => p.name || p.id).join(', ')})`
+                                : ''}
+                            </h6>
+                            {(osMembers.length > 0 || osDetailLoading) && (
+                              <div style={{ minWidth: '160px' }}>
+                                <label className="form-label small text-muted mb-1" htmlFor="os-member-chamber">
+                                  Member chamber
+                                </label>
+                                <select
+                                  id="os-member-chamber"
+                                  className="form-select form-select-sm"
+                                  value={osMemberChamber}
+                                  onChange={(e) => setOsMemberChamber(e.target.value)}
+                                >
+                                  <option value="">All</option>
+                                  <option value="lower">House</option>
+                                  <option value="upper">Senate</option>
+                                </select>
+                              </div>
+                            )}
+                          </div>
                           {osDetailLoading && (
                             <p className="small text-muted">
                               <span className="spinner-border spinner-border-sm me-1" role="status" />
@@ -1095,30 +1207,39 @@ export default function BillOutreachPanel({ bills, member }) {
                             </div>
                           )}
                           {!osDetailLoading && !osDetailError && osMembers.length === 0 && (
-                            <p className="text-muted small">No memberships returned for this committee.</p>
+                            <p className="text-muted small">No memberships returned for the selected committees.</p>
                           )}
-                          {osMembers.length > 0 && (
+                          {osMembers.length > 0 && filteredOsMembers.length === 0 && (
+                            <p className="text-muted small">No members match this chamber filter.</p>
+                          )}
+                          {filteredOsMembers.length > 0 && (
                             <div className="table-responsive border rounded mb-3" style={{ maxHeight: '200px' }}>
                               <table className="table table-sm mb-0">
                                 <thead className="table-light">
                                   <tr>
                                     <th>Name</th>
+                                    <th>Committee</th>
+                                    <th>Chamber</th>
                                     <th>Party</th>
                                     <th>Role</th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {osMembers.map((m) => (
-                                    <tr key={m.sponsorKey}>
+                                  {filteredOsMembers.map((m) => (
+                                    <tr key={`${m.committeeId || ''}:${m.sponsorKey}`}>
                                       <td>{m.name}</td>
+                                      <td className="text-muted small">{m.committeeName || '—'}</td>
+                                      <td className="text-muted small">
+                                        {openStatesChamberLabel(m.chamber) || '—'}
+                                      </td>
                                       <td className="text-muted small">{m.party || '—'}</td>
                                       <td className="text-muted small">{m.role || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                         </>
                       )}
                     </>
@@ -1132,7 +1253,11 @@ export default function BillOutreachPanel({ bills, member }) {
                     type="button"
                     className="btn btn-sm btn-primary"
                     disabled={
-                      !openStatesJurisdiction || !osPick || !osMembers.length || osImporting || osDetailLoading
+                      !openStatesJurisdiction ||
+                      !osPicks.length ||
+                      !uniqueFilteredMemberCount ||
+                      osImporting ||
+                      osDetailLoading
                     }
                     onClick={importCommitteeMembers}
                   >
@@ -1142,7 +1267,7 @@ export default function BillOutreachPanel({ bills, member }) {
                         Importing…
                       </>
                     ) : (
-                      `Import ${osMembers.length} member(s)`
+                      `Import ${uniqueFilteredMemberCount} member(s)`
                     )}
                   </button>
                 </div>

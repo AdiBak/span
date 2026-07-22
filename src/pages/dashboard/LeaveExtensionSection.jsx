@@ -140,14 +140,14 @@ export default function LeaveExtensionSection({
             <div className="btn-group flex-shrink-0" role="group" aria-label="Leave requests view">
               <button
                 type="button"
-                className={`btn btn-sm ${leaveExtensionViewMode === 'calendar' ? 'btn-dark' : 'btn-outline-dark'}`}
+                className={`btn btn-sm ${leaveExtensionViewMode === 'calendar' ? 'btn-primary' : 'btn-outline-secondary'}`}
                 onClick={() => setLeaveExtensionViewMode('calendar')}
               >
                 <i className="bi bi-calendar3 me-1"></i>Calendar
               </button>
               <button
                 type="button"
-                className={`btn btn-sm ${leaveExtensionViewMode === 'table' ? 'btn-dark' : 'btn-outline-dark'}`}
+                className={`btn btn-sm ${leaveExtensionViewMode === 'table' ? 'btn-primary' : 'btn-outline-secondary'}`}
                 onClick={() => setLeaveExtensionViewMode('table')}
               >
                 <i className="bi bi-table me-1"></i>Table
@@ -158,7 +158,7 @@ export default function LeaveExtensionSection({
                 <div className="btn-group flex-shrink-0" role="group" aria-label="Filter by request status">
                   <button
                     type="button"
-                    className={`btn btn-sm ${memberRequestFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                    className={`btn btn-sm ${memberRequestFilter === 'all' ? 'btn-secondary' : 'btn-outline-secondary'}`}
                     onClick={() => setMemberRequestFilter('all')}
                     style={{ flex: '0 0 auto' }}
                   >

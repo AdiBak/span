@@ -75,6 +75,17 @@ import { supabaseInvokeHeaders } from './dashboard/supabaseInvoke'
 import { runAiTextCheck, checkAiFromBill, checkAiFromAssignment } from '../lib/checkAiText'
 import './DashboardPage.css'
 
+const DASHBOARD_THEME_KEY = 'span-dashboard-theme'
+
+function readStoredDashboardTheme() {
+  try {
+    const v = localStorage.getItem(DASHBOARD_THEME_KEY)
+    return v === 'dark' ? 'dark' : 'light'
+  } catch {
+    return 'light'
+  }
+}
+
 /** Lead member ids merged from `policy_team_leads` in `loadPolicyTeams`. */
 function policyTeamLeadIds(team) {
   const ids = team?.lead_member_ids
@@ -85,6 +96,7 @@ function DashboardPage() {
   console.log('DashboardPage component rendering...')
   const [member, setMember] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [dashboardTheme, setDashboardTheme] = useState(readStoredDashboardTheme)
   const [volunteerEntries, setVolunteerEntries] = useState([])
   const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [showVolunteerModal, setShowVolunteerModal] = useState(false)
@@ -1498,14 +1510,67 @@ function DashboardPage() {
     await loadExecConductData()
   }
 
+  const handleDeleteHrReport = async (reportId) => {
+    if (!reportId) return false
+    if (
+      !window.confirm(
+        'Delete this HR report permanently? Linked strikes stay on record but lose the report link. This cannot be undone.',
+      )
+    ) {
+      return false
+    }
+    try {
+      const { error } = await supabase.from('hr_reports').delete().eq('report_id', reportId)
+      if (error) throw error
+      setShowHrReportViewModal(false)
+      setSelectedHrReport(null)
+      await loadHrReports()
+      await loadExecConductData()
+      return true
+    } catch (err) {
+      alert(err.message || 'Failed to delete HR report.')
+      return false
+    }
+  }
+
+  const handleDeleteResignation = async (resignationId) => {
+    if (!resignationId) return false
+    if (!window.confirm('Delete this resignation request permanently? This cannot be undone.')) return false
+    try {
+      const { error } = await supabase
+        .from('member_resignations')
+        .delete()
+        .eq('resignation_id', resignationId)
+      if (error) throw error
+      await loadExecConductData()
+      return true
+    } catch (err) {
+      alert(err.message || 'Failed to delete resignation request.')
+      return false
+    }
+  }
+
   const handleDeleteStrike = async (strikeId) => {
-    if (!confirm('Remove this strike from the record?')) return
+    if (!confirm('Remove this strike from the record?')) return false
     const { error } = await supabase.from('member_strikes').delete().eq('strike_id', strikeId)
     if (error) {
       alert(error.message)
-      return
+      return false
     }
     await loadExecConductData()
+    return true
+  }
+
+  const toggleDashboardTheme = () => {
+    setDashboardTheme((prev) => {
+      const next = prev === 'dark' ? 'light' : 'dark'
+      try {
+        localStorage.setItem(DASHBOARD_THEME_KEY, next)
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
   }
 
   const handleInitiateRemovalProposal = async () => {
@@ -5408,7 +5473,7 @@ function DashboardPage() {
   })
 
   return (
-    <div className="dashboard-page">
+    <div className="dashboard-page" data-bs-theme={dashboardTheme}>
       <section className="subpage-hero d-flex align-items-center text-white text-center position-relative">
         <div className="parallax-bg" aria-hidden="true"></div>
         <div className="container position-relative z-1">
@@ -5416,6 +5481,16 @@ function DashboardPage() {
           <p className="lead" data-aos="fade-up" data-aos-delay="200">Manage your SPAN membership.</p>
         </div>
       </section>
+
+      <button
+        type="button"
+        className={`btn dashboard-theme-toggle ${dashboardTheme === 'dark' ? 'btn-light' : 'btn-dark'}`}
+        onClick={toggleDashboardTheme}
+        title={dashboardTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        aria-label={dashboardTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        <i className={`bi ${dashboardTheme === 'dark' ? 'bi-sun-fill' : 'bi-moon-stars-fill'}`} aria-hidden="true" />
+      </button>
 
       <div className="container my-5">
         {/* View-as mode: banner and loading/error */}
@@ -6160,6 +6235,8 @@ function DashboardPage() {
               onCancelRemovalProposal={handleCancelRemovalProposal}
               onUpdateResignationStatus={handleUpdateResignationStatus}
               onUpdateResignationNotes={handleUpdateResignationExecNotes}
+              onDeleteResignation={handleDeleteResignation}
+              onDeleteStrike={handleDeleteStrike}
               onOpenHonorableExitEmailModal={() => setShowHonorableExitEmailModal(true)}
               onOpenRemovalNoticeEmailModal={() => setShowRemovalNoticeEmailModal(true)}
             />
@@ -6544,6 +6621,14 @@ function DashboardPage() {
         }
         recordingStrike={recordingHrStrike}
         onRecordStrikeFromReport={handleRecordStrikeFromHrReport}
+        canDelete={
+          !viewAsData &&
+          hasPermission('volunteer') &&
+          hasPermission('applications') &&
+          hasPermission('bills') &&
+          hasPermission('registration')
+        }
+        onDelete={() => selectedHrReport?.report_id && handleDeleteHrReport(selectedHrReport.report_id)}
       />
 
       <MemberStrikeModal

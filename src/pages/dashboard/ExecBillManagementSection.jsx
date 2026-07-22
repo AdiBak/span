@@ -4,6 +4,7 @@ import BillResearchPanel from '../../components/BillResearchPanel'
 import AiCheckResultPanel from '../../components/AiCheckResultPanel'
 import BillAssignmentsExecPanel from './BillAssignmentsExecPanel'
 import { billStateGroupKey, usStateAbbreviation } from '../../lib/usStateCanonical'
+import { billStatusFilterBtnClass } from '../../lib/billStatusFilterBtn'
 
 export default function ExecBillManagementSection({
   sectionOrder,
@@ -85,7 +86,7 @@ export default function ExecBillManagementSection({
           <button
             type="button"
             className={`btn btn-sm ${
-              execBillSectionTab === 'review_queue' ? 'btn-dark' : 'btn-outline-dark'
+              execBillSectionTab === 'review_queue' ? 'btn-primary' : 'btn-outline-secondary'
             }`}
             onClick={() => setExecBillSectionTab('review_queue')}
           >
@@ -94,7 +95,7 @@ export default function ExecBillManagementSection({
           <button
             type="button"
             className={`btn btn-sm ${
-              execBillSectionTab === 'assigned_bills' ? 'btn-dark' : 'btn-outline-dark'
+              execBillSectionTab === 'assigned_bills' ? 'btn-primary' : 'btn-outline-secondary'
             }`}
             onClick={() => setExecBillSectionTab('assigned_bills')}
           >
@@ -103,7 +104,7 @@ export default function ExecBillManagementSection({
           <button
             type="button"
             className={`btn btn-sm ${
-              execBillSectionTab === 'research' ? 'btn-dark' : 'btn-outline-dark'
+              execBillSectionTab === 'research' ? 'btn-primary' : 'btn-outline-secondary'
             }`}
             onClick={() => setExecBillSectionTab('research')}
           >
@@ -112,7 +113,7 @@ export default function ExecBillManagementSection({
           <button
             type="button"
             className={`btn btn-sm ${
-              execBillSectionTab === 'outreach' ? 'btn-dark' : 'btn-outline-dark'
+              execBillSectionTab === 'outreach' ? 'btn-primary' : 'btn-outline-secondary'
             }`}
             onClick={() => setExecBillSectionTab('outreach')}
           >
@@ -152,16 +153,14 @@ export default function ExecBillManagementSection({
               <div className="btn-group" role="group">
                 <button
                   type="button"
-                  className={`btn btn-sm ${billFilter === 'all' ? 'btn-dark' : 'btn-outline-dark'}`}
+                  className={`btn btn-sm ${billStatusFilterBtnClass('all', billFilter === 'all')}`}
                   onClick={() => setBillFilter('all')}
                 >
                   All ({effectiveBills.length})
                 </button>
                 <button
                   type="button"
-                  className={`btn btn-sm ${
-                    billFilter === 'under_review' ? 'btn-warning' : 'btn-outline-warning'
-                  }`}
+                  className={`btn btn-sm ${billStatusFilterBtnClass('under_review', billFilter === 'under_review')}`}
                   onClick={() => setBillFilter('under_review')}
                 >
                   Under Review (
@@ -171,7 +170,7 @@ export default function ExecBillManagementSection({
                 </button>
                 <button
                   type="button"
-                  className={`btn btn-sm ${billFilter === 'approved' ? 'btn-success' : 'btn-outline-success'}`}
+                  className={`btn btn-sm ${billStatusFilterBtnClass('approved', billFilter === 'approved')}`}
                   onClick={() => setBillFilter('approved')}
                 >
                   Approved (
@@ -181,14 +180,14 @@ export default function ExecBillManagementSection({
                 </button>
                 <button
                   type="button"
-                  className={`btn btn-sm ${billFilter === 'modified' ? 'btn-info' : 'btn-outline-info'}`}
+                  className={`btn btn-sm ${billStatusFilterBtnClass('modified', billFilter === 'modified')}`}
                   onClick={() => setBillFilter('modified')}
                 >
                   Modified ({effectiveBills.filter((b) => b.status === 'modified').length})
                 </button>
                 <button
                   type="button"
-                  className={`btn btn-sm ${billFilter === 'rejected' ? 'btn-danger' : 'btn-outline-danger'}`}
+                  className={`btn btn-sm ${billStatusFilterBtnClass('rejected', billFilter === 'rejected')}`}
                   onClick={() => setBillFilter('rejected')}
                 >
                   Rejected ({effectiveBills.filter((b) => b.status === 'rejected').length})

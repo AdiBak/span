@@ -207,3 +207,85 @@
     padding: 1px 4px;
   }
 }
+
+/* Dark mode (dashboard) */
+.dashboard-page[data-bs-theme="dark"] .lec-wrap {
+  border-color: var(--bs-border-color);
+  background: var(--bs-body-bg);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-toolbar {
+  background: var(--bs-tertiary-bg);
+  border-bottom-color: var(--bs-border-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-toolbar h4 {
+  color: var(--bs-body-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-legend {
+  color: var(--bs-secondary-color);
+  border-bottom-color: var(--bs-border-color);
+  background: var(--bs-body-bg);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-dow-row {
+  border-bottom-color: var(--bs-border-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-dow {
+  color: var(--bs-secondary-color);
+  background: var(--bs-tertiary-bg);
+  border-right-color: var(--bs-border-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-week {
+  border-bottom-color: var(--bs-border-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-day-cell {
+  border-right-color: var(--bs-border-color);
+  background: var(--bs-body-bg);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-day-cell--muted {
+  background: var(--bs-tertiary-bg);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-day-cell--muted .lec-daynum {
+  color: var(--bs-secondary-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-day-cell--today {
+  box-shadow: inset 0 0 0 2px #6ea8fe;
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-daynum {
+  color: var(--bs-body-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-week-track {
+  background: var(--bs-body-bg);
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-bar:focus-visible {
+  outline-color: #6ea8fe;
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-bar--pending {
+  background: #664d03;
+  color: #fff3cd;
+  border-color: #ffc107;
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-bar--approved {
+  background: #0f5132;
+  color: #d1e7dd;
+  border-color: #198754;
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-bar--declined {
+  background: #842029;
+  color: #f8d7da;
+  border-color: #dc3545;
+}

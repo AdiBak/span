@@ -6,41 +6,6 @@ import {
   splitMemberGradeForForm,
 } from '../../lib/memberGrades'
 
-const cardStyle = {
-  backgroundColor: '#f8f9fa',
-  padding: '1.5rem',
-  borderRadius: '12px',
-  border: '1px solid #e9ecef',
-  height: '100%',
-}
-
-const iconBoxStyle = {
-  width: '40px',
-  height: '40px',
-  backgroundColor: '#fff',
-  borderRadius: '8px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: '1rem',
-  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-}
-
-const labelStyle = {
-  fontSize: '0.7rem',
-  color: '#6c757d',
-  textTransform: 'uppercase',
-  letterSpacing: '1px',
-  marginBottom: '0.5rem',
-  fontWeight: '500',
-}
-
-const valueStyle = {
-  fontSize: '1.1rem',
-  color: '#212529',
-  fontWeight: 'bold',
-}
-
 function CardEditButton({ onClick, disabled, label }) {
   return (
     <button
@@ -60,16 +25,16 @@ function CardEditButton({ onClick, disabled, label }) {
 function InfoCard({ iconClass, label, editable, editLabel, onEdit, editing, disabled, children }) {
   return (
     <div className="col-md-6">
-      <div style={cardStyle}>
+      <div className="your-info-field-card">
         <div className="d-flex justify-content-between align-items-start gap-2">
-          <div style={iconBoxStyle}>
-            <i className={iconClass} style={{ fontSize: '1.25rem', color: '#16213e' }} />
+          <div className="your-info-icon-box">
+            <i className={`${iconClass} your-info-icon`} />
           </div>
           {editable && !editing && (
             <CardEditButton onClick={onEdit} disabled={disabled} label={editLabel} />
           )}
         </div>
-        <div style={labelStyle}>{label}</div>
+        <div className="your-info-field-label">{label}</div>
         {children}
       </div>
     </div>
@@ -219,92 +184,31 @@ export default function YourInfoSection({
       {success && !editingField && <div className="alert alert-success py-2">{success}</div>}
       {error && editingField && <div className="alert alert-danger py-2">{error}</div>}
 
-      <div className="card shadow-sm border-0" style={{ borderRadius: '16px', overflow: 'hidden' }}>
-        <div
-          style={{
-            backgroundColor: '#16213e',
-            padding: '2rem',
-            display: 'flex',
-            gap: '2rem',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ flex: '1', minWidth: '250px' }}>
-            <div
-              style={{
-                width: '48px',
-                height: '48px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '1rem',
-              }}
-            >
-              <i className="bi bi-calendar-check" style={{ fontSize: '1.5rem', color: '#fff' }} />
+      <div className="card shadow-sm border-0 your-info-card">
+        <div className="your-info-hero">
+          <div className="your-info-hero-col">
+            <div className="your-info-hero-icon">
+              <i className="bi bi-calendar-check" />
             </div>
-            <div
-              style={{
-                fontSize: '0.7rem',
-                color: '#b0b0b0',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                marginBottom: '0.5rem',
-                fontWeight: '500',
-              }}
-            >
-              Started
-            </div>
-            <div style={{ fontSize: '1.25rem', color: '#fff', fontWeight: 'bold' }}>
-              {formatDate(effectiveMember.start_date)}
-            </div>
+            <div className="your-info-hero-label">Started</div>
+            <div className="your-info-hero-value">{formatDate(effectiveMember.start_date)}</div>
           </div>
 
-          <div style={{ flex: '1', minWidth: '250px' }}>
-            <div
-              style={{
-                width: '48px',
-                height: '48px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '1rem',
-              }}
-            >
-              <i className="bi bi-envelope-fill" style={{ fontSize: '1.5rem', color: '#fff' }} />
+          <div className="your-info-hero-col">
+            <div className="your-info-hero-icon">
+              <i className="bi bi-envelope-fill" />
             </div>
-            <div
-              style={{
-                fontSize: '0.7rem',
-                color: '#b0b0b0',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-                marginBottom: '0.5rem',
-                fontWeight: '500',
-              }}
-            >
-              Email
-            </div>
-            <div
-              style={{
-                fontSize: '1.25rem',
-                color: '#fff',
-                fontWeight: 'bold',
-                wordBreak: 'break-word',
-              }}
-            >
+            <div className="your-info-hero-label">Email</div>
+            <div className="your-info-hero-value your-info-hero-value--wrap">
               {effectiveMember.email || '-'}
             </div>
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#fff', padding: '2rem' }}>
+        <div className="your-info-body">
           <div className="row g-3">
             <InfoCard iconClass="bi bi-calendar-event" label="Birthday">
-              <div style={valueStyle}>{formatDate(effectiveMember.dob)}</div>
+              <div className="your-info-field-value">{formatDate(effectiveMember.dob)}</div>
             </InfoCard>
 
             <InfoCard
@@ -370,7 +274,7 @@ export default function YourInfoSection({
                   </div>
                 </div>
               ) : (
-                <div style={valueStyle}>{locationDisplay}</div>
+                <div className="your-info-field-value">{locationDisplay}</div>
               )}
             </InfoCard>
 
@@ -455,14 +359,14 @@ export default function YourInfoSection({
                 </div>
               ) : (
                 <>
-                  <div style={valueStyle}>{schoolDisplay}</div>
+                  <div className="your-info-field-value">{schoolDisplay}</div>
                   {gradeDisplay && <div className="text-muted small mt-1">{gradeDisplay}</div>}
                 </>
               )}
             </InfoCard>
 
             <InfoCard iconClass="bi bi-telephone-fill" label="Phone">
-              <div style={valueStyle}>{formatPhone(effectiveMember.phone)}</div>
+              <div className="your-info-field-value">{formatPhone(effectiveMember.phone)}</div>
             </InfoCard>
           </div>
         </div>

@@ -9,13 +9,12 @@ import {
 } from './resignationStatusConfig'
 
 const STRIKE_FILTER_CONFIG = [
-  ['all', 'All', 'btn-dark'],
+  ['all', 'All', 'btn-secondary'],
   ['hr_report', 'HR report', 'btn-secondary'],
   ['manual', 'Manual', 'btn-secondary'],
 ]
 
 const STRIKE_BTN_OUTLINE = {
-  'btn-dark': 'btn-outline-dark',
   'btn-secondary': 'btn-outline-secondary',
 }
 
@@ -32,6 +31,8 @@ export default function ExecConductSection({
   onCancelRemovalProposal,
   onUpdateResignationStatus,
   onUpdateResignationNotes,
+  onDeleteResignation,
+  onDeleteStrike,
   onOpenHonorableExitEmailModal,
   onOpenRemovalNoticeEmailModal,
 }) {
@@ -192,11 +193,11 @@ export default function ExecConductSection({
       </div>
 
       {strikes.length === 0 ? (
-        <p className="text-muted small mb-5">No strikes recorded.</p>
+        <p className="text-muted small mb-4">No strikes recorded.</p>
       ) : (
-        <div className="table-responsive mb-5" style={{ maxHeight: '420px', overflowY: 'auto' }}>
+        <div className="table-responsive mb-4" style={{ maxHeight: '420px', overflowY: 'auto' }}>
           <table className="table table-hover table-sm align-middle mb-0">
-            <thead className="sticky-top bg-white border-bottom" style={{ zIndex: 1 }}>
+            <thead className="sticky-top bg-body-tertiary border-bottom" style={{ zIndex: 1 }}>
               <tr>
                 <th>Recorded</th>
                 <th>Member</th>
@@ -262,7 +263,7 @@ export default function ExecConductSection({
                 'btn-success': 'btn-outline-success',
                 'btn-secondary': 'btn-outline-secondary',
               }
-              const outline = outlineMap[activeClass] || 'btn-outline-dark'
+              const outline = outlineMap[activeClass] || 'btn-outline-secondary'
               return (
                 <button
                   key={key}
@@ -285,9 +286,9 @@ export default function ExecConductSection({
       {resignations.length === 0 ? (
         <p className="text-muted small">No resignation requests yet.</p>
       ) : (
-        <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+        <div className="table-responsive mb-0" style={{ maxHeight: '500px', overflowY: 'auto' }}>
           <table className="table table-hover table-sm align-middle mb-0">
-            <thead className="sticky-top bg-white border-bottom" style={{ zIndex: 1 }}>
+            <thead className="sticky-top bg-body-tertiary border-bottom" style={{ zIndex: 1 }}>
               <tr>
                 <th>Member</th>
                 <th>Submitted</th>
@@ -347,6 +348,15 @@ export default function ExecConductSection({
         formatDateLong={formatDateLong}
         onClose={() => setResignationToView(null)}
         onUpdateResignationStatus={onUpdateResignationStatus}
+        onDelete={
+          onDeleteResignation
+            ? async (id) => {
+                const ok = await onDeleteResignation(id)
+                if (ok !== false) setResignationToView(null)
+                return ok
+              }
+            : undefined
+        }
       />
 
       <StrikeDetailModal
@@ -356,6 +366,15 @@ export default function ExecConductSection({
         recorderName={strikeModalRecorder}
         formatDateLong={formatDateLong}
         onClose={() => setStrikeToView(null)}
+        onDelete={
+          onDeleteStrike
+            ? async (id) => {
+                const ok = await onDeleteStrike(id)
+                if (ok !== false) setStrikeToView(null)
+                return ok
+              }
+            : undefined
+        }
       />
     </section>
   )

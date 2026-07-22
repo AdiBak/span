@@ -103,7 +103,7 @@ export default function BillSubmissionSection({
           <button
             type="button"
             className={`btn btn-sm ${
-              memberBillSectionTab === 'my_bills' ? 'btn-dark' : 'btn-outline-dark'
+              memberBillSectionTab === 'my_bills' ? 'btn-primary' : 'btn-outline-secondary'
             }`}
             onClick={() => setMemberBillSectionTab('my_bills')}
           >
@@ -112,7 +112,7 @@ export default function BillSubmissionSection({
           <button
             type="button"
             className={`btn btn-sm ${
-              memberBillSectionTab === 'assigned_to_me' ? 'btn-dark' : 'btn-outline-dark'
+              memberBillSectionTab === 'assigned_to_me' ? 'btn-primary' : 'btn-outline-secondary'
             }`}
             onClick={() => setMemberBillSectionTab('assigned_to_me')}
           >
@@ -121,7 +121,7 @@ export default function BillSubmissionSection({
           <button
             type="button"
             className={`btn btn-sm ${
-              memberBillSectionTab === 'open_tasks' ? 'btn-dark' : 'btn-outline-dark'
+              memberBillSectionTab === 'open_tasks' ? 'btn-primary' : 'btn-outline-secondary'
             }`}
             onClick={() => setMemberBillSectionTab('open_tasks')}
           >
@@ -130,7 +130,7 @@ export default function BillSubmissionSection({
           <button
             type="button"
             className={`btn btn-sm ${
-              memberBillSectionTab === 'research' ? 'btn-dark' : 'btn-outline-dark'
+              memberBillSectionTab === 'research' ? 'btn-primary' : 'btn-outline-secondary'
             }`}
             onClick={() => setMemberBillSectionTab('research')}
           >
@@ -139,7 +139,7 @@ export default function BillSubmissionSection({
           <button
             type="button"
             className={`btn btn-sm ${
-              memberBillSectionTab === 'outreach' ? 'btn-dark' : 'btn-outline-dark'
+              memberBillSectionTab === 'outreach' ? 'btn-primary' : 'btn-outline-secondary'
             }`}
             onClick={() => setMemberBillSectionTab('outreach')}
           >

@@ -209,4 +209,241 @@ tbody tr[draggable="true"]:hover .bi-grip-vertical {
   color: #0b6ef9;
 }
 
+/* —— Dashboard dark mode (Bootstrap data-bs-theme on .dashboard-page) —— */
+.dashboard-page[data-bs-theme="dark"] {
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] .member-table-container table thead {
+  background-color: var(--bs-tertiary-bg);
+}
+
+.dashboard-page[data-bs-theme="dark"] tbody tr[draggable="true"]:hover {
+  background-color: var(--bs-tertiary-bg);
+}
+
+.dashboard-page[data-bs-theme="dark"] tbody tr[draggable="true"].dragging {
+  background-color: var(--bs-secondary-bg);
+}
+
+.dashboard-page[data-bs-theme="dark"] .bi-grip-vertical {
+  color: var(--bs-secondary-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] tbody tr[draggable="true"]:hover .bi-grip-vertical {
+  color: var(--bs-body-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] .card-body[style*="maxHeight"],
+.dashboard-page[data-bs-theme="dark"] div[style*="maxHeight"] {
+  scrollbar-color: #6c757d #212529;
+}
+
+.dashboard-page[data-bs-theme="dark"] .card-body[style*="maxHeight"]::-webkit-scrollbar-track,
+.dashboard-page[data-bs-theme="dark"] div[style*="maxHeight"]::-webkit-scrollbar-track {
+  background: #212529;
+}
+
+.dashboard-page[data-bs-theme="dark"] .dashboard-section-nav-toggle,
+.dashboard-page[data-bs-theme="dark"] .dashboard-section-nav-list {
+  background: var(--bs-tertiary-bg);
+  border-color: var(--bs-border-color);
+  color: var(--bs-body-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] .dashboard-section-nav-link {
+  color: var(--bs-body-color);
+}
+
+.dashboard-page[data-bs-theme="dark"] .dashboard-section-nav-link:hover,
+.dashboard-page[data-bs-theme="dark"] .dashboard-section-nav-link:focus-visible {
+  background: var(--bs-secondary-bg);
+  color: #6ea8fe;
+}
+
+.dashboard-page[data-bs-theme="dark"] .bg-white,
+.dashboard-page[data-bs-theme="dark"] .sticky-top.bg-white,
+.dashboard-page[data-bs-theme="dark"] thead.bg-white,
+.dashboard-page[data-bs-theme="dark"] .card-header.bg-white {
+  background-color: var(--bs-tertiary-bg) !important;
+}
+
+.dashboard-page[data-bs-theme="dark"] .bg-light {
+  background-color: var(--bs-tertiary-bg) !important;
+}
+
+.dashboard-page[data-bs-theme="dark"] .text-dark {
+  color: var(--bs-body-color) !important;
+}
+
+.dashboard-page[data-bs-theme="dark"] .border-dark {
+  border-color: var(--bs-border-color) !important;
+}
+
+.dashboard-page[data-bs-theme="dark"] .btn-outline-dark {
+  --bs-btn-color: var(--bs-body-color);
+  --bs-btn-border-color: var(--bs-border-color);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #495057;
+  --bs-btn-hover-border-color: #495057;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #6c757d;
+  --bs-btn-active-border-color: #6c757d;
+}
+
+/* Selected btn-dark must stay visible on dark backgrounds (default #212529 disappears). */
+.dashboard-page[data-bs-theme="dark"] .btn-dark {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: #6c757d;
+  --bs-btn-border-color: #6c757d;
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #5c636a;
+  --bs-btn-hover-border-color: #565e64;
+  --bs-btn-active-color: #fff;
+  --bs-btn-active-bg: #565e64;
+  --bs-btn-active-border-color: #51585e;
+  --bs-btn-disabled-color: #fff;
+  --bs-btn-disabled-bg: #6c757d;
+  --bs-btn-disabled-border-color: #6c757d;
+}
+
+.dashboard-page[data-bs-theme="dark"] .table {
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--bs-body-color);
+  --bs-table-border-color: var(--bs-border-color);
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.04);
+  --bs-table-hover-bg: rgba(255, 255, 255, 0.075);
+}
+
+.dashboard-page[data-bs-theme="dark"] .table-responsive {
+  background-color: var(--bs-body-bg);
+}
+
+.dashboard-page[data-bs-theme="dark"] .form-control,
+.dashboard-page[data-bs-theme="dark"] .form-select {
+  background-color: var(--bs-body-bg);
+  color: var(--bs-body-color);
+  border-color: var(--bs-border-color);
+}
+
+/* Your Info cards */
+.your-info-card {
+  border-radius: 16px;
+  overflow: hidden;
+  background-color: transparent;
+}
+
+.your-info-hero {
+  background-color: #16213e;
+  padding: 2rem;
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.your-info-hero-col {
+  flex: 1;
+  min-width: 250px;
+}
+
+.your-info-hero-icon {
+  width: 48px;
+  height: 48px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.your-info-hero-icon i {
+  font-size: 1.5rem;
+  color: #fff;
+}
+
+.your-info-hero-label {
+  font-size: 0.7rem;
+  color: #b0b0b0;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.your-info-hero-value {
+  font-size: 1.25rem;
+  color: #fff;
+  font-weight: bold;
+}
+
+.your-info-hero-value--wrap {
+  word-break: break-word;
+}
+
+.your-info-body {
+  background-color: var(--bs-body-bg, #fff);
+  padding: 2rem;
+}
+
+.your-info-field-card {
+  background-color: var(--bs-tertiary-bg, #f8f9fa);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--bs-border-color, #e9ecef);
+  height: 100%;
+}
+
+.your-info-icon-box {
+  width: 40px;
+  height: 40px;
+  background-color: var(--bs-body-bg, #fff);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.your-info-icon {
+  font-size: 1.25rem;
+  color: #16213e;
+}
+
+.dashboard-page[data-bs-theme="dark"] .your-info-icon {
+  color: #9ec5fe;
+}
+
+.your-info-field-label {
+  font-size: 0.7rem;
+  color: var(--bs-secondary-color, #6c757d);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.your-info-field-value {
+  font-size: 1.1rem;
+  color: var(--bs-body-color, #212529);
+  font-weight: bold;
+}
+
+.dashboard-theme-toggle {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 1040;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.2);
+}
+
+
 

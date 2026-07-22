@@ -17,7 +17,7 @@ export const LEGACY_RESIGN_STATUS_LABEL = {
 
 /** [filterKey, button label, btn class] — no completed */
 export const RESIGN_FILTER_CONFIG = [
-  ['all', 'All', 'btn-dark'],
+  ['all', 'All', 'btn-secondary'],
   ['requested', 'Requested', 'btn-warning'],
   ['meeting_scheduled', 'Scheduled', 'btn-primary'],
   ['met', 'Met', 'btn-success'],

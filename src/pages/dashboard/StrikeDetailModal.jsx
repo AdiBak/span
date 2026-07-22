@@ -7,6 +7,7 @@ export default function StrikeDetailModal({
   recorderName,
   formatDateLong,
   onClose,
+  onDelete,
 }) {
   if (!open || !strike) return null
 
@@ -50,6 +51,19 @@ export default function StrikeDetailModal({
               </dl>
             </div>
             <div className="modal-footer">
+              {typeof onDelete === 'function' && (
+                <button
+                  type="button"
+                  className="btn btn-outline-danger me-auto"
+                  onClick={async () => {
+                    const ok = await onDelete(strike.strike_id)
+                    if (ok !== false) onClose()
+                  }}
+                >
+                  <i className="bi bi-trash me-1" />
+                  Delete strike
+                </button>
+              )}
               <button type="button" className="btn btn-dark" onClick={onClose}>
                 Close
               </button>

@@ -24,6 +24,22 @@ export function billAssignmentStatusBadgeClass(status) {
   }
 }
 
+/** Bootstrap btn classes for assignment status filter chips (filled when active). */
+const ASSIGNMENT_STATUS_FILTER_BTNS = {
+  all: ['btn-secondary', 'btn-outline-secondary'],
+  available: ['btn-info', 'btn-outline-info'],
+  not_started: ['btn-secondary', 'btn-outline-secondary'],
+  in_progress: ['btn-primary', 'btn-outline-primary'],
+  completed: ['btn-info', 'btn-outline-info'],
+  in_review: ['btn-warning', 'btn-outline-warning'],
+  approved: ['btn-success', 'btn-outline-success'],
+}
+
+export function billAssignmentStatusFilterBtnClass(key, active) {
+  const pair = ASSIGNMENT_STATUS_FILTER_BTNS[key] || ASSIGNMENT_STATUS_FILTER_BTNS.all
+  return active ? pair[0] : pair[1]
+}
+
 /** Member IDs from nested merge / Supabase join `bill_assignment_assignees`. */
 export function billAssignmentAssigneeIds(assignment) {
   const rows = assignment?.bill_assignment_assignees

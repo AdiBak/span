@@ -5,6 +5,7 @@ import {
   billAssignmentAssigneeIds,
   billAssignmentDisplayTitle,
   billAssignmentStatusBadgeClass,
+  billAssignmentStatusFilterBtnClass,
   billAssignmentStatusLabel,
 } from './billAssignments'
 
@@ -52,7 +53,7 @@ export default function BillAssignmentsExecPanel({
               <button
                 key={key}
                 type="button"
-                className={`btn btn-sm ${execAssignmentFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
+                className={`btn btn-sm ${billAssignmentStatusFilterBtnClass(key, execAssignmentFilter === key)}`}
                 onClick={() => onExecAssignmentFilterChange(key)}
               >
                 {key === 'all'

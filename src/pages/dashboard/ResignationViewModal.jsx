@@ -8,6 +8,7 @@ export default function ResignationViewModal({
   formatDateLong,
   onClose,
   onUpdateResignationStatus,
+  onDelete,
 }) {
   const [statusSaving, setStatusSaving] = useState(false)
   const [localStatus, setLocalStatus] = useState(row?.status ?? '')
@@ -125,6 +126,19 @@ export default function ResignationViewModal({
               </dl>
             </div>
             <div className="modal-footer">
+              {typeof onDelete === 'function' && (
+                <button
+                  type="button"
+                  className="btn btn-outline-danger me-auto"
+                  onClick={async () => {
+                    const ok = await onDelete(row.resignation_id)
+                    if (ok !== false) onClose()
+                  }}
+                >
+                  <i className="bi bi-trash me-1" />
+                  Delete request
+                </button>
+              )}
               <button type="button" className="btn btn-dark" onClick={onClose}>
                 Close
               </button>

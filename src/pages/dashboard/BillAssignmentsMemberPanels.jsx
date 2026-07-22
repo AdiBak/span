@@ -3,6 +3,7 @@ import {
   billAssignmentAssigneeIds,
   billAssignmentDisplayTitle,
   billAssignmentStatusBadgeClass,
+  billAssignmentStatusFilterBtnClass,
   billAssignmentStatusLabel,
 } from './billAssignments'
 
@@ -121,7 +122,7 @@ export function BillAssignmentsMemberAssignedPanel({
           <button
             key={key}
             type="button"
-            className={`btn btn-sm ${memberAssignmentFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
+            className={`btn btn-sm ${billAssignmentStatusFilterBtnClass(key, memberAssignmentFilter === key)}`}
             onClick={() => onMemberAssignmentFilterChange(key)}
           >
             {key === 'all'

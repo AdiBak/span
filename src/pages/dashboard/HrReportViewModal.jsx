@@ -11,6 +11,8 @@ export default function HrReportViewModal({
   showRecordStrikeForRegarding,
   recordingStrike,
   onRecordStrikeFromReport,
+  canDelete,
+  onDelete,
 }) {
   if (!open || !report) return null
 
@@ -149,10 +151,16 @@ export default function HrReportViewModal({
               </div>
             </div>
             <div className="modal-footer">
+              {canDelete && typeof onDelete === 'function' && (
+                <button type="button" className="btn btn-outline-danger me-auto" onClick={onDelete}>
+                  <i className="bi bi-trash me-1" />
+                  Delete report
+                </button>
+              )}
               {showRecordStrikeForRegarding && report.regarding_member_id && typeof onRecordStrikeFromReport === 'function' && (
                 <button
                   type="button"
-                  className="btn btn-outline-danger me-auto"
+                  className="btn btn-outline-danger"
                   disabled={recordingStrike}
                   onClick={() => onRecordStrikeFromReport(report)}
                 >

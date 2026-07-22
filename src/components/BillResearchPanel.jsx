@@ -1,5 +1,6 @@
 import React from 'react'
 import { fetchLegiscanBillsByFilters, fetchLegiscanBillDetailById } from '../lib/legiscan'
+import { billStatusFilterBtnClass } from '../lib/billStatusFilterBtn'
 import SpanResearchBillDetail from './SpanResearchBillDetail'
 import LegislatureResearchBillDetail from './LegislatureResearchBillDetail'
 
@@ -412,21 +413,21 @@ export default function BillResearchPanel({
       <div className="btn-group mb-3" role="group" aria-label="Research data source">
         <button
           type="button"
-          className={`btn btn-sm ${researchSource === 'span' ? 'btn-dark' : 'btn-outline-dark'}`}
+          className={`btn btn-sm ${researchSource === 'span' ? 'btn-primary' : 'btn-outline-secondary'}`}
           onClick={() => setResearchSource('span')}
         >
           SPAN proposals
         </button>
         <button
           type="button"
-          className={`btn btn-sm ${researchSource === 'legislature' ? 'btn-dark' : 'btn-outline-dark'}`}
+          className={`btn btn-sm ${researchSource === 'legislature' ? 'btn-primary' : 'btn-outline-secondary'}`}
           onClick={() => setResearchSource('legislature')}
         >
           Legislature (LegiScan)
         </button>
         <button
           type="button"
-          className={`btn btn-sm ${researchSource === 'compare' ? 'btn-dark' : 'btn-outline-dark'}`}
+          className={`btn btn-sm ${researchSource === 'compare' ? 'btn-primary' : 'btn-outline-secondary'}`}
           onClick={() => setResearchSource('compare')}
         >
           Compare
@@ -520,7 +521,7 @@ export default function BillResearchPanel({
                           <button
                             key={key}
                             type="button"
-                            className={`btn btn-sm ${statusFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
+                            className={`btn btn-sm ${billStatusFilterBtnClass(key, statusFilter === key)}`}
                             onClick={() => onStatusFilterChange(key)}
                           >
                             {key === 'all' ? `All (${count})` : `${researchFilterChipLabel(key)} (${count})`}
@@ -589,7 +590,7 @@ export default function BillResearchPanel({
                               <button
                                 key={key}
                                 type="button"
-                                className={`btn btn-sm ${statusFilter === key ? 'btn-primary' : 'btn-outline-primary'}`}
+                                className={`btn btn-sm ${billStatusFilterBtnClass(key, statusFilter === key)}`}
                                 onClick={() => onStatusFilterChange(key)}
                               >
                                 {key === 'all' ? `All (${count})` : `${researchFilterChipLabel(key)} (${count})`}

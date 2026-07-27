@@ -1744,10 +1744,11 @@ function DashboardPage() {
       return false
     }
     try {
-      const { error } = await supabase.rpc('update_member', {
-        p_member_id: memberId,
-        p_active: false,
-      })
+      // Direct update avoids ambiguous update_member overloads when only p_active is passed.
+      const { error } = await supabase
+        .from('members')
+        .update({ active: false })
+        .eq('member_id', memberId)
       if (error) throw error
       await loadAllMembersForManagement()
       await loadAllMembers()

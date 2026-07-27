@@ -5,12 +5,15 @@ export default function ResignationViewModal({
   open,
   row,
   memberName,
+  memberActive = true,
   formatDateLong,
   onClose,
   onUpdateResignationStatus,
   onDelete,
+  onDeactivateFromDirectory,
 }) {
   const [statusSaving, setStatusSaving] = useState(false)
+  const [deactivating, setDeactivating] = useState(false)
   const [localStatus, setLocalStatus] = useState(row?.status ?? '')
 
   useEffect(() => {
@@ -124,6 +127,37 @@ export default function ResignationViewModal({
                   </>
                 )}
               </dl>
+
+              {localStatus === 'honorable_letter_sent' && (
+                <div className="alert alert-secondary mt-3 mb-0">
+                  <div className="fw-semibold mb-1">Directory</div>
+                  {memberActive === false ? (
+                    <p className="small mb-0 text-muted">Already removed from directory.</p>
+                  ) : typeof onDeactivateFromDirectory === 'function' ? (
+                    <>
+                      <p className="small mb-2">
+                        Honorable letter is sent. Confirm to hide this member from the public directory.
+                        Prior credited work stays on the site.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-danger"
+                        disabled={deactivating}
+                        onClick={async () => {
+                          setDeactivating(true)
+                          try {
+                            await onDeactivateFromDirectory(row.member_id)
+                          } finally {
+                            setDeactivating(false)
+                          }
+                        }}
+                      >
+                        {deactivating ? 'Removing…' : 'Remove from directory'}
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              )}
             </div>
             <div className="modal-footer">
               {typeof onDelete === 'function' && (

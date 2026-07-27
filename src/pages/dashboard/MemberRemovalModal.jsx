@@ -66,8 +66,9 @@ export default function MemberRemovalModal({
             </div>
             <div className="modal-body">
               <p>
-                This does <strong>not</strong> automatically deactivate accounts or delete work already credited on the site.
-                After two executives confirm, your team should manually revoke access and update membership when ready.
+                This does <strong>not</strong> automatically deactivate accounts or delete work already credited on the
+                site. After two executives confirm, use the dual-confirmed list under Executive Conduct to remove them
+                from the public directory when ready.
               </p>
               <p className="fw-semibold">{name}</p>
 

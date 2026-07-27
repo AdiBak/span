@@ -33,6 +33,7 @@ export default function ExecConductSection({
   onUpdateResignationNotes,
   onDeleteResignation,
   onDeleteStrike,
+  onDeactivateMemberFromDirectory,
   onOpenHonorableExitEmailModal,
   onOpenRemovalNoticeEmailModal,
 }) {
@@ -142,15 +143,31 @@ export default function ExecConductSection({
 
       {(removalProposals || []).some((p) => p.status === 'dual_confirmed') && (
         <div className="alert alert-danger mb-4">
-          <strong>Dual-confirmed removals:</strong> manually deactivate the member and revoke access when your team is ready. Prior work
-          on the site can remain credited.
-          <ul className="mt-2 mb-0 small">
+          <strong>Dual-confirmed removals:</strong> prior work on the site can remain credited. Confirm below to
+          hide each person from the public directory when ready.
+          <ul className="mt-2 mb-0">
             {(removalProposals || [])
               .filter((p) => p.status === 'dual_confirmed')
               .map((p) => {
                 const mem = membersById[p.member_id]
                 const name = mem ? `${mem.first_name} ${mem.last_name}` : p.member_id
-                return <li key={p.proposal_id}>{name}</li>
+                const stillActive = mem ? mem.active !== false : true
+                return (
+                  <li key={p.proposal_id} className="mb-2 d-flex flex-wrap align-items-center gap-2">
+                    <span className="fw-semibold">{name}</span>
+                    {stillActive && typeof onDeactivateMemberFromDirectory === 'function' ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-danger"
+                        onClick={() => onDeactivateMemberFromDirectory(p.member_id)}
+                      >
+                        Remove from directory
+                      </button>
+                    ) : (
+                      <span className="badge bg-secondary">Off directory</span>
+                    )}
+                  </li>
+                )
               })}
           </ul>
         </div>
@@ -345,9 +362,15 @@ export default function ExecConductSection({
         open={!!resignationToView}
         row={resignationToView}
         memberName={viewingMemberName}
+        memberActive={
+          resignationToView && membersById[resignationToView.member_id]
+            ? membersById[resignationToView.member_id].active !== false
+            : true
+        }
         formatDateLong={formatDateLong}
         onClose={() => setResignationToView(null)}
         onUpdateResignationStatus={onUpdateResignationStatus}
+        onDeactivateFromDirectory={onDeactivateMemberFromDirectory}
         onDelete={
           onDeleteResignation
             ? async (id) => {

@@ -1614,7 +1614,7 @@ function DashboardPage() {
       return
     }
     await loadExecConductData()
-    alert('Dual executive confirmation recorded. Proceed with manual deactivation when your team is ready.')
+    alert('Dual executive confirmation recorded. Use Executive Conduct to remove them from the directory when ready.')
     setShowRemovalModal(false)
     setRemovalModalMember(null)
   }
@@ -1727,6 +1727,35 @@ function DashboardPage() {
       return
     }
     await loadExecConductData()
+  }
+
+  /** Hide member from public directory (active = false). Does not delete account or credited work. */
+  const handleDeactivateMemberFromDirectory = async (memberId) => {
+    if (!memberId) return false
+    const row = (allMembersForManagement || []).find((m) => String(m.member_id) === String(memberId))
+    const name = row
+      ? `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'this member'
+      : 'this member'
+    if (
+      !window.confirm(
+        `Remove ${name} from the public directory?\n\nThey will be marked inactive and no longer appear on the site. Prior credited work stays. This does not delete their account.`
+      )
+    ) {
+      return false
+    }
+    try {
+      const { error } = await supabase.rpc('update_member', {
+        p_member_id: memberId,
+        p_active: false,
+      })
+      if (error) throw error
+      await loadAllMembersForManagement()
+      await loadAllMembers()
+      return true
+    } catch (err) {
+      alert(err.message || 'Failed to remove member from directory.')
+      return false
+    }
   }
 
   // In view-as mode, show only reports submitted by the viewed member; otherwise use full list (or own for non-exec)
@@ -6237,6 +6266,7 @@ function DashboardPage() {
               onUpdateResignationNotes={handleUpdateResignationExecNotes}
               onDeleteResignation={handleDeleteResignation}
               onDeleteStrike={handleDeleteStrike}
+              onDeactivateMemberFromDirectory={handleDeactivateMemberFromDirectory}
               onOpenHonorableExitEmailModal={() => setShowHonorableExitEmailModal(true)}
               onOpenRemovalNoticeEmailModal={() => setShowRemovalNoticeEmailModal(true)}
             />

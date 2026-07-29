@@ -82,8 +82,9 @@ function TeamSection() {
             <div className="impact-card card h-100 border-0 shadow-sm text-center">
               <img
                 src={`${IMAGE_BASE_URL}/${member.image}`}
-                className="card-img-top rounded-circle w-75 mx-auto mt-4"
+                className="rounded-circle object-fit-cover d-block mx-auto mt-4"
                 alt={memberSiteDisplayName(member)}
+                style={{ width: '75%', aspectRatio: '1 / 1' }}
               />
               <div className="card-body d-flex flex-column justify-content-between">
                 <div>

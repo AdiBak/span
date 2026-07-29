@@ -316,6 +316,8 @@ function DashboardPage() {
   const [memberRequestFilter, setMemberRequestFilter] = useState('pending') // 'all' | 'pending' | 'approved' | 'declined'
   const [memberRequestTeamFilter, setMemberRequestTeamFilter] = useState('all')
   const [leaveExtensionViewMode, setLeaveExtensionViewMode] = useState('calendar') // 'calendar' | 'table'
+  const [calendarBirthdayRows, setCalendarBirthdayRows] = useState([])
+  const [dashboardCalendarEvents, setDashboardCalendarEvents] = useState([])
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [requestForm, setRequestForm] = useState({
     type: 'leave',
@@ -542,6 +544,37 @@ function DashboardPage() {
     return out
   }, [policyTeams, memberPolicyTeams])
 
+  const calendarTeamNameById = useMemo(() => {
+    const out = {}
+    for (const t of policyTeams || []) {
+      out[String(t.team_id)] = String(t.name || '').trim() || 'Unnamed team'
+    }
+    return out
+  }, [policyTeams])
+
+  const deadlineTeamOptions = useMemo(() => {
+    const active = (policyTeams || []).filter((t) => t.active !== false)
+    if (isExec) {
+      return active.map((t) => ({ team_id: t.team_id, name: t.name || 'Unnamed team' }))
+    }
+    const mid = String(member?.member_id || '')
+    return active
+      .filter((t) => policyTeamLeadIds(t).includes(mid))
+      .map((t) => ({ team_id: t.team_id, name: t.name || 'Unnamed team' }))
+  }, [policyTeams, isExec, member])
+
+  const canEditCalendarEvent = (ev) => {
+    if (!ev || viewAsData) return false
+    if (ev.kind === 'span_event') return isExec
+    if (ev.kind === 'deadline') {
+      if (isExec) return true
+      const mid = String(member?.member_id || '')
+      const team = (policyTeams || []).find((t) => String(t.team_id) === String(ev.team_id))
+      return !!(team && policyTeamLeadIds(team).includes(mid))
+    }
+    return false
+  }
+
   const assignmentTeamLabel = (assignment) => {
     const assigneeIds = billAssignmentAssigneeIds(assignment)
     if (!assigneeIds.length) return 'Open pool'
@@ -649,6 +682,8 @@ function DashboardPage() {
       }
       loadMyRequests()
       if (member) loadMySuggestions()
+      loadCalendarBirthdays()
+      loadDashboardCalendarEvents()
       if (member) loadMyResignations()
     }
   }, [member, viewAsData])
@@ -1125,6 +1160,78 @@ function DashboardPage() {
       })
     }
     setAllMemberRequests(data || [])
+  }
+
+  const loadCalendarBirthdays = async () => {
+    const { data, error } = await supabase.rpc('list_active_member_birthdays')
+    if (error) {
+      console.error('list_active_member_birthdays', error)
+      setCalendarBirthdayRows([])
+      return
+    }
+    setCalendarBirthdayRows(data || [])
+  }
+
+  const loadDashboardCalendarEvents = async () => {
+    const { data, error } = await supabase
+      .from('dashboard_calendar_events')
+      .select('*')
+      .order('start_date', { ascending: true })
+    if (error) {
+      console.error('dashboard_calendar_events', error)
+      setDashboardCalendarEvents([])
+      return
+    }
+    setDashboardCalendarEvents(data || [])
+  }
+
+  const handleSaveCalendarEvent = async (payload) => {
+    if (!payload?.title || !payload?.start_date || !payload?.kind) return false
+    try {
+      const row = {
+        kind: payload.kind,
+        title: payload.title,
+        start_date: payload.start_date,
+        end_date: payload.kind === 'span_event' ? payload.end_date || null : null,
+        team_id: payload.kind === 'deadline' ? payload.team_id : null,
+        updated_at: new Date().toISOString(),
+      }
+      if (payload.event_id) {
+        const { error } = await supabase
+          .from('dashboard_calendar_events')
+          .update(row)
+          .eq('event_id', payload.event_id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('dashboard_calendar_events').insert({
+          ...row,
+          created_by: member?.member_id || null,
+        })
+        if (error) throw error
+      }
+      await loadDashboardCalendarEvents()
+      return true
+    } catch (err) {
+      alert(err.message || 'Failed to save calendar item.')
+      return false
+    }
+  }
+
+  const handleDeleteCalendarEvent = async (ev) => {
+    if (!ev?.event_id) return false
+    if (!window.confirm(`Delete “${ev.title || 'this item'}”?`)) return false
+    try {
+      const { error } = await supabase
+        .from('dashboard_calendar_events')
+        .delete()
+        .eq('event_id', ev.event_id)
+      if (error) throw error
+      await loadDashboardCalendarEvents()
+      return true
+    } catch (err) {
+      alert(err.message || 'Failed to delete calendar item.')
+      return false
+    }
   }
 
   const loadPolicyTeams = async () => {
@@ -5714,6 +5821,16 @@ function DashboardPage() {
           effectiveRequests={effectiveRequests}
           formatDate={formatDate}
           formatDateLong={formatDateLong}
+          birthdayRows={calendarBirthdayRows}
+          calendarEvents={dashboardCalendarEvents}
+          teamNameById={calendarTeamNameById}
+          canAddSpanEvent={!viewAsData && isExec}
+          canAddDeadline={!viewAsData && (isExec || isTeamLeadUser) && deadlineTeamOptions.length > 0}
+          deadlineTeamOptions={deadlineTeamOptions}
+          canEditCalendarEvent={canEditCalendarEvent}
+          canDeleteCalendarEvent={canEditCalendarEvent}
+          onSaveCalendarEvent={handleSaveCalendarEvent}
+          onDeleteCalendarEvent={handleDeleteCalendarEvent}
           onOpenNewRequest={() => {
             setRequestError('')
             setRequestSuccess('')

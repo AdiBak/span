@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import LeaveExtensionCalendar from '../../components/LeaveExtensionCalendar'
+import CalendarEventModal from './CalendarEventModal'
 
 export default function LeaveExtensionSection({
   sectionOrder,
@@ -22,102 +23,160 @@ export default function LeaveExtensionSection({
   formatDateLong,
   onOpenNewRequest,
   onViewRequest,
+  /** Calendar extras */
+  birthdayRows = [],
+  calendarEvents = [],
+  teamNameById = {},
+  canAddSpanEvent = false,
+  canAddDeadline = false,
+  deadlineTeamOptions = [],
+  canEditCalendarEvent,
+  canDeleteCalendarEvent,
+  onSaveCalendarEvent,
+  onDeleteCalendarEvent,
 }) {
   const isExecDisplay = showExecRequestFilters
   const requests = effectiveRequests
-  // Status filter only exists for execs; hide the redundant Status column when a specific status is active.
   const showStatusColumn = !isExecDisplay || memberRequestFilter === 'all'
 
-  let body
-  if (requests.length > 0) {
-    if (leaveExtensionViewMode === 'calendar') {
-      body = (
-        <LeaveExtensionCalendar
-          requests={requests}
-          isExecDisplay={isExecDisplay}
-          onSelectRequest={onViewRequest}
-        />
-      )
-    } else {
-      body = (
-        <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
-          <table className="table table-hover">
-            <thead>
-              <tr>
-                {isExecDisplay && <th>Member</th>}
-                {isExecDisplay && <th>Team</th>}
-                <th>Type</th>
-                <th>Reason</th>
-                <th>Details</th>
-                {showStatusColumn && <th>Status</th>}
-                <th>Submitted</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((req) => (
-                <tr key={req.request_id}>
-                  {isExecDisplay && (
-                    <td>
-                      {req.member ? `${req.member.first_name} ${req.member.last_name}` : 'Unknown'}
-                      {req.member?.email && <div className="small text-muted">{req.member.email}</div>}
-                    </td>
-                  )}
-                  {isExecDisplay && (
-                    <td>
-                      {(() => {
-                        const teamName = resolveRequestTeamName ? resolveRequestTeamName(req) : 'Unassigned teams'
-                        return teamName && teamName !== 'Unassigned teams' ? (
-                          <span className="badge bg-light text-dark border">{teamName}</span>
-                        ) : (
-                          <span className="text-muted">—</span>
-                        )
-                      })()}
-                    </td>
-                  )}
-                  <td>
-                    <span className="badge bg-secondary text-capitalize">{req.type}</span>
-                  </td>
-                  <td>{req.reason}</td>
-                  <td>
-                    {req.type === 'leave' && (req.leave_start || req.leave_end)
-                      ? `${req.leave_start ? formatDate(req.leave_start) : '—'} to ${
-                          req.leave_end ? formatDate(req.leave_end) : '—'
-                        }`
-                      : req.type === 'extension' && (req.project_name || req.requested_by_date)
-                        ? [req.project_name, req.requested_by_date ? formatDate(req.requested_by_date) : null]
-                            .filter(Boolean)
-                            .join(' · ')
-                        : '—'}
-                  </td>
-                  {showStatusColumn && (
-                    <td>
-                      <span
-                        className={`badge ${
-                          req.status === 'approved'
-                            ? 'bg-success'
-                            : req.status === 'declined'
-                              ? 'bg-danger'
-                              : 'bg-warning text-dark'
-                        }`}
-                      >
-                        {req.status}
-                      </span>
-                    </td>
-                  )}
-                  <td>{formatDateLong(req.created_at)}</td>
-                  <td>
-                    <button className="btn btn-sm btn-outline-primary" onClick={() => onViewRequest(req)}>
-                      <i className="bi bi-eye me-1"></i>View
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )
+  const [eventModal, setEventModal] = useState(null) // { mode, event } | null
+  const [eventSaving, setEventSaving] = useState(false)
+
+  const handleSelectCalendarItem = (item) => {
+    if (!item) return
+    if (item.kind === 'leave' || item.kind === 'extension') {
+      onViewRequest?.(item.source)
+      return
     }
+    if (item.kind === 'birthday') {
+      const name = [item.source?.first_name, item.source?.last_name].filter(Boolean).join(' ') || 'Member'
+      const ymd = item.source?.birthdayYmd || item.startYmd
+      window.alert(`${name}'s birthday${ymd ? ` — ${ymd}` : ''}`)
+      return
+    }
+    if (item.kind === 'span_event' || item.kind === 'deadline') {
+      setEventModal({ mode: item.kind, event: item.source })
+    }
+  }
+
+  const openCreate = (mode) => setEventModal({ mode, event: null })
+
+  const handleSaveEvent = async (payload) => {
+    setEventSaving(true)
+    try {
+      const ok = await onSaveCalendarEvent?.(payload)
+      if (ok !== false) setEventModal(null)
+    } finally {
+      setEventSaving(false)
+    }
+  }
+
+  const handleDeleteEvent = async (ev) => {
+    setEventSaving(true)
+    try {
+      const ok = await onDeleteCalendarEvent?.(ev)
+      if (ok !== false) setEventModal(null)
+    } finally {
+      setEventSaving(false)
+    }
+  }
+
+  const editingEvent = eventModal?.event
+  const modalMode = eventModal?.mode || 'span_event'
+  const canEdit = editingEvent ? !!canEditCalendarEvent?.(editingEvent) : true
+  const canDelete = editingEvent ? !!canDeleteCalendarEvent?.(editingEvent) : false
+
+  let body
+  if (leaveExtensionViewMode === 'calendar') {
+    body = (
+      <LeaveExtensionCalendar
+        requests={requests}
+        birthdayRows={birthdayRows}
+        calendarEvents={calendarEvents}
+        teamNameById={teamNameById}
+        isExecDisplay={isExecDisplay}
+        onSelectItem={handleSelectCalendarItem}
+      />
+    )
+  } else if (requests.length > 0) {
+    body = (
+      <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+        <table className="table table-hover">
+          <thead>
+            <tr>
+              {isExecDisplay && <th>Member</th>}
+              {isExecDisplay && <th>Team</th>}
+              <th>Type</th>
+              <th>Reason</th>
+              <th>Details</th>
+              {showStatusColumn && <th>Status</th>}
+              <th>Submitted</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map((req) => (
+              <tr key={req.request_id}>
+                {isExecDisplay && (
+                  <td>
+                    {req.member ? `${req.member.first_name} ${req.member.last_name}` : 'Unknown'}
+                    {req.member?.email && <div className="small text-muted">{req.member.email}</div>}
+                  </td>
+                )}
+                {isExecDisplay && (
+                  <td>
+                    {(() => {
+                      const teamName = resolveRequestTeamName ? resolveRequestTeamName(req) : 'Unassigned teams'
+                      return teamName && teamName !== 'Unassigned teams' ? (
+                        <span className="badge bg-light text-dark border">{teamName}</span>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )
+                    })()}
+                  </td>
+                )}
+                <td>
+                  <span className="badge bg-secondary text-capitalize">{req.type}</span>
+                </td>
+                <td>{req.reason}</td>
+                <td>
+                  {req.type === 'leave' && (req.leave_start || req.leave_end)
+                    ? `${req.leave_start ? formatDate(req.leave_start) : '—'} to ${
+                        req.leave_end ? formatDate(req.leave_end) : '—'
+                      }`
+                    : req.type === 'extension' && (req.project_name || req.requested_by_date)
+                      ? [req.project_name, req.requested_by_date ? formatDate(req.requested_by_date) : null]
+                          .filter(Boolean)
+                          .join(' · ')
+                      : '—'}
+                </td>
+                {showStatusColumn && (
+                  <td>
+                    <span
+                      className={`badge ${
+                        req.status === 'approved'
+                          ? 'bg-success'
+                          : req.status === 'declined'
+                            ? 'bg-danger'
+                            : 'bg-warning text-dark'
+                      }`}
+                    >
+                      {req.status}
+                    </span>
+                  </td>
+                )}
+                <td>{formatDateLong(req.created_at)}</td>
+                <td>
+                  <button className="btn btn-sm btn-outline-primary" onClick={() => onViewRequest(req)}>
+                    <i className="bi bi-eye me-1"></i>View
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
   } else {
     body = (
       <div className="text-center py-5 text-muted">
@@ -206,6 +265,20 @@ export default function LeaveExtensionSection({
                 )}
               </>
             )}
+            {!viewAsData && leaveExtensionViewMode === 'calendar' && (canAddSpanEvent || canAddDeadline) && (
+              <div className="btn-group flex-shrink-0" role="group" aria-label="Add calendar items">
+                {canAddSpanEvent && (
+                  <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => openCreate('span_event')}>
+                    <i className="bi bi-flag me-1"></i>SPAN event
+                  </button>
+                )}
+                {canAddDeadline && (
+                  <button type="button" className="btn btn-sm btn-outline-warning" onClick={() => openCreate('deadline')}>
+                    <i className="bi bi-alarm me-1"></i>Deadline
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           {!viewAsData && (
             <button
@@ -219,6 +292,19 @@ export default function LeaveExtensionSection({
         </div>
       </div>
       {body}
+
+      <CalendarEventModal
+        open={!!eventModal}
+        onClose={() => setEventModal(null)}
+        mode={modalMode}
+        event={editingEvent}
+        teamOptions={deadlineTeamOptions}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        saving={eventSaving}
+        onSave={handleSaveEvent}
+        onDelete={handleDeleteEvent}
+      />
     </section>
   )
 }

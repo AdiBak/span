@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from 'react'
 import './LeaveExtensionCalendar.css'
+import {
+  itemsFromBirthdays,
+  itemsFromCalendarEvents,
+  itemsFromRequests,
+  mergeCalendarItems,
+} from '../lib/leaveCalendarItems'
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-function ymdFromValue(val) {
-  if (!val) return null
-  const m = String(val).match(/^(\d{4}-\d{2}-\d{2})/)
-  return m ? m[1] : null
-}
 
 function formatYmd(d) {
   const y = d.getFullYear()
@@ -16,72 +16,21 @@ function formatYmd(d) {
   return `${y}-${mo}-${day}`
 }
 
-function parseYmdToLocalDate(ymd) {
-  const parts = String(ymd).split('-').map(Number)
-  if (parts.length !== 3 || parts.some(Number.isNaN)) return null
-  const [y, m, d] = parts
-  return new Date(y, m - 1, d)
-}
-
-function eachYmdInRange(startYmd, endYmd) {
-  const a = startYmd && endYmd ? (startYmd <= endYmd ? startYmd : endYmd) : (startYmd || endYmd)
-  const b = startYmd && endYmd ? (startYmd <= endYmd ? endYmd : startYmd) : (endYmd || startYmd)
-  if (!a) return []
-  const start = parseYmdToLocalDate(a)
-  const end = parseYmdToLocalDate(b || a)
-  if (!start || !end) return []
-  const out = []
-  for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate() + 1)) {
-    out.push(formatYmd(new Date(cur)))
-  }
-  return out
-}
-
-function calendarDatesForRequest(req) {
-  if (req.type === 'leave') {
-    const s = ymdFromValue(req.leave_start)
-    const e = ymdFromValue(req.leave_end)
-    if (s && e) return eachYmdInRange(s, e)
-    if (s) return [s]
-    if (e) return [e]
-    const c = ymdFromValue(req.created_at)
-    return c ? [c] : []
-  }
-  const by = ymdFromValue(req.requested_by_date)
-  if (by) return [by]
-  const c = ymdFromValue(req.created_at)
-  return c ? [c] : []
-}
-
-function statusChipClass(status) {
-  if (status === 'approved') return 'lec-bar--approved'
-  if (status === 'declined') return 'lec-bar--declined'
+function colorClass(colorKey) {
+  if (colorKey === 'approved') return 'lec-bar--approved'
+  if (colorKey === 'declined') return 'lec-bar--declined'
+  if (colorKey === 'birthday') return 'lec-bar--birthday'
+  if (colorKey === 'span_event') return 'lec-bar--span-event'
+  if (colorKey === 'deadline') return 'lec-bar--deadline'
   return 'lec-bar--pending'
-}
-
-function briefLabel(req, isExecDisplay) {
-  const typeShort = req.type === 'leave' ? 'Leave' : 'Ext'
-  const who =
-    isExecDisplay && req.member
-      ? [req.member.first_name, req.member.last_name ? `${String(req.member.last_name).charAt(0)}.` : null]
-          .filter(Boolean)
-          .join(' ')
-          .trim()
-      : ''
-  const reason = (req.reason || '').replace(/\s+/g, ' ').trim()
-  const snippet = reason.length > 36 ? `${reason.slice(0, 34)}…` : reason
-  if (who && snippet) return `${typeShort} · ${who} — ${snippet}`
-  if (who) return `${typeShort} · ${who}`
-  if (snippet) return `${typeShort} — ${snippet}`
-  return typeShort
 }
 
 /** Greedy lane assignment for overlapping segments in one week row. */
 function assignLanes(segments) {
   if (!segments.length) return { segments: [], laneCount: 1 }
   const sorted = [...segments].sort((a, b) => {
-    const da = (a.req.created_at || '').localeCompare(b.req.created_at || '')
-    return a.colStart - b.colStart || b.span - a.span || da || (a.req.request_id || 0) - (b.req.request_id || 0)
+    const da = String(a.item.id || '').localeCompare(String(b.item.id || ''))
+    return a.colStart - b.colStart || b.span - a.span || da
   })
   const occupied = []
   const out = []
@@ -103,11 +52,11 @@ function assignLanes(segments) {
   return { segments: out, laneCount }
 }
 
-function buildSegmentsForWeek(weekIdx, cells, requests) {
+function buildSegmentsForWeek(weekIdx, cells, items) {
   const weekStart = weekIdx * 7
   const segments = []
-  for (const req of requests || []) {
-    const dateSet = new Set(calendarDatesForRequest(req))
+  for (const item of items || []) {
+    const dateSet = item.dateSet || new Set()
     const cols = []
     for (let c = 0; c < 7; c++) {
       const ymd = cells[weekStart + c]?.ymd
@@ -125,7 +74,7 @@ function buildSegmentsForWeek(weekIdx, cells, requests) {
         k++
       }
       segments.push({
-        req,
+        item,
         colStart: s,
         colEnd: p,
         span: p - s + 1,
@@ -138,18 +87,38 @@ function buildSegmentsForWeek(weekIdx, cells, requests) {
 
 /**
  * @param {object} props
- * @param {Array} props.requests — filtered leave/extension rows (same as table)
- * @param {boolean} props.isExecDisplay — show member name on chips
- * @param {(req: object) => void} props.onSelectRequest — open detail modal
+ * @param {Array} props.requests — filtered leave/extension rows
+ * @param {Array} [props.birthdayRows] — active members with dob
+ * @param {Array} [props.calendarEvents] — dashboard_calendar_events rows
+ * @param {Record<string,string>} [props.teamNameById]
+ * @param {boolean} props.isExecDisplay
+ * @param {(item: object) => void} props.onSelectItem
  */
-function LeaveExtensionCalendar({ requests, isExecDisplay, onSelectRequest }) {
+function LeaveExtensionCalendar({
+  requests,
+  birthdayRows = [],
+  calendarEvents = [],
+  teamNameById = {},
+  isExecDisplay,
+  onSelectItem,
+}) {
   const today = useMemo(() => formatYmd(new Date()), [])
   const [cursor, setCursor] = useState(() => {
     const n = new Date()
     return { y: n.getFullYear(), m: n.getMonth() }
   })
 
-  const { monthLabel, weekBundles } = useMemo(() => {
+  const items = useMemo(
+    () =>
+      mergeCalendarItems(
+        itemsFromRequests(requests, isExecDisplay),
+        itemsFromBirthdays(birthdayRows, cursor),
+        itemsFromCalendarEvents(calendarEvents, teamNameById)
+      ),
+    [requests, birthdayRows, calendarEvents, teamNameById, isExecDisplay, cursor]
+  )
+
+  const { monthLabel, weekBundles, hasBars } = useMemo(() => {
     const year = cursor.y
     const month = cursor.m
     const first = new Date(year, month, 1)
@@ -159,7 +128,7 @@ function LeaveExtensionCalendar({ requests, isExecDisplay, onSelectRequest }) {
     const monthLabelInner = first.toLocaleString('en-US', { month: 'long', year: 'numeric' })
 
     const cellsInner = []
-    const prevLast = new Date(year, month - 1, 0).getDate()
+    const prevLast = new Date(year, month, 0).getDate()
     for (let i = 0; i < startPad; i++) {
       const d = prevLast - startPad + i + 1
       const dt = new Date(year, month - 1, d)
@@ -177,14 +146,16 @@ function LeaveExtensionCalendar({ requests, isExecDisplay, onSelectRequest }) {
 
     const weekCount = cellsInner.length / 7
     const weekBundlesInner = []
+    let anyBars = false
     for (let w = 0; w < weekCount; w++) {
       const weekCells = cellsInner.slice(w * 7, w * 7 + 7)
-      const { segments, laneCount } = buildSegmentsForWeek(w, cellsInner, requests)
+      const { segments, laneCount } = buildSegmentsForWeek(w, cellsInner, items)
+      if (segments.length) anyBars = true
       weekBundlesInner.push({ weekCells, segments, laneCount })
     }
 
-    return { monthLabel: monthLabelInner, weekBundles: weekBundlesInner }
-  }, [cursor, requests])
+    return { monthLabel: monthLabelInner, weekBundles: weekBundlesInner, hasBars: anyBars }
+  }, [cursor, items])
 
   const goPrev = () => {
     setCursor((c) => {
@@ -236,8 +207,20 @@ function LeaveExtensionCalendar({ requests, isExecDisplay, onSelectRequest }) {
           <span className="lec-dot lec-dot--declined" aria-hidden />
           Declined
         </span>
+        <span>
+          <span className="lec-dot lec-dot--birthday" aria-hidden />
+          Birthday
+        </span>
+        <span>
+          <span className="lec-dot lec-dot--span-event" aria-hidden />
+          SPAN event
+        </span>
+        <span>
+          <span className="lec-dot lec-dot--deadline" aria-hidden />
+          Deadline
+        </span>
       </div>
-      <div className="lec-calendar" role="grid" aria-label="Leave and extension calendar">
+      <div className="lec-calendar" role="grid" aria-label="Leave, birthdays, and SPAN calendar">
         <div className="lec-dow-row" role="row">
           {DOW.map((d) => (
             <div key={d} className="lec-dow" role="columnheader">
@@ -269,23 +252,28 @@ function LeaveExtensionCalendar({ requests, isExecDisplay, onSelectRequest }) {
             >
               {segments.map((seg, si) => (
                 <button
-                  key={`${wi}-${seg.req.request_id}-${seg.colStart}-${seg.lane}-${si}`}
+                  key={`${wi}-${seg.item.id}-${seg.colStart}-${seg.lane}-${si}`}
                   type="button"
-                  className={`lec-bar ${statusChipClass(seg.req.status)}`}
+                  className={`lec-bar ${colorClass(seg.item.colorKey)}`}
                   style={{
                     gridColumn: `${seg.colStart + 1} / span ${seg.span}`,
                     gridRow: seg.lane + 1,
                   }}
-                  title={briefLabel(seg.req, isExecDisplay)}
-                  onClick={() => onSelectRequest(seg.req)}
+                  title={seg.item.label}
+                  onClick={() => onSelectItem?.(seg.item)}
                 >
-                  <span className="lec-bar-label">{briefLabel(seg.req, isExecDisplay)}</span>
+                  <span className="lec-bar-label">{seg.item.label}</span>
                 </button>
               ))}
             </div>
           </div>
         ))}
       </div>
+      {!hasBars && (
+        <p className="text-muted small text-center py-3 mb-0">
+          No leave requests, birthdays, or events in this month view.
+        </p>
+      )}
     </div>
   )
 }

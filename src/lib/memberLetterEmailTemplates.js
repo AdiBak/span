@@ -38,6 +38,7 @@ export function buildHonorableExitEmailHtml({
   joinDateFormatted,
   workSectionHtml,
   meetingLineHtml,
+  willAttachVolunteerPdf = false,
 }) {
   const fn = escapeHtml(firstName || 'there')
   const intro =
@@ -47,6 +48,10 @@ export function buildHonorableExitEmailHtml({
 
   const joinLine = joinDateFormatted
     ? `<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 16px;">You joined SPAN on <strong>${escapeHtml(joinDateFormatted)}</strong>.</p>`
+    : ''
+
+  const attachmentLine = willAttachVolunteerPdf
+    ? `<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 16px 0 0;"><strong>Attachment:</strong> Please find your official volunteer hours verification letter (PDF), summarizing approved entries—the same format we use for school or scholarship documentation.</p>`
     : ''
 
   const inner = `
@@ -62,6 +67,7 @@ ${meetingLineHtml || ''}
   With appreciation,<br/>
   <strong>SPAN Leadership</strong>
 </p>
+${attachmentLine}
 `
   const subject =
     variant === 'member_initiated'
@@ -76,8 +82,9 @@ ${meetingLineHtml || ''}
 
 /**
  * Builds the “work / impact” block for honorable emails (documented stats + optional exec narrative).
+ * Attachment note is added separately at the end of the email (after appreciation).
  */
-export function composeHonorableWorkSectionHtml({ stats, manualWorkNotes, willAttachVolunteerPdf }) {
+export function composeHonorableWorkSectionHtml({ stats, manualWorkNotes }) {
   const blocks = []
   const vol = stats?.volunteerHoursDecimal ?? 0
   const bills = stats?.billsImpactedCount ?? 0
@@ -103,12 +110,6 @@ export function composeHonorableWorkSectionHtml({ stats, manualWorkNotes, willAt
   if (manualWorkNotes && String(manualWorkNotes).trim()) {
     blocks.push(
       `<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px; white-space: pre-wrap;">${escapeHtml(String(manualWorkNotes).trim()).replace(/\n/g, '<br/>')}</p>`
-    )
-  }
-
-  if (willAttachVolunteerPdf) {
-    blocks.push(
-      `<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px;"><strong>Attachment:</strong> Please find your official volunteer hours verification letter (PDF), summarizing approved entries—the same format we use for school or scholarship documentation.</p>`
     )
   }
 

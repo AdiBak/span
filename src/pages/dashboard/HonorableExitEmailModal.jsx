@@ -116,7 +116,6 @@ export default function HonorableExitEmailModal({ open, onClose, supabase, membe
       const workHtml = composeHonorableWorkSectionHtml({
         stats,
         manualWorkNotes,
-        willAttachVolunteerPdf: !!attachB64,
       })
       const meetingHtml = buildMeetingLineHtml(meetingNote)
 
@@ -126,6 +125,7 @@ export default function HonorableExitEmailModal({ open, onClose, supabase, membe
         joinDateFormatted: joinFmt,
         workSectionHtml: workHtml,
         meetingLineHtml: meetingHtml,
+        willAttachVolunteerPdf: !!attachB64,
       })
       setPreviewSubject(subject)
       setPreviewHtml(html)

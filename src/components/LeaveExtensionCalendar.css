@@ -66,6 +66,18 @@
   background: #dc3545;
 }
 
+.lec-dot--birthday {
+  background: #e83e8c;
+}
+
+.lec-dot--span-event {
+  background: #0d6efd;
+}
+
+.lec-dot--deadline {
+  background: #fd7e14;
+}
+
 .lec-calendar {
   display: flex;
   flex-direction: column;
@@ -197,6 +209,24 @@
   border: 1px solid #dc3545;
 }
 
+.lec-bar--birthday {
+  background: #f7d6e6;
+  color: #6d1f45;
+  border: 1px solid #e83e8c;
+}
+
+.lec-bar--span-event {
+  background: #cfe2ff;
+  color: #084298;
+  border: 1px solid #0d6efd;
+}
+
+.lec-bar--deadline {
+  background: #ffe5d0;
+  color: #984c0c;
+  border: 1px solid #fd7e14;
+}
+
 @media (max-width: 576px) {
   .lec-wrap {
     --lec-lane-height: 20px;
@@ -288,4 +318,22 @@
   background: #842029;
   color: #f8d7da;
   border-color: #dc3545;
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-bar--birthday {
+  background: #6d1f45;
+  color: #f7d6e6;
+  border-color: #e83e8c;
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-bar--span-event {
+  background: #084298;
+  color: #cfe2ff;
+  border-color: #6ea8fe;
+}
+
+.dashboard-page[data-bs-theme="dark"] .lec-bar--deadline {
+  background: #984c0c;
+  color: #ffe5d0;
+  border-color: #fd7e14;
 }

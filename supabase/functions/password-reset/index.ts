@@ -189,23 +189,107 @@ serve(async (req) => {
 
     console.log("Generating temporary password for:", normalizedEmail)
 
-    // Find the user by email
-    const { data: userList, error: listError } = await adminClient.auth.admin.listUsers()
-    
-    if (listError) {
-      console.error("Failed to list users:", listError)
+    // Prefer members table: supports SPAN email or personal (original_email), then Auth via user_id.
+    // Do NOT rely on auth.admin.listUsers() alone — it is paginated and misses most accounts.
+    const { data: memberBySpan } = await adminClient
+      .from("members")
+      .select("member_id, first_name, last_name, email, original_email, user_id")
+      .ilike("email", normalizedEmail)
+      .maybeSingle()
+
+    let memberData = memberBySpan
+    if (!memberData) {
+      const { data: memberByOriginal } = await adminClient
+        .from("members")
+        .select("member_id, first_name, last_name, email, original_email, user_id")
+        .ilike("original_email", normalizedEmail)
+        .maybeSingle()
+      memberData = memberByOriginal
+    }
+
+    let user: { id: string; email?: string | null } | null = null
+    const spanLoginEmail = (memberData?.email || normalizedEmail).toLowerCase().trim()
+
+    if (memberData?.user_id) {
+      const { data: byId, error: byIdError } = await adminClient.auth.admin.getUserById(memberData.user_id)
+      if (byIdError) {
+        console.error("getUserById failed:", byIdError)
+      } else if (byId?.user) {
+        user = byId.user
+      }
+    }
+
+    // Member row exists but Auth link missing / broken — find or create Auth user for SPAN email.
+    if (!user && memberData) {
+      // Paginate through Auth users looking for SPAN login email (rare path).
+      let page = 1
+      const perPage = 1000
+      while (!user && page <= 20) {
+        const { data: userList, error: listError } = await adminClient.auth.admin.listUsers({
+          page,
+          perPage,
+        })
+        if (listError) {
+          console.error("Failed to list users:", listError)
+          return new Response(
+            JSON.stringify({ error: "Failed to find user", details: listError.message }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          )
+        }
+        const found = userList.users.find((u) => (u.email ?? "").toLowerCase() === spanLoginEmail)
+        if (found) {
+          user = found
+          break
+        }
+        if (!userList.users.length || userList.users.length < perPage) break
+        page++
+      }
+    }
+
+    if (!user && !memberData) {
+      console.error("No member or Auth user for:", normalizedEmail)
       return new Response(
-        JSON.stringify({ error: "Failed to find user", details: listError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          error:
+            "No account found with this email address. Use your SPAN email (name@spanationwide.org), not only your personal email — or ask an exec to confirm your login is linked in Member Management.",
+        }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
-    const user = userList.users.find(
-      (u) => (u.email ?? "").toLowerCase() === normalizedEmail
-    )
+    // Member exists in dashboard but has no Auth user — create one and link (same as provision).
+    if (!user && memberData) {
+      const tempForCreate = generateRandomPassword()
+      const { data: created, error: createError } = await adminClient.auth.admin.createUser({
+        email: spanLoginEmail,
+        password: tempForCreate,
+        email_confirm: true,
+      })
+      if (createError || !created?.user) {
+        console.error("Failed to create Auth user for member:", createError)
+        return new Response(
+          JSON.stringify({
+            error:
+              "Your member profile exists but has no login account, and creating one failed. Please contact an exec.",
+            details: createError?.message,
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
+      user = created.user
+      const { error: linkError } = await adminClient
+        .from("members")
+        .update({ user_id: user.id })
+        .eq("member_id", memberData.member_id)
+      if (linkError) {
+        console.error("Failed to link user_id on members:", linkError)
+      } else {
+        memberData = { ...memberData, user_id: user.id }
+      }
+      // Fall through and set a fresh temp password + email below (overwrite create password).
+    }
 
     if (!user) {
-      console.error("User not found:", normalizedEmail)
       return new Response(
         JSON.stringify({ error: "No account found with this email address" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -214,13 +298,12 @@ serve(async (req) => {
 
     // Generate a temporary password
     const tempPassword = generateRandomPassword()
-    console.log("Generated temporary password for", normalizedEmail, "length:", tempPassword.length)
+    console.log("Generated temporary password for", spanLoginEmail, "length:", tempPassword.length)
 
     // Update the user's password
-    const { data: updateData, error: updateError } = await adminClient.auth.admin.updateUserById(
-      user.id,
-      { password: tempPassword }
-    )
+    const { error: updateError } = await adminClient.auth.admin.updateUserById(user.id, {
+      password: tempPassword,
+    })
 
     if (updateError) {
       console.error("Failed to update user password:", updateError)
@@ -232,24 +315,16 @@ serve(async (req) => {
 
     console.log("Password updated successfully for user:", user.id)
 
-    // Get user's name and personal email from members table if available
-    const { data: memberData } = await adminClient
-      .from("members")
-      .select("first_name, last_name, original_email")
-      .eq("email", normalizedEmail)
-      .maybeSingle()
-
     const toName = memberData
-      ? `${memberData.first_name || ""} ${memberData.last_name || ""}`.trim() || normalizedEmail
-      : normalizedEmail
+      ? `${memberData.first_name || ""} ${memberData.last_name || ""}`.trim() || spanLoginEmail
+      : spanLoginEmail
 
     // Use personal email (original_email) if available, otherwise fall back to SPAN email
-    // This matches the pattern in members-provision where emails are sent to personal emails
     const originalEmailRaw = (memberData?.original_email as string | null) ?? ""
     const deliveryEmailCandidate = originalEmailRaw.trim()
-    const deliveryEmail = deliveryEmailCandidate.length > 0 ? deliveryEmailCandidate : normalizedEmail
+    const deliveryEmail = deliveryEmailCandidate.length > 0 ? deliveryEmailCandidate : spanLoginEmail
 
-    console.log(`Sending password reset email to delivery email: ${deliveryEmail} (SPAN email: ${normalizedEmail})`)
+    console.log(`Sending password reset email to delivery email: ${deliveryEmail} (SPAN email: ${spanLoginEmail})`)
 
     // Send email via Resend to the personal email with temporary password
     const emailResult = await sendPasswordResetEmail({
@@ -261,9 +336,9 @@ serve(async (req) => {
     if (!emailResult.ok) {
       console.error("Failed to send password reset email:", emailResult)
       return new Response(
-        JSON.stringify({ 
-          error: "Failed to send password reset email", 
-          details: emailResult.reason || "Email service error" 
+        JSON.stringify({
+          error: "Failed to send password reset email",
+          details: emailResult.reason || "Email service error",
         }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )

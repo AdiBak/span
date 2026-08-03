@@ -548,7 +548,7 @@ function LoginPage() {
                         Enter your SPAN email address and we'll send you a temporary password to log in.
                       </p>
                       <div className="mb-3">
-                        <label htmlFor="forgotPasswordEmail" className="form-label">SPAN Email</label>
+                        <label htmlFor="forgotPasswordEmail" className="form-label">SPAN or personal email</label>
                         <input
                           type="text"
                           className="form-control"

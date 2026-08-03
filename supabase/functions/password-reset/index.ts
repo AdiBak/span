@@ -14,9 +14,9 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? ""
 
 const FROM_ADDRESS = "SPAN <contact@spanationwide.org>"
 
-function generateRandomPassword(length = 24) {
-  const charset =
-    "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*()-_=+[]{}"
+// Alphanumeric only — special chars (esp. &) break when pasted from HTML email clients.
+function generateRandomPassword(length = 16) {
+  const charset = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
   const array = new Uint32Array(length)
   crypto.getRandomValues(array)
   let password = ""
@@ -26,14 +26,48 @@ function generateRandomPassword(length = 24) {
   return password
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
+
+async function findAuthUserByEmail(
+  adminClient: ReturnType<typeof createClient>,
+  email: string,
+): Promise<{ id: string; email?: string | null } | null> {
+  const target = email.toLowerCase().trim()
+  let page = 1
+  const perPage = 1000
+  while (page <= 20) {
+    const { data: userList, error: listError } = await adminClient.auth.admin.listUsers({
+      page,
+      perPage,
+    })
+    if (listError) {
+      console.error("Failed to list users:", listError)
+      throw listError
+    }
+    const found = userList.users.find((u) => (u.email ?? "").toLowerCase() === target)
+    if (found) return found
+    if (!userList.users.length || userList.users.length < perPage) break
+    page++
+  }
+  return null
+}
+
 async function sendPasswordResetEmail({
   toEmail,
   toName,
   tempPassword,
+  loginEmail,
 }: {
   toEmail: string
   toName: string
   tempPassword: string
+  loginEmail: string
 }) {
   if (!RESEND_API_KEY) {
     console.warn("RESEND_API_KEY missing; skipping password reset email")
@@ -41,6 +75,10 @@ async function sendPasswordResetEmail({
   }
 
   console.log("Sending password reset email via Resend to:", toEmail, "(password masked: ***" + tempPassword.slice(-4) + ")")
+
+  const safeName = escapeHtml(toName)
+  const safeLoginEmail = escapeHtml(loginEmail)
+  const safeTempPassword = escapeHtml(tempPassword)
 
   const emailHtml = `
 <!DOCTYPE html>
@@ -59,18 +97,30 @@ async function sendPasswordResetEmail({
           <td style="padding:40px 48px 24px;">
             <img src="https://spanationwide.org/images/index/logo-wide-dark.png" alt="SPAN Logo" width="150" height="auto" style="display:block; margin-bottom:24px; max-width:100%; height:auto; border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic;">
 
-            <p style="color:#1e2746; font-size:16px; margin:0 0 16px; line-height:1.5;">Hi ${toName},</p>
+            <p style="color:#1e2746; font-size:16px; margin:0 0 16px; line-height:1.5;">Hi ${safeName},</p>
 
             <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 24px;">
-              We received a request to reset your password for your SPAN account. Use the temporary password below to log in, then change your password from your dashboard.
+              We received a request to reset your password for your SPAN account. Use the login email and temporary password below, then change your password from your dashboard.
             </p>
+
+            <div style="background:#fff8e6; border:2px solid #e6a800; border-radius:8px; padding:20px; margin:0 0 24px;">
+              <p style="color:#1e2746; font-size:14px; font-weight:600; margin:0 0 8px; text-transform:uppercase; letter-spacing:1px;">
+                Login email (required)
+              </p>
+              <p style="margin:0; font-family:'Courier New', monospace; font-size:16px; font-weight:600; color:#1e2746; word-break:break-all;">
+                ${safeLoginEmail}
+              </p>
+              <p style="color:#5a6478; font-size:13px; margin:12px 0 0; line-height:1.5;">
+                Do <strong>not</strong> use your personal email at login — only the SPAN address above works with this temporary password.
+              </p>
+            </div>
 
             <div style="background:#f0f7ff; border:2px solid #0b6ef9; border-radius:8px; padding:24px; margin:32px 0; text-align:center;">
               <p style="color:#1e2746; font-size:14px; font-weight:600; margin:0 0 12px; text-transform:uppercase; letter-spacing:1px;">
                 Your Temporary Password:
               </p>
-              <div style="background:#ffffff; border:1px solid #0b6ef9; border-radius:6px; padding:16px; margin:0 auto; display:inline-block; font-family:'Courier New', monospace; font-size:18px; font-weight:600; color:#1e2746; letter-spacing:2px;">
-                ${tempPassword}
+              <div style="background:#ffffff; border:1px solid #0b6ef9; border-radius:6px; padding:16px; margin:0 auto; display:inline-block; font-family:'Courier New', monospace; font-size:18px; font-weight:600; color:#1e2746; letter-spacing:2px; user-select:all; -webkit-user-select:all;">
+                ${safeTempPassword}
               </div>
             </div>
 
@@ -80,7 +130,7 @@ async function sendPasswordResetEmail({
               </p>
               <ol style="color:#1e2746; font-size:14px; line-height:1.6; margin:0; padding-left:20px;">
                 <li style="margin-bottom:8px;">Go to <a href="https://spanationwide.org/login.html" style="color:#0b6ef9; text-decoration:none;">spanationwide.org/login.html</a></li>
-                <li style="margin-bottom:8px;">Log in with your SPAN email and the temporary password above</li>
+                <li style="margin-bottom:8px;">Enter <strong>${safeLoginEmail}</strong> and the temporary password above (copy/paste carefully — no spaces)</li>
                 <li style="margin-bottom:8px;">Once logged in, go to your dashboard and change your password to something you'll remember</li>
                 <li>If you didn't request a password reset, please contact us immediately</li>
               </ol>
@@ -210,7 +260,22 @@ serve(async (req) => {
     let user: { id: string; email?: string | null } | null = null
     const spanLoginEmail = (memberData?.email || normalizedEmail).toLowerCase().trim()
 
-    if (memberData?.user_id) {
+    // Prefer the Auth user whose email is the SPAN login address (what they type at login).
+    // members.user_id alone can point at a personal-email Auth account — password would
+    // update there while login with SPAN email still fails.
+    try {
+      user = await findAuthUserByEmail(adminClient, spanLoginEmail)
+    } catch (listError) {
+      return new Response(
+        JSON.stringify({
+          error: "Failed to find user",
+          details: listError instanceof Error ? listError.message : String(listError),
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    if (!user && memberData?.user_id) {
       const { data: byId, error: byIdError } = await adminClient.auth.admin.getUserById(memberData.user_id)
       if (byIdError) {
         console.error("getUserById failed:", byIdError)
@@ -219,30 +284,18 @@ serve(async (req) => {
       }
     }
 
-    // Member row exists but Auth link missing / broken — find or create Auth user for SPAN email.
-    if (!user && memberData) {
-      // Paginate through Auth users looking for SPAN login email (rare path).
-      let page = 1
-      const perPage = 1000
-      while (!user && page <= 20) {
-        const { data: userList, error: listError } = await adminClient.auth.admin.listUsers({
-          page,
-          perPage,
-        })
-        if (listError) {
-          console.error("Failed to list users:", listError)
-          return new Response(
-            JSON.stringify({ error: "Failed to find user", details: listError.message }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          )
-        }
-        const found = userList.users.find((u) => (u.email ?? "").toLowerCase() === spanLoginEmail)
-        if (found) {
-          user = found
-          break
-        }
-        if (!userList.users.length || userList.users.length < perPage) break
-        page++
+    if (!user && !memberData) {
+      // Last resort: Auth-only account with the typed email (no members row).
+      try {
+        user = await findAuthUserByEmail(adminClient, normalizedEmail)
+      } catch (listError) {
+        return new Response(
+          JSON.stringify({
+            error: "Failed to find user",
+            details: listError instanceof Error ? listError.message : String(listError),
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
       }
     }
 
@@ -277,15 +330,6 @@ serve(async (req) => {
         )
       }
       user = created.user
-      const { error: linkError } = await adminClient
-        .from("members")
-        .update({ user_id: user.id })
-        .eq("member_id", memberData.member_id)
-      if (linkError) {
-        console.error("Failed to link user_id on members:", linkError)
-      } else {
-        memberData = { ...memberData, user_id: user.id }
-      }
       // Fall through and set a fresh temp password + email below (overwrite create password).
     }
 
@@ -296,21 +340,57 @@ serve(async (req) => {
       )
     }
 
+    // Keep members.user_id pointed at the Auth account we actually reset.
+    if (memberData && memberData.user_id !== user.id) {
+      const { error: linkError } = await adminClient
+        .from("members")
+        .update({ user_id: user.id })
+        .eq("member_id", memberData.member_id)
+      if (linkError) {
+        console.error("Failed to link user_id on members:", linkError)
+      } else {
+        memberData = { ...memberData, user_id: user.id }
+      }
+    }
+
     // Generate a temporary password
     const tempPassword = generateRandomPassword()
     console.log("Generated temporary password for", spanLoginEmail, "length:", tempPassword.length)
 
-    // Update the user's password
-    const { error: updateError } = await adminClient.auth.admin.updateUserById(user.id, {
+    // Update password; also sync Auth email to SPAN login email when mismatched.
+    const authEmail = (user.email ?? "").toLowerCase().trim()
+    const updatePayload: { password: string; email_confirm: boolean; email?: string } = {
       password: tempPassword,
-    })
+      email_confirm: true,
+    }
+    if (authEmail && authEmail !== spanLoginEmail) {
+      console.log(`Syncing Auth email from ${authEmail} → ${spanLoginEmail}`)
+      updatePayload.email = spanLoginEmail
+    }
+
+    const { error: updateError } = await adminClient.auth.admin.updateUserById(user.id, updatePayload)
 
     if (updateError) {
       console.error("Failed to update user password:", updateError)
-      return new Response(
-        JSON.stringify({ error: "Failed to reset password", details: updateError.message }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
+      // If email sync collided, still try password-only update on the SPAN Auth user path.
+      if (updatePayload.email) {
+        const { error: passwordOnlyError } = await adminClient.auth.admin.updateUserById(user.id, {
+          password: tempPassword,
+          email_confirm: true,
+        })
+        if (passwordOnlyError) {
+          return new Response(
+            JSON.stringify({ error: "Failed to reset password", details: passwordOnlyError.message }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          )
+        }
+        console.warn("Password updated but Auth email could not be synced:", updateError.message)
+      } else {
+        return new Response(
+          JSON.stringify({ error: "Failed to reset password", details: updateError.message }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
     }
 
     console.log("Password updated successfully for user:", user.id)
@@ -331,6 +411,7 @@ serve(async (req) => {
       toEmail: deliveryEmail,
       toName,
       tempPassword,
+      loginEmail: spanLoginEmail,
     })
 
     if (!emailResult.ok) {

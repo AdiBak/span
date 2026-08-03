@@ -42,7 +42,13 @@ function LoginPage() {
       if (error) throw error
       window.location.href = '/dashboard.html'
     } catch (err) {
-      setError(err.message || 'Login failed. Please try again.')
+      const msg = err.message || 'Login failed. Please try again.'
+      const usingPersonal = loginEmail.includes('@') && !loginEmail.toLowerCase().endsWith('@spanationwide.org')
+      setError(
+        usingPersonal
+          ? `${msg} Use your SPAN email (…@spanationwide.org), not your personal email — the temporary password only works with the SPAN address.`
+          : msg
+      )
     }
   }
 
@@ -59,7 +65,7 @@ function LoginPage() {
     }
 
     try {
-      // Call the password-reset Edge Function which uses EmailJS
+      // Deployed on Supabase as "hyper-endpoint" (legacy name); source lives in password-reset/
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
       if (!supabaseUrl) {
         throw new Error('Supabase URL not configured')
@@ -303,16 +309,17 @@ function LoginPage() {
           <div className="card shadow-sm p-4" style={{ maxWidth: '400px', width: '100%' }} data-aos="fade">
             <form onSubmit={handleEmailLogin}>
               <div className="mb-3">
-                <label htmlFor="email" className="form-label">Email</label>
+                <label htmlFor="email" className="form-label">SPAN email</label>
                 <input
                   type="text"
                   className="form-control"
                   id="email"
-                  placeholder="Enter your email"
+                  placeholder="name@spanationwide.org"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
+                <small className="text-muted">Use your SPAN address, not your personal email</small>
               </div>
               <div className="mb-3">
                 <label htmlFor="password" className="form-label">Password</label>
@@ -527,7 +534,7 @@ function LoginPage() {
                     <div className="text-center">
                       <div className="alert alert-success mb-3">
                         <i className="bi bi-check-circle me-2"></i>
-                        Password reset email sent! Please check your inbox for a temporary password. Use it to log in, then change your password from your dashboard.
+                        Password reset email sent (usually to your personal inbox). Log in with your <strong>SPAN email</strong> (@spanationwide.org) and the temporary password from the email — not your personal email.
                       </div>
                       <button
                         type="button"
@@ -545,7 +552,7 @@ function LoginPage() {
                   ) : (
                     <form onSubmit={handleForgotPassword}>
                       <p className="text-muted mb-3">
-                        Enter your SPAN email address and we'll send you a temporary password to log in.
+                        Enter your SPAN or personal email. We'll email a temporary password; you must still log in with your SPAN address (@spanationwide.org).
                       </p>
                       <div className="mb-3">
                         <label htmlFor="forgotPasswordEmail" className="form-label">SPAN or personal email</label>
@@ -553,7 +560,7 @@ function LoginPage() {
                           type="text"
                           className="form-control"
                           id="forgotPasswordEmail"
-                          placeholder="Enter your SPAN email"
+                          placeholder="name@spanationwide.org or personal email"
                           value={forgotPasswordEmail}
                           onChange={(e) => setForgotPasswordEmail(e.target.value)}
                           required

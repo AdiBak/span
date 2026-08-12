@@ -1,0 +1,25 @@
+.advisors-board {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding-bottom: 2rem;
+}
+
+.advisor-photo {
+  width: 75%;
+  max-width: 160px;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.advisor-photo-placeholder {
+  max-width: 160px;
+  width: 75%;
+  aspect-ratio: 1 / 1;
+}
+
+.advisor-card .card-body {
+  padding-top: 1rem;
+}
+
+.advisor-card h3 {
+  font-weight: 600;
+}

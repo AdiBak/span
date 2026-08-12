@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { memberLegalName, memberSiteDisplayName } from '../lib/memberDisplayName'
 import Pagination from '../components/Pagination'
 import DirectoryEmailGateModal from '../components/DirectoryEmailGateModal'
+import AdvisorsBoard from '../components/AdvisorsBoard'
 import './DirectoryPage.css'
 
 /** Production: real key from CI. Dev: Cloudflare dummy “always pass” key (works on localhost without hostname setup). Set VITE_TURNSTILE_USE_REAL_KEY=true to test your real site key locally. */
@@ -33,6 +34,7 @@ const STATE_ABBR_TO_FULL_NAME = {
 
 function DirectoryPage() {
   const [members, setMembers] = useState([])
+  const [advisors, setAdvisors] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -53,9 +55,9 @@ function DirectoryPage() {
     }
   }, [])
 
-  // Fetch members on mount
+  // Fetch members and advisors on mount
   useEffect(() => {
-    fetchMembers()
+    fetchDirectoryData()
   }, [])
 
   // Initialize AOS animations early, before content renders
@@ -137,18 +139,33 @@ function DirectoryPage() {
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
 
-  async function fetchMembers() {
+  async function fetchDirectoryData() {
     try {
       setLoading(true)
-      const { data, error: fetchError } = await supabase
-        .from('members')
-        .select('*')
-        .eq('active', true)
-        .eq('registration_complete', true)
+      const [membersResult, advisorsResult] = await Promise.all([
+        supabase
+          .from('members')
+          .select('*')
+          .eq('active', true)
+          .eq('registration_complete', true),
+        supabase
+          .from('advisors')
+          .select('advisor_id, full_name, title, company, photo, linkedin_url, display_order')
+          .eq('active', true)
+          .order('display_order', { ascending: true })
+          .order('full_name', { ascending: true }),
+      ])
 
-      if (fetchError) throw fetchError
+      if (membersResult.error) throw membersResult.error
+      // Advisors table may not exist yet before migration; don't fail the whole directory
+      if (advisorsResult.error) {
+        console.warn('Advisors load skipped:', advisorsResult.error.message)
+        setAdvisors([])
+      } else {
+        setAdvisors(advisorsResult.data || [])
+      }
 
-      const processedMembers = (data || []).map((m) => {
+      const processedMembers = (membersResult.data || []).map((m) => {
         const firstName = (m.first_name || '').trim()
         const lastName = (m.last_name || '').trim()
         const displayName = memberSiteDisplayName(m) || m.email || ''
@@ -172,7 +189,6 @@ function DirectoryPage() {
         }
       })
 
-      // Sort by name initially
       processedMembers.sort(sortByName)
       setMembers(processedMembers)
       setLoading(false)
@@ -276,7 +292,7 @@ function DirectoryPage() {
           <div className="container position-relative z-1">
             <h1 className="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Directory</h1>
             <p className="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-              Meet our network of student advocates across the nation.
+              Meet our advisory board and student advocates across the nation.
             </p>
           </div>
         </section>
@@ -296,7 +312,7 @@ function DirectoryPage() {
         <div className="container position-relative z-1">
           <h1 className="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Directory</h1>
           <p className="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-            Meet our network of student advocates across the nation.
+            Meet our advisory board and student advocates across the nation.
           </p>
         </div>
       </section>
@@ -306,12 +322,18 @@ function DirectoryPage() {
           <input
             type="search"
             className="form-control"
-            placeholder="Search by name, school, or location..."
+            placeholder="Search by name, school, location, or advisor..."
             style={{ maxWidth: '400px' }}
             value={searchQuery}
             onChange={handleSearchChange}
           />
         </div>
+
+        {!loading && (
+          <AdvisorsBoard advisors={advisors} searchQuery={debouncedSearch} />
+        )}
+
+        <h2 className="h3 mb-3">Members</h2>
 
         <div className="table-responsive">
           <table className="animate__animated animate__fadeIn table table-striped table-hover align-middle" style={{ minWidth: '600px' }}>

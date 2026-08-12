@@ -27,7 +27,7 @@ export const DASHBOARD_SECTION_LABELS = {
   hrReports: 'HR Reports',
   execConduct: 'Executive Conduct',
   memberManagement: 'Member Management',
-  schoolsPartners: 'Schools & Partners',
+  schoolsPartners: 'Schools, Partners & Advisors',
   mediumBlog: 'Medium (Blog)',
   changePassword: 'Change Password',
   resignFromSpan: 'Resign from SPAN',

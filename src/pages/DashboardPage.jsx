@@ -64,12 +64,14 @@ import ApplicationMetWithDateModal from './dashboard/ApplicationMetWithDateModal
 import VolunteerVerificationModal from './dashboard/VolunteerVerificationModal'
 import PartnerFormModal from './dashboard/PartnerFormModal'
 import SchoolFormModal from './dashboard/SchoolFormModal'
+import AdvisorFormModal from './dashboard/AdvisorFormModal'
 import SpanCardPasswordModal from './dashboard/SpanCardPasswordModal'
 import VolunteerSupervisorCommentModal from './dashboard/VolunteerSupervisorCommentModal'
 import {
   IMAGE_BASE_URL,
   PARTNERS_IMAGES_BASE_URL,
   SCHOOLS_IMAGES_BASE_URL,
+  ADVISORS_IMAGES_BASE_URL,
 } from './dashboard/constants'
 import { supabaseInvokeHeaders } from './dashboard/supabaseInvoke'
 import { runAiTextCheck, checkAiFromBill, checkAiFromAssignment } from '../lib/checkAiText'
@@ -375,6 +377,21 @@ function DashboardPage() {
   const [schoolSuccess, setSchoolSuccess] = useState('')
   const [draggedSchoolId, setDraggedSchoolId] = useState(null)
   const [draggedPartnerId, setDraggedPartnerId] = useState(null)
+  const [advisors, setAdvisors] = useState([])
+  const [showAdvisorModal, setShowAdvisorModal] = useState(false)
+  const [editingAdvisorId, setEditingAdvisorId] = useState(null)
+  const [advisorForm, setAdvisorForm] = useState({
+    fullName: '',
+    title: '',
+    company: '',
+    linkedinUrl: '',
+    displayOrder: 999,
+    active: true,
+  })
+  const [advisorPhotoFile, setAdvisorPhotoFile] = useState(null)
+  const [advisorError, setAdvisorError] = useState('')
+  const [advisorSuccess, setAdvisorSuccess] = useState('')
+  const [draggedAdvisorId, setDraggedAdvisorId] = useState(null)
   const [profilePicLoading, setProfilePicLoading] = useState(false)
   const [profilePicError, setProfilePicError] = useState('')
   const [profilePicSuccess, setProfilePicSuccess] = useState('')
@@ -677,6 +694,7 @@ function DashboardPage() {
         loadAllSuggestions()
         loadSchools()
         loadPartners()
+        loadAdvisors()
       } else if (member) {
         loadMyHrReports()
       }
@@ -974,6 +992,21 @@ function DashboardPage() {
     }
 
     setSchools(schoolsData || [])
+  }
+
+  const loadAdvisors = async () => {
+    const { data, error } = await supabase
+      .from('advisors')
+      .select('*')
+      .order('display_order', { ascending: true })
+      .order('full_name', { ascending: true })
+
+    if (error) {
+      console.error('Error loading advisors:', error)
+      return
+    }
+
+    setAdvisors(data || [])
   }
 
   // Load HR reports (executive directors only, filtered to exclude reports about themselves)
@@ -5475,6 +5508,203 @@ function DashboardPage() {
     setDraggedPartnerId(null)
   }
 
+  const handleAddAdvisor = () => {
+    setEditingAdvisorId(null)
+    setAdvisorForm({
+      fullName: '',
+      title: '',
+      company: '',
+      linkedinUrl: '',
+      displayOrder: 999,
+      active: true,
+    })
+    setAdvisorPhotoFile(null)
+    setAdvisorError('')
+    setAdvisorSuccess('')
+    setShowAdvisorModal(true)
+  }
+
+  const handleEditAdvisor = (advisor) => {
+    setEditingAdvisorId(advisor.advisor_id)
+    setAdvisorForm({
+      fullName: advisor.full_name || '',
+      title: advisor.title || '',
+      company: advisor.company || '',
+      linkedinUrl: advisor.linkedin_url || '',
+      displayOrder: advisor.display_order || 999,
+      active: advisor.active !== false,
+    })
+    setAdvisorPhotoFile(null)
+    setAdvisorError('')
+    setAdvisorSuccess('')
+    setShowAdvisorModal(true)
+  }
+
+  const handleSaveAdvisor = async () => {
+    const { fullName, title, company, linkedinUrl, displayOrder, active } = advisorForm
+    setAdvisorError('')
+    setAdvisorSuccess('')
+
+    if (!fullName.trim()) {
+      setAdvisorError('Full name is required.')
+      return
+    }
+
+    try {
+      let photoFilename = null
+
+      if (advisorPhotoFile) {
+        const fileExt = advisorPhotoFile.name.split('.').pop()
+        const fileName = `${Date.now()}-${fullName.replace(/[^a-zA-Z0-9]/g, '_')}.${fileExt}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('advisors-images')
+          .upload(fileName, advisorPhotoFile, {
+            cacheControl: '3600',
+            upsert: false,
+          })
+
+        if (uploadError) {
+          console.error('Error uploading advisor photo:', uploadError)
+          setAdvisorError('Failed to upload photo: ' + uploadError.message)
+          return
+        }
+
+        photoFilename = fileName
+      }
+
+      if (editingAdvisorId) {
+        const updateData = {
+          full_name: fullName.trim(),
+          title: title.trim() || null,
+          company: company.trim() || null,
+          linkedin_url: linkedinUrl.trim() || null,
+          display_order: parseInt(displayOrder, 10) || 999,
+          active,
+        }
+
+        if (photoFilename) {
+          const oldAdvisor = advisors.find((a) => a.advisor_id === editingAdvisorId)
+          if (oldAdvisor?.photo) {
+            await supabase.storage.from('advisors-images').remove([oldAdvisor.photo])
+          }
+          updateData.photo = photoFilename
+        }
+
+        const { error } = await supabase
+          .from('advisors')
+          .update(updateData)
+          .eq('advisor_id', editingAdvisorId)
+
+        if (error) throw error
+        setAdvisorSuccess('Advisor updated successfully!')
+      } else {
+        if (!photoFilename) {
+          setAdvisorError('Photo is required for new advisors.')
+          return
+        }
+
+        const { error } = await supabase.from('advisors').insert({
+          full_name: fullName.trim(),
+          title: title.trim() || null,
+          company: company.trim() || null,
+          linkedin_url: linkedinUrl.trim() || null,
+          photo: photoFilename,
+          display_order: parseInt(displayOrder, 10) || 999,
+          active,
+        })
+
+        if (error) throw error
+        setAdvisorSuccess('Advisor added successfully!')
+      }
+
+      await loadAdvisors()
+      setTimeout(() => {
+        setShowAdvisorModal(false)
+        setAdvisorSuccess('')
+      }, 2000)
+    } catch (err) {
+      console.error('Error saving advisor:', err)
+      setAdvisorError(err.message || 'Failed to save advisor.')
+    }
+  }
+
+  const handleDeleteAdvisor = async (advisorId) => {
+    if (!window.confirm('Are you sure you want to delete this advisor? This cannot be undone.')) {
+      return
+    }
+
+    try {
+      const advisor = advisors.find((a) => a.advisor_id === advisorId)
+      if (advisor?.photo) {
+        await supabase.storage.from('advisors-images').remove([advisor.photo])
+      }
+
+      const { error } = await supabase.from('advisors').delete().eq('advisor_id', advisorId)
+      if (error) throw error
+
+      await loadAdvisors()
+    } catch (err) {
+      console.error('Error deleting advisor:', err)
+      alert('Failed to delete advisor: ' + err.message)
+    }
+  }
+
+  const handleAdvisorDragStart = (e, advisorId) => {
+    setDraggedAdvisorId(advisorId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  const handleAdvisorDragEnd = () => {
+    setDraggedAdvisorId(null)
+  }
+
+  const handleAdvisorDragOver = (e) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+
+  const handleAdvisorDrop = async (e, targetAdvisorId) => {
+    e.preventDefault()
+    if (!draggedAdvisorId || draggedAdvisorId === targetAdvisorId) {
+      setDraggedAdvisorId(null)
+      return
+    }
+
+    const draggedIndex = advisors.findIndex((a) => a.advisor_id === draggedAdvisorId)
+    const targetIndex = advisors.findIndex((a) => a.advisor_id === targetAdvisorId)
+    if (draggedIndex === -1 || targetIndex === -1) {
+      setDraggedAdvisorId(null)
+      return
+    }
+
+    const newAdvisors = [...advisors]
+    const [removed] = newAdvisors.splice(draggedIndex, 1)
+    newAdvisors.splice(targetIndex, 0, removed)
+
+    const updates = newAdvisors.map((advisor, index) => ({
+      advisor_id: advisor.advisor_id,
+      display_order: index + 1,
+    }))
+
+    try {
+      await Promise.all(
+        updates.map((update) =>
+          supabase
+            .from('advisors')
+            .update({ display_order: update.display_order })
+            .eq('advisor_id', update.advisor_id)
+        )
+      )
+      await loadAdvisors()
+    } catch (err) {
+      console.error('Error reordering advisors:', err)
+      alert('Failed to reorder advisors: ' + err.message)
+    }
+
+    setDraggedAdvisorId(null)
+  }
+
   const handleEditBillCollaboratorToggle = (memberId) => {
     const member = allMembers.find(m => m.member_id === memberId)
     if (!member) return
@@ -6112,10 +6342,10 @@ function DashboardPage() {
             className="mt-5 dashboard-section-anchor"
             style={{ order: dashboardOrder.schoolsPartners }}
           >
-            <h3 className="mb-4">Schools &amp; Partners</h3>
+            <h3 className="mb-4">Schools, Partners &amp; Advisors</h3>
             <div className="alert alert-info mb-4">
               <i className="bi bi-info-circle me-2"></i>
-              Manage schools and partner organizations displayed on the homepage. Upload logos and they will appear automatically.
+              Manage schools and partners on the homepage, and Advisory Board members on the Directory. No login accounts are created for advisors.
             </div>
 
             <div className="row g-4">
@@ -6309,6 +6539,107 @@ function DashboardPage() {
                 </div>
               </div>
               )}
+            </div>
+
+            <div className="row g-4 mt-1">
+              <div className="col-12">
+                <div className="card shadow-sm">
+                  <div className="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 className="mb-0">Advisory Board</h5>
+                    <button className="btn btn-sm btn-dark" onClick={handleAddAdvisor}>
+                      <i className="bi bi-plus-circle me-1"></i>Add Advisor
+                    </button>
+                  </div>
+                  <div className="card-body" style={{ maxHeight: '500px', overflowY: 'auto', overflowX: 'hidden' }}>
+                    {advisors.length > 0 ? (
+                      <div className="table-responsive">
+                        <table className="table table-hover table-sm mb-0">
+                          <thead>
+                            <tr>
+                              <th style={{ width: '30px' }}></th>
+                              <th>Photo</th>
+                              <th>Name</th>
+                              <th>Title / Company</th>
+                              <th>Status</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {advisors.map((advisor) => (
+                              <tr
+                                key={advisor.advisor_id}
+                                draggable
+                                onDragStart={(e) => handleAdvisorDragStart(e, advisor.advisor_id)}
+                                onDragEnd={handleAdvisorDragEnd}
+                                onDragOver={handleAdvisorDragOver}
+                                onDrop={(e) => handleAdvisorDrop(e, advisor.advisor_id)}
+                                style={{
+                                  cursor: 'move',
+                                  opacity: draggedAdvisorId === advisor.advisor_id ? 0.5 : 1,
+                                }}
+                              >
+                                <td>
+                                  <i className="bi bi-grip-vertical text-muted" style={{ cursor: 'grab', userSelect: 'none' }}></i>
+                                </td>
+                                <td>
+                                  {advisor.photo ? (
+                                    <img
+                                      src={`${ADVISORS_IMAGES_BASE_URL}/${advisor.photo}`}
+                                      alt={advisor.full_name}
+                                      className="rounded-circle object-fit-cover"
+                                      style={{ width: '40px', height: '40px' }}
+                                    />
+                                  ) : (
+                                    <span className="text-muted small">—</span>
+                                  )}
+                                </td>
+                                <td>{advisor.full_name}</td>
+                                <td className="small text-muted">
+                                  {[advisor.title, advisor.company].filter(Boolean).join(' · ') || '—'}
+                                </td>
+                                <td>
+                                  <span className={`badge ${advisor.active ? 'bg-success' : 'bg-secondary'}`}>
+                                    {advisor.active ? 'Active' : 'Inactive'}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div className="d-flex gap-1" onMouseDown={(e) => e.stopPropagation()}>
+                                    <button
+                                      className="btn btn-sm btn-outline-primary"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleEditAdvisor(advisor)
+                                      }}
+                                      title="Edit"
+                                    >
+                                      <i className="bi bi-pencil"></i>
+                                    </button>
+                                    <button
+                                      className="btn btn-sm btn-outline-danger"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleDeleteAdvisor(advisor.advisor_id)
+                                      }}
+                                      title="Delete"
+                                    >
+                                      <i className="bi bi-trash"></i>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted">
+                        <i className="bi bi-people display-6 d-block mb-2"></i>
+                        <p className="small mb-0">No advisors yet. Add the first Advisory Board member.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
         )}
@@ -7034,6 +7365,26 @@ function DashboardPage() {
         setSchoolLogoFile={setSchoolLogoFile}
         onClose={() => setShowSchoolModal(false)}
         onSave={handleSaveSchool}
+      />
+
+      <AdvisorFormModal
+        open={showAdvisorModal}
+        editingAdvisorId={editingAdvisorId}
+        advisorForm={advisorForm}
+        setAdvisorForm={setAdvisorForm}
+        advisorError={advisorError}
+        advisorSuccess={advisorSuccess}
+        currentPhotoPreviewUrl={
+          editingAdvisorId
+            ? (() => {
+                const fn = advisors.find((a) => a.advisor_id === editingAdvisorId)?.photo
+                return fn ? `${ADVISORS_IMAGES_BASE_URL}/${fn}` : null
+              })()
+            : null
+        }
+        setAdvisorPhotoFile={setAdvisorPhotoFile}
+        onClose={() => setShowAdvisorModal(false)}
+        onSave={handleSaveAdvisor}
       />
 
 

@@ -65,6 +65,7 @@ import VolunteerVerificationModal from './dashboard/VolunteerVerificationModal'
 import PartnerFormModal from './dashboard/PartnerFormModal'
 import SchoolFormModal from './dashboard/SchoolFormModal'
 import AdvisorFormModal from './dashboard/AdvisorFormModal'
+import AnalyticsSection from './dashboard/AnalyticsSection'
 import SpanCardPasswordModal from './dashboard/SpanCardPasswordModal'
 import VolunteerSupervisorCommentModal from './dashboard/VolunteerSupervisorCommentModal'
 import {
@@ -2176,9 +2177,10 @@ function DashboardPage() {
         execConduct: 8,
         memberManagement: 9,
         schoolsPartners: 10,
-        mediumBlog: 11,
-        changePassword: 12,
-        resignFromSpan: 13,
+        analytics: 11,
+        mediumBlog: 12,
+        changePassword: 13,
+        resignFromSpan: 14,
         billSubmission: 99,
       }
     : isTeamLeadOnly
@@ -2196,6 +2198,7 @@ function DashboardPage() {
           applications: 99,
           memberManagement: 99,
           schoolsPartners: 99,
+          analytics: 99,
           execConduct: 99,
         }
       : {
@@ -2212,6 +2215,7 @@ function DashboardPage() {
           applications: 99,
           memberManagement: 99,
           schoolsPartners: 99,
+          analytics: 99,
           execConduct: 99,
         }
 
@@ -2239,6 +2243,7 @@ function DashboardPage() {
       execConduct: execUser,
       memberManagement: perm('registration'),
       schoolsPartners: execUser,
+      analytics: execUser,
       mediumBlog: perm('blog'),
       changePassword: true,
       resignFromSpan: true,
@@ -5597,10 +5602,10 @@ function DashboardPage() {
           .eq('advisor_id', editingAdvisorId)
 
         if (error) throw error
-        setAdvisorSuccess('Advisor updated successfully!')
+        setAdvisorSuccess('Mentor updated successfully!')
       } else {
         if (!photoFilename) {
-          setAdvisorError('Photo is required for new advisors.')
+          setAdvisorError('Photo is required for new mentors.')
           return
         }
 
@@ -5615,7 +5620,7 @@ function DashboardPage() {
         })
 
         if (error) throw error
-        setAdvisorSuccess('Advisor added successfully!')
+        setAdvisorSuccess('Mentor added successfully!')
       }
 
       await loadAdvisors()
@@ -5630,7 +5635,7 @@ function DashboardPage() {
   }
 
   const handleDeleteAdvisor = async (advisorId) => {
-    if (!window.confirm('Are you sure you want to delete this advisor? This cannot be undone.')) {
+    if (!window.confirm('Are you sure you want to delete this mentor? This cannot be undone.')) {
       return
     }
 
@@ -5646,7 +5651,7 @@ function DashboardPage() {
       await loadAdvisors()
     } catch (err) {
       console.error('Error deleting advisor:', err)
-      alert('Failed to delete advisor: ' + err.message)
+      alert('Failed to delete mentor: ' + err.message)
     }
   }
 
@@ -6342,10 +6347,10 @@ function DashboardPage() {
             className="mt-5 dashboard-section-anchor"
             style={{ order: dashboardOrder.schoolsPartners }}
           >
-            <h3 className="mb-4">Schools, Partners &amp; Advisors</h3>
+            <h3 className="mb-4">Schools, Partners &amp; Mentors</h3>
             <div className="alert alert-info mb-4">
               <i className="bi bi-info-circle me-2"></i>
-              Manage schools and partners on the homepage, and Advisory Board members on the Directory. No login accounts are created for advisors.
+              Manage schools and partners on the homepage, and Board of Mentors members on the Members page Leadership tab. No login accounts are created for mentors.
             </div>
 
             <div className="row g-4">
@@ -6545,9 +6550,9 @@ function DashboardPage() {
               <div className="col-12">
                 <div className="card shadow-sm">
                   <div className="card-header bg-white d-flex justify-content-between align-items-center">
-                    <h5 className="mb-0">Advisory Board</h5>
+                    <h5 className="mb-0">Board of Mentors</h5>
                     <button className="btn btn-sm btn-dark" onClick={handleAddAdvisor}>
-                      <i className="bi bi-plus-circle me-1"></i>Add Advisor
+                      <i className="bi bi-plus-circle me-1"></i>Add Mentor
                     </button>
                   </div>
                   <div className="card-body" style={{ maxHeight: '500px', overflowY: 'auto', overflowX: 'hidden' }}>
@@ -6634,7 +6639,7 @@ function DashboardPage() {
                     ) : (
                       <div className="text-center py-4 text-muted">
                         <i className="bi bi-people display-6 d-block mb-2"></i>
-                        <p className="small mb-0">No advisors yet. Add the first Advisory Board member.</p>
+                        <p className="small mb-0">No mentors yet. Add the first Board of Mentors member.</p>
                       </div>
                     )}
                   </div>
@@ -6643,6 +6648,17 @@ function DashboardPage() {
             </div>
           </section>
         )}
+
+        {hasPermission('volunteer') &&
+          hasPermission('applications') &&
+          hasPermission('bills') &&
+          hasPermission('registration') &&
+          !viewAsData && (
+            <AnalyticsSection
+              sectionId={DASHBOARD_SECTION_IDS.analytics}
+              sectionOrder={dashboardOrder.analytics}
+            />
+          )}
 
         {hasPermission('applications') && (
           <ApplicationsSection

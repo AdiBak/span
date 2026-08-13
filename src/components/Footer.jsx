@@ -65,7 +65,7 @@ function Footer() {
               <li><a href="/index.html" className="text-white text-decoration-none">Home</a></li>
               <li><a href="/our-story.html" className="text-white text-decoration-none">Our Story</a></li>
               <li><a href="/bills.html" className="text-white text-decoration-none">Bills</a></li>
-              <li><a href="/directory.html" className="text-white text-decoration-none">Directory</a></li>
+              <li><a href="/directory.html" className="text-white text-decoration-none">Members</a></li>
               <li><a href="/blog.html" className="text-white text-decoration-none">Blog</a></li>
               <li><a href="/login.html" className="text-white text-decoration-none">Login</a></li>
               <li><a href="/dashboard.html" className="text-white text-decoration-none">Dashboard</a></li>

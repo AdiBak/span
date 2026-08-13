@@ -28,7 +28,7 @@ export default function AdvisorFormModal({
         <div className="modal-dialog modal-dialog-centered modal-lg">
           <div className="modal-content">
             <div className="modal-header">
-              <h5 className="modal-title">{editingAdvisorId ? 'Edit Advisor' : 'Add Advisor'}</h5>
+              <h5 className="modal-title">{editingAdvisorId ? 'Edit Mentor' : 'Add Mentor'}</h5>
               <button type="button" className="btn-close" onClick={() => onClose()}></button>
             </div>
             <div className="modal-body">
@@ -120,7 +120,9 @@ export default function AdvisorFormModal({
                     onChange={(e) => setAdvisorPhotoFile(e.target.files[0] || null)}
                   />
                   <small className="text-muted">
-                    {editingAdvisorId ? 'Leave empty to keep current photo' : 'Upload a headshot for the Directory'}
+                    {editingAdvisorId
+                      ? 'Leave empty to keep current photo'
+                      : 'Upload a headshot for the Members page Leadership tab'}
                   </small>
                   {editingAdvisorId && currentPhotoPreviewUrl && (
                     <div className="mt-2">
@@ -141,7 +143,7 @@ export default function AdvisorFormModal({
                 Cancel
               </button>
               <button type="button" className="btn btn-dark" onClick={onSave}>
-                {editingAdvisorId ? 'Update Advisor' : 'Add Advisor'}
+                {editingAdvisorId ? 'Update Mentor' : 'Add Mentor'}
               </button>
             </div>
           </div>

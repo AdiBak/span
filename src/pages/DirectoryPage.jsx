@@ -3,7 +3,12 @@ import { supabase } from '../lib/supabase'
 import { memberLegalName, memberSiteDisplayName } from '../lib/memberDisplayName'
 import Pagination from '../components/Pagination'
 import DirectoryEmailGateModal from '../components/DirectoryEmailGateModal'
-import AdvisorsBoard from '../components/AdvisorsBoard'
+import {
+  DirectoryPeopleGrid,
+  executivePeopleFromMembers,
+  mentorPeopleFromAdvisors,
+  divisionLeadPeopleFromSources,
+} from '../components/AdvisorsBoard'
 import './DirectoryPage.css'
 
 /** Production: real key from CI. Dev: Cloudflare dummy “always pass” key (works on localhost without hostname setup). Set VITE_TURNSTILE_USE_REAL_KEY=true to test your real site key locally. */
@@ -16,25 +21,10 @@ const TURNSTILE_SITE_KEY = import.meta.env.PROD
 const ITEMS_PER_PAGE = 10
 const SEARCH_DEBOUNCE_MS = 300
 
-const STATE_ABBR_TO_FULL_NAME = {
-  AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas",
-  CA: "California", CO: "Colorado", CT: "Connecticut", DE: "Delaware",
-  FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho",
-  IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas",
-  KY: "Kentucky", LA: "Louisiana", ME: "Maine", MD: "Maryland",
-  MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi",
-  MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada",
-  NH: "New Hampshire", NJ: "New Jersey", NM: "New Mexico", NY: "New York",
-  NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma",
-  OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina",
-  SD: "South Dakota", TN: "Tennessee", TX: "Texas", UT: "Utah",
-  VT: "Vermont", VA: "Virginia", WA: "Washington", WV: "West Virginia",
-  WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia"
-}
-
 function DirectoryPage() {
   const [members, setMembers] = useState([])
   const [advisors, setAdvisors] = useState([])
+  const [teamLeadRows, setTeamLeadRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
@@ -44,31 +34,36 @@ function DirectoryPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const searchTimeoutRef = useRef(null)
   const [emailGate, setEmailGate] = useState(null)
+  const [activeTab, setActiveTab] = useState('leadership')
 
-  // Initialize search from URL on mount
+  // Initialize tab + search from URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const search = params.get('search')
+    const tab = params.get('tab')
     if (search) {
       setSearchQuery(search)
       setDebouncedSearch(search)
     }
+    if (tab === 'directory' || tab === 'leadership') {
+      setActiveTab(tab)
+    } else if (search) {
+      // School carousel deep-links use ?search= — open full directory
+      setActiveTab('directory')
+    }
   }, [])
 
-  // Fetch members and advisors on mount
   useEffect(() => {
     fetchDirectoryData()
   }, [])
 
-  // Initialize AOS animations early, before content renders
   useEffect(() => {
-    // Initialize AOS immediately if available, or wait for it to load
     const initAOS = () => {
       if (window.AOS && typeof window.AOS.init === 'function') {
         window.AOS.init({
           duration: 1000,
           once: false,
-          mirror: false
+          mirror: false,
         })
         if (typeof window.AOS.refreshHard === 'function') {
           window.AOS.refreshHard()
@@ -77,11 +72,10 @@ function DirectoryPage() {
         }
       }
     }
-    
+
     if (window.AOS) {
       initAOS()
     } else {
-      // Wait for AOS to load
       const checkAOS = setInterval(() => {
         if (window.AOS) {
           clearInterval(checkAOS)
@@ -91,15 +85,13 @@ function DirectoryPage() {
       return () => clearInterval(checkAOS)
     }
   }, [])
-  
-  // Refresh AOS when loading completes
+
   useEffect(() => {
     if (!loading && window.AOS && typeof window.AOS.refresh === 'function') {
       window.AOS.refresh()
     }
-  }, [loading, error])
+  }, [loading, error, activeTab])
 
-  // Debounce search input
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current)
@@ -115,7 +107,7 @@ function DirectoryPage() {
     }
   }, [searchQuery])
 
-  // Update URL when debounced search changes
+  // Sync search + tab to URL
   useEffect(() => {
     const url = new URL(window.location)
     if (debouncedSearch.trim()) {
@@ -123,17 +115,25 @@ function DirectoryPage() {
     } else {
       url.searchParams.delete('search')
     }
-    window.history.pushState({}, '', url)
-  }, [debouncedSearch])
+    if (activeTab === 'directory') {
+      url.searchParams.set('tab', 'directory')
+    } else {
+      url.searchParams.set('tab', 'leadership')
+    }
+    window.history.replaceState({}, '', url)
+  }, [debouncedSearch, activeTab])
 
-  // Handle browser back/forward
   useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search)
       const search = params.get('search') || ''
+      const tab = params.get('tab')
       setSearchQuery(search)
       setDebouncedSearch(search)
       setCurrentPage(1)
+      if (tab === 'directory' || tab === 'leadership') {
+        setActiveTab(tab)
+      }
     }
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
@@ -142,7 +142,7 @@ function DirectoryPage() {
   async function fetchDirectoryData() {
     try {
       setLoading(true)
-      const [membersResult, advisorsResult] = await Promise.all([
+      const [membersResult, advisorsResult, teamLeadsResult] = await Promise.all([
         supabase
           .from('members')
           .select('*')
@@ -154,15 +154,21 @@ function DirectoryPage() {
           .eq('active', true)
           .order('display_order', { ascending: true })
           .order('full_name', { ascending: true }),
+        supabase.rpc('get_public_directory_team_leads'),
       ])
 
       if (membersResult.error) throw membersResult.error
-      // Advisors table may not exist yet before migration; don't fail the whole directory
       if (advisorsResult.error) {
-        console.warn('Advisors load skipped:', advisorsResult.error.message)
+        console.warn('Board of Mentors load skipped:', advisorsResult.error.message)
         setAdvisors([])
       } else {
         setAdvisors(advisorsResult.data || [])
+      }
+      if (teamLeadsResult.error) {
+        console.warn('Team leads RPC skipped:', teamLeadsResult.error.message)
+        setTeamLeadRows([])
+      } else {
+        setTeamLeadRows(teamLeadsResult.data || [])
       }
 
       const processedMembers = (membersResult.data || []).map((m) => {
@@ -182,10 +188,11 @@ function DirectoryPage() {
           school: m.school_name || '',
           city: m.city || '',
           state: m.state || '',
-          location: (m.city && m.state) ? `${m.city}, ${m.state}` : (m.city || m.state || ''),
+          location: m.city && m.state ? `${m.city}, ${m.state}` : m.city || m.state || '',
           email: m.email || '',
           role: m.role || '',
-          image: m.image || 'default.jpg'
+          image: m.image || 'default.jpg',
+          linkedinUrl: m.linkedin_url || m.linkedin || '',
         }
       })
 
@@ -210,11 +217,29 @@ function DirectoryPage() {
     return lastA.localeCompare(lastB)
   }
 
-  // Filter and sort members
+  const leadershipExecutives = useMemo(
+    () => executivePeopleFromMembers(members, debouncedSearch),
+    [members, debouncedSearch]
+  )
+
+  const leadershipDivisionLeads = useMemo(
+    () =>
+      divisionLeadPeopleFromSources({
+        members,
+        teamLeadRows,
+        searchQuery: debouncedSearch,
+      }),
+    [members, teamLeadRows, debouncedSearch]
+  )
+
+  const leadershipMentors = useMemo(
+    () => mentorPeopleFromAdvisors(advisors, debouncedSearch),
+    [advisors, debouncedSearch]
+  )
+
   const filteredAndSortedMembers = useMemo(() => {
     let filtered = [...members]
 
-    // Apply search filter
     if (debouncedSearch.trim()) {
       const queryLower = debouncedSearch.toLowerCase()
       filtered = filtered.filter((member) => {
@@ -226,7 +251,6 @@ function DirectoryPage() {
       })
     }
 
-    // Apply sorting
     filtered.sort((a, b) => {
       if (sortKey === 'name') {
         return sortAsc ? sortByName(a, b) : sortByName(b, a)
@@ -239,7 +263,6 @@ function DirectoryPage() {
     return filtered
   }, [members, debouncedSearch, sortKey, sortAsc])
 
-  // Paginate filtered members
   const paginatedMembers = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE
     return filteredAndSortedMembers.slice(start, start + ITEMS_PER_PAGE)
@@ -259,6 +282,11 @@ function DirectoryPage() {
 
   function handleSearchChange(e) {
     setSearchQuery(e.target.value)
+    setCurrentPage(1)
+  }
+
+  function handleTabChange(tab) {
+    setActiveTab(tab)
     setCurrentPage(1)
   }
 
@@ -283,6 +311,8 @@ function DirectoryPage() {
     return sortAsc ? <i className="bi bi-arrow-up"></i> : <i className="bi bi-arrow-down"></i>
   }
 
+  const heroLead =
+    'Meet SPAN leadership, our Board of Mentors, and student advocates across the nation.'
 
   if (error) {
     return (
@@ -290,9 +320,11 @@ function DirectoryPage() {
         <section className="subpage-hero d-flex align-items-center text-white text-center position-relative">
           <div className="parallax-bg" aria-hidden="true"></div>
           <div className="container position-relative z-1">
-            <h1 className="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Directory</h1>
+            <h1 className="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">
+              Members
+            </h1>
             <p className="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-              Meet our advisory board and student advocates across the nation.
+              {heroLead}
             </p>
           </div>
         </section>
@@ -310,133 +342,197 @@ function DirectoryPage() {
       <section className="subpage-hero d-flex align-items-center text-white text-center position-relative">
         <div className="parallax-bg" aria-hidden="true"></div>
         <div className="container position-relative z-1">
-          <h1 className="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Directory</h1>
+          <h1 className="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">
+            Members
+          </h1>
           <p className="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-            Meet our advisory board and student advocates across the nation.
+            {heroLead}
           </p>
         </div>
       </section>
 
       <main className="p-3 p-md-5 m-md-3 bg-light">
-        <div className="mb-4 d-flex justify-content-end">
+        <div className="directory-toolbar mb-4">
+          <ul className="nav nav-tabs directory-tabs" role="tablist">
+            <li className="nav-item" role="presentation">
+              <button
+                type="button"
+                className={`nav-link ${activeTab === 'leadership' ? 'active' : ''}`}
+                role="tab"
+                aria-selected={activeTab === 'leadership'}
+                onClick={() => handleTabChange('leadership')}
+              >
+                Leadership
+              </button>
+            </li>
+            <li className="nav-item" role="presentation">
+              <button
+                type="button"
+                className={`nav-link ${activeTab === 'directory' ? 'active' : ''}`}
+                role="tab"
+                aria-selected={activeTab === 'directory'}
+                onClick={() => handleTabChange('directory')}
+              >
+                Directory
+              </button>
+            </li>
+          </ul>
           <input
             type="search"
-            className="form-control"
-            placeholder="Search by name, school, location, or advisor..."
-            style={{ maxWidth: '400px' }}
+            className="form-control directory-search"
+            placeholder={
+              activeTab === 'leadership'
+                ? 'Search leadership, team leads, or mentors…'
+                : 'Search by name, school, or location…'
+            }
             value={searchQuery}
             onChange={handleSearchChange}
           />
         </div>
 
-        {!loading && (
-          <AdvisorsBoard advisors={advisors} searchQuery={debouncedSearch} />
-        )}
-
-        <h2 className="h3 mb-3">Members</h2>
-
-        <div className="table-responsive">
-          <table className="animate__animated animate__fadeIn table table-striped table-hover align-middle" style={{ minWidth: '600px' }}>
-            <thead className="bg-white text-dark">
-              <tr>
-                <th>
-                  <span>Name</span>
-                  <button
-                    className="btn btn-sm p-0 ms-2 sort-btn"
-                    onClick={() => handleSort('name')}
-                    style={{ color: sortKey === 'name' ? '#0d6efd' : '#777' }}
-                  >
-                    {getSortIcon('name')}
-                  </button>
-                </th>
-                <th>
-                  <span>Location</span>
-                  <button
-                    className="btn btn-sm p-0 ms-2 sort-btn"
-                    onClick={() => handleSort('location')}
-                    style={{ color: sortKey === 'location' ? '#0d6efd' : '#777' }}
-                  >
-                    {getSortIcon('location')}
-                  </button>
-                </th>
-                <th>Email</th>
-                <th>
-                  <span>Role</span>
-                  <button
-                    className="btn btn-sm p-0 ms-2 sort-btn"
-                    onClick={() => handleSort('role')}
-                    style={{ color: sortKey === 'role' ? '#0d6efd' : '#777' }}
-                  >
-                    {getSortIcon('role')}
-                  </button>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="4" className="text-center py-5">
-                    <div className="directory-loading">
-                      <div className="spinner-border text-secondary" role="status" style={{ width: '3rem', height: '3rem' }}>
-                        <span className="visually-hidden">Loading directory…</span>
-                      </div>
-                      <p className="text-muted mb-0">Loading directory…</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : paginatedMembers.length === 0 ? (
-                <tr>
-                  <td colSpan="4" className="text-center text-muted py-4">
-                    {debouncedSearch ? `No results found for "${debouncedSearch}"` : 'No members available.'}
-                  </td>
-                </tr>
-              ) : (
-                paginatedMembers.map((member) => {
-                  return (
-                    <tr key={member.memberId || member.email}>
-                      <td>
-                        <div className="d-flex align-items-center gap-2">
-                          <img
-                            src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/${member.image}`}
-                            alt={member.name}
-                            width="32"
-                            height="32"
-                            className="rounded-circle object-fit-cover"
-                          />
-                          {member.name}
-                        </div>
-                      </td>
-                      <td>
-                        {member.location}
-                      </td>
-                      <td>
-                        {member.email && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-dark"
-                            onClick={() => handleDirectoryEmailClick(member)}
-                          >
-                            <i className="bi bi-envelope"></i> Email
-                          </button>
-                        )}
-                      </td>
-                      <td>{member.role}</td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {!loading && totalPages > 1 && (
-          <div className="mt-3 d-flex justify-content-center">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
+        {loading ? (
+          <div className="directory-loading py-5">
+            <div
+              className="spinner-border text-secondary"
+              role="status"
+              style={{ width: '3rem', height: '3rem' }}
+            >
+              <span className="visually-hidden">Loading…</span>
+            </div>
+            <p className="text-muted mb-0">Loading…</p>
+          </div>
+        ) : activeTab === 'leadership' ? (
+          <div className="animate__animated animate__fadeIn">
+            <DirectoryPeopleGrid
+              title="Executive Directors"
+              subtitle="SPAN’s executive leadership."
+              headingId="executive-directors-heading"
+              people={leadershipExecutives}
+              emptyMessage={
+                debouncedSearch
+                  ? `No executive directors match “${debouncedSearch}”.`
+                  : 'No executive directors to display yet.'
+              }
+            />
+            <DirectoryPeopleGrid
+              title="Team & Division Leads"
+              subtitle="Members who lead SPAN teams, committees, and divisions."
+              headingId="team-division-leads-heading"
+              people={leadershipDivisionLeads}
+              emptyMessage={
+                debouncedSearch
+                  ? `No team or division leads match “${debouncedSearch}”.`
+                  : 'Team and division leads will appear here when roles or team assignments are set.'
+              }
+            />
+            <DirectoryPeopleGrid
+              title="Board of Mentors"
+              subtitle="Healthcare and industry leaders who mentor SPAN."
+              headingId="board-of-mentors-heading"
+              people={leadershipMentors}
+              emptyMessage={
+                debouncedSearch
+                  ? `No mentors match “${debouncedSearch}”.`
+                  : 'Board of Mentors members will appear here soon.'
+              }
             />
           </div>
+        ) : (
+          <>
+            <div className="table-responsive">
+              <table
+                className="animate__animated animate__fadeIn table table-striped table-hover align-middle"
+                style={{ minWidth: '600px' }}
+              >
+                <thead className="bg-white text-dark">
+                  <tr>
+                    <th>
+                      <span>Name</span>
+                      <button
+                        className="btn btn-sm p-0 ms-2 sort-btn"
+                        onClick={() => handleSort('name')}
+                        style={{ color: sortKey === 'name' ? '#0d6efd' : '#777' }}
+                      >
+                        {getSortIcon('name')}
+                      </button>
+                    </th>
+                    <th>
+                      <span>Location</span>
+                      <button
+                        className="btn btn-sm p-0 ms-2 sort-btn"
+                        onClick={() => handleSort('location')}
+                        style={{ color: sortKey === 'location' ? '#0d6efd' : '#777' }}
+                      >
+                        {getSortIcon('location')}
+                      </button>
+                    </th>
+                    <th>Email</th>
+                    <th>
+                      <span>Role</span>
+                      <button
+                        className="btn btn-sm p-0 ms-2 sort-btn"
+                        onClick={() => handleSort('role')}
+                        style={{ color: sortKey === 'role' ? '#0d6efd' : '#777' }}
+                      >
+                        {getSortIcon('role')}
+                      </button>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedMembers.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" className="text-center text-muted py-4">
+                        {debouncedSearch
+                          ? `No results found for "${debouncedSearch}"`
+                          : 'No members available.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedMembers.map((member) => (
+                      <tr key={member.memberId || member.email}>
+                        <td>
+                          <div className="d-flex align-items-center gap-2">
+                            <img
+                              src={`https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images/${member.image}`}
+                              alt={member.name}
+                              width="32"
+                              height="32"
+                              className="rounded-circle object-fit-cover"
+                            />
+                            {member.name}
+                          </div>
+                        </td>
+                        <td>{member.location}</td>
+                        <td>
+                          {member.email && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-dark"
+                              onClick={() => handleDirectoryEmailClick(member)}
+                            >
+                              <i className="bi bi-envelope"></i> Email
+                            </button>
+                          )}
+                        </td>
+                        <td>{member.role}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {totalPages > 1 && (
+              <div className="mt-3 d-flex justify-content-center">
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                />
+              </div>
+            )}
+          </>
         )}
       </main>
 

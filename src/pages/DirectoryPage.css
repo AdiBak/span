@@ -26,3 +26,42 @@
   align-items: center;
   gap: 0.75rem;
 }
+
+.directory-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.directory-tabs {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+  margin-bottom: 0;
+}
+
+.directory-tabs .nav-link {
+  color: #555;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.5rem 1rem;
+  background: transparent;
+}
+
+.directory-tabs .nav-link:hover {
+  color: #111;
+  border-color: transparent;
+}
+
+.directory-tabs .nav-link.active {
+  color: #111;
+  font-weight: 600;
+  background: transparent;
+  border-color: transparent transparent #111;
+}
+
+.directory-search {
+  max-width: 400px;
+  width: 100%;
+}

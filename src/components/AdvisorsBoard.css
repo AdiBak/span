@@ -20,6 +20,8 @@
   padding-top: 1rem;
 }
 
-.advisor-card h3 {
-  font-weight: 600;
+.advisors-board:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0 !important;
 }

@@ -30,7 +30,7 @@ function Navbar() {
       { label: 'Home', href: '/index.html' },
       { label: 'Our Story', href: '/our-story.html' },
       { label: 'Bills', href: '/bills.html' },
-      { label: 'Directory', href: '/directory.html' },
+      { label: 'Members', href: '/directory.html' },
       { label: 'Blog', href: '/blog.html' },
     ],
     []

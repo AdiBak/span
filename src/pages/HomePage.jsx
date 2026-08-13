@@ -198,7 +198,7 @@ function HomePage() {
           <TeamSection />
           <div className="text-center mt-5" data-aos="fade" data-aos-duration="1000" data-aos-delay="500">
             <a href="/directory.html" className="btn btn-dark btn-lg px-5 mb-4"><i className="bi bi-people-fill"></i> View
-              Directory</a>
+              Members</a>
           </div>
         </div>
       </div>

@@ -20,6 +20,15 @@
   padding-top: 1rem;
 }
 
+.advisor-subtitle {
+  line-height: 1.35;
+  text-wrap: pretty;
+}
+
+.advisor-subtitle p + p {
+  margin-top: 0.15rem;
+}
+
 .advisors-board:last-of-type {
   border-bottom: none;
   padding-bottom: 0;

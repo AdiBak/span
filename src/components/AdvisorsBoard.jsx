@@ -2,6 +2,17 @@ import { ADVISORS_IMAGES_BASE_URL, MEMBERS_IMAGES_BASE_URL } from '../lib/supaba
 import { memberSiteDisplayName } from '../lib/memberDisplayName'
 import './AdvisorsBoard.css'
 
+/** Keep the last two words together so a single word doesn’t wrap alone. */
+function preventOrphanWrap(text) {
+  const s = String(text || '').trim()
+  if (!s) return s
+  const words = s.split(/\s+/)
+  if (words.length < 2) return s
+  const last = words.pop()
+  const prev = words.pop()
+  return [...words, `${prev}\u00A0${last}`].join(' ')
+}
+
 /**
  * Card grid for Leadership tab sections (EDs, team leads, Board of Mentors).
  */
@@ -62,7 +73,20 @@ export function DirectoryPeopleGrid({
               </div>
               <div className="card-body px-1">
                 <h3 className="h6 mb-1">{person.name}</h3>
-                {person.subtitle && <p className="small text-muted mb-2">{person.subtitle}</p>}
+                {(person.subtitleLines?.length > 0 || person.subtitle) && (
+                  <div className="advisor-subtitle small text-muted mb-2">
+                    {(person.subtitleLines?.length
+                      ? person.subtitleLines
+                      : [person.subtitle]
+                    )
+                      .filter(Boolean)
+                      .map((line) => (
+                        <p key={line} className="mb-0">
+                          {preventOrphanWrap(line)}
+                        </p>
+                      ))}
+                  </div>
+                )}
                 {person.linkedinUrl && (
                   <a
                     href={person.linkedinUrl}
@@ -112,7 +136,7 @@ export function mentorPeopleFromAdvisors(advisors = [], searchQuery = '') {
     .map((advisor) => ({
       id: advisor.advisor_id,
       name: advisor.full_name,
-      subtitle: [advisor.title, advisor.company].filter(Boolean).join(' · '),
+      subtitleLines: [advisor.title, advisor.company].filter(Boolean),
       photoUrl: advisor.photo ? `${ADVISORS_IMAGES_BASE_URL}/${advisor.photo}` : null,
       linkedinUrl: advisor.linkedin_url || null,
     }))
@@ -154,11 +178,11 @@ export function divisionLeadPeopleFromSources({
       memberSiteDisplayName(row) ||
       [row.first_name, row.last_name].filter(Boolean).join(' ').trim() ||
       'Member'
-    const subtitle = [row.role, row.team_names].filter(Boolean).join(' · ')
+    const subtitleLines = [row.role, row.team_names].filter(Boolean)
     byId.set(id, {
       id,
       name,
-      subtitle,
+      subtitleLines,
       photoUrl: `${MEMBERS_IMAGES_BASE_URL}/${row.image || 'default.jpg'}`,
       linkedinUrl: row.linkedin || null,
       sortLast: (row.last_name || '').toLowerCase(),
@@ -174,7 +198,7 @@ export function divisionLeadPeopleFromSources({
     byId.set(id, {
       id,
       name: m.name,
-      subtitle: m.role || '',
+      subtitleLines: m.role ? [m.role] : [],
       photoUrl: `${MEMBERS_IMAGES_BASE_URL}/${m.image || 'default.jpg'}`,
       linkedinUrl: m.linkedinUrl || null,
       sortLast: (m.lastName || '').toLowerCase(),
@@ -185,7 +209,10 @@ export function divisionLeadPeopleFromSources({
   let people = Array.from(byId.values())
   if (q) {
     people = people.filter((p) => {
-      const blob = [p.name, p.subtitle].filter(Boolean).join(' ').toLowerCase()
+      const blob = [p.name, ...(p.subtitleLines || []), p.subtitle]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
       return blob.includes(q)
     })
   }

@@ -3,6 +3,11 @@
   padding-bottom: 2rem;
 }
 
+.advisor-card {
+  display: flex;
+  flex-direction: column;
+}
+
 .advisor-photo {
   width: 75%;
   max-width: 160px;
@@ -17,16 +22,38 @@
 }
 
 .advisor-card .card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  align-items: center;
+  width: 100%;
   padding-top: 1rem;
 }
 
+/* Reserve space for title (up to 2 lines) + organization so cards align in a row */
 .advisor-subtitle {
+  width: 100%;
+  min-height: 3.6em;
+  margin-bottom: 0.5rem;
   line-height: 1.35;
   text-wrap: pretty;
 }
 
-.advisor-subtitle p + p {
-  margin-top: 0.15rem;
+.advisor-role {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #495057;
+}
+
+.advisor-org {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #6c757d;
+}
+
+.advisor-card .advisor-linkedin {
+  margin-top: auto;
 }
 
 .advisors-board:last-of-type {

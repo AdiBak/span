@@ -13,6 +13,11 @@ function preventOrphanWrap(text) {
   return [...words, `${prev}\u00A0${last}`].join(' ')
 }
 
+/** Tighten awkward wraps (orphans, trailing “&”). */
+function formatSubtitleLine(text) {
+  return preventOrphanWrap(text).replace(/\s+&\s+/g, ' &\u00A0')
+}
+
 /**
  * Card grid for Leadership tab sections (EDs, team leads, Board of Mentors).
  */
@@ -71,18 +76,23 @@ export function DirectoryPeopleGrid({
                   </div>
                 )}
               </div>
-              <div className="card-body px-1">
+              <div className="card-body px-2">
                 <h3 className="h6 mb-1">{person.name}</h3>
                 {(person.subtitleLines?.length > 0 || person.subtitle) && (
-                  <div className="advisor-subtitle small text-muted mb-2">
+                  <div className="advisor-subtitle">
                     {(person.subtitleLines?.length
                       ? person.subtitleLines
                       : [person.subtitle]
                     )
                       .filter(Boolean)
-                      .map((line) => (
-                        <p key={line} className="mb-0">
-                          {preventOrphanWrap(line)}
+                      .map((line, index) => (
+                        <p
+                          key={line}
+                          className={`mb-0 ${
+                            index === 0 ? 'advisor-role' : 'advisor-org'
+                          }`}
+                        >
+                          {formatSubtitleLine(line)}
                         </p>
                       ))}
                   </div>
@@ -92,7 +102,7 @@ export function DirectoryPeopleGrid({
                     href={person.linkedinUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="btn btn-sm btn-outline-dark"
+                    className="btn btn-sm btn-outline-dark advisor-linkedin"
                     aria-label={`LinkedIn profile for ${person.name}`}
                   >
                     <i className="bi bi-linkedin"></i>

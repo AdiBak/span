@@ -1,0 +1,74 @@
+/* Static partners logo grid — full-width, glanceable (schools keep the carousel). */
+.partners-section {
+  padding: 1rem 0 0.5rem;
+  width: 100%;
+}
+
+.partners-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.75rem 1.25rem;
+  align-items: center;
+  justify-items: center;
+  width: 100%;
+  margin: 0;
+}
+
+.partner-logo-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 72px;
+  padding: 0.5rem 0.75rem;
+}
+
+.partner-logo {
+  max-height: 72px;
+  max-width: 100%;
+  width: auto;
+  object-fit: contain;
+  filter: grayscale(100%);
+  opacity: 0.75;
+  transition: filter 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+}
+
+.partner-logo-cell:hover .partner-logo,
+.partner-logo-cell:focus-visible .partner-logo {
+  filter: grayscale(0%);
+  opacity: 1;
+  transform: scale(1.04);
+}
+
+@media (min-width: 576px) {
+  .partners-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2rem 1.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .partners-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2.25rem 2rem;
+  }
+
+  .partner-logo {
+    max-height: 84px;
+  }
+
+  .partner-logo-cell {
+    min-height: 96px;
+    padding: 0.5rem 1rem;
+  }
+}
+
+@media (min-width: 1200px) {
+  .partners-grid {
+    gap: 2.5rem 2.5rem;
+  }
+
+  .partner-logo {
+    max-height: 92px;
+  }
+}

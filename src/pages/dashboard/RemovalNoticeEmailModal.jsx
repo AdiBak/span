@@ -3,15 +3,31 @@ import { buildDishonorableRemovalEmailHtml } from '../../lib/memberLetterEmailTe
 import { buildDishonorableRemovalLetter } from '../../lib/memberLetters'
 import { supabaseInvokeHeaders } from './supabaseInvoke'
 
-export default function RemovalNoticeEmailModal({ open, onClose, supabase, membersList }) {
+export default function RemovalNoticeEmailModal({
+  open,
+  onClose,
+  supabase,
+  membersList,
+  onSent,
+}) {
   const [memberId, setMemberId] = useState('')
   const [removalDateNote, setRemovalDateNote] = useState('')
+  const [removeFromDirectory, setRemoveFromDirectory] = useState(true)
   const [previewSubject, setPreviewSubject] = useState('')
   const [previewHtml, setPreviewHtml] = useState('')
   const [building, setBuilding] = useState(false)
   const [sending, setSending] = useState(false)
 
-  const selected = (membersList || []).find((m) => m.member_id === memberId)
+  const selected = (membersList || []).find((m) => String(m.member_id) === String(memberId))
+
+  useEffect(() => {
+    if (!open) return
+    setMemberId('')
+    setRemovalDateNote('')
+    setRemoveFromDirectory(true)
+    setPreviewSubject('')
+    setPreviewHtml('')
+  }, [open])
 
   useEffect(() => {
     if (!memberId) return
@@ -67,6 +83,8 @@ export default function RemovalNoticeEmailModal({ open, onClose, supabase, membe
           subject: previewSubject,
           html: previewHtml,
           attachments: [],
+          mark_removal_letter_sent: true,
+          deactivate_directory: removeFromDirectory,
         }),
       })
       const data = await resp.json().catch(() => ({}))
@@ -74,7 +92,11 @@ export default function RemovalNoticeEmailModal({ open, onClose, supabase, membe
         alert(data.error || 'Send failed.')
         return
       }
-      alert(`Email sent to ${data.to || 'member'}.`)
+      const bits = [`Email sent to ${data.to || 'member'}.`]
+      if (data.directory_deactivated) bits.push('Removed from the public Members directory.')
+      if (data.removal_proposal_updated) bits.push('Recorded as removal letter sent.')
+      alert(bits.join(' '))
+      if (typeof onSent === 'function') await onSent()
       onClose()
     } catch (err) {
       alert(err.message || 'Send failed.')
@@ -99,6 +121,8 @@ export default function RemovalNoticeEmailModal({ open, onClose, supabase, membe
 
   if (!open) return null
 
+  const stillOnDirectory = selected && selected.active !== false
+
   return (
     <>
       <div
@@ -116,7 +140,9 @@ export default function RemovalNoticeEmailModal({ open, onClose, supabase, membe
             </div>
             <div className="modal-body">
               <p className="text-muted small">
-                Formal notice that SPAN membership has ended. Preview is exactly what is sent. No attachments.
+                Formal notice that SPAN membership has ended. Sending records the letter and, by default,
+                removes the member from the public directory (same as honorable-letter tracking for
+                resignations).
               </p>
 
               <div className="row g-2 mb-3">
@@ -131,6 +157,7 @@ export default function RemovalNoticeEmailModal({ open, onClose, supabase, membe
                     {(membersList || []).map((m) => (
                       <option key={m.member_id} value={m.member_id}>
                         {m.first_name} {m.last_name}
+                        {m.active === false ? ' (inactive)' : ''}
                       </option>
                     ))}
                   </select>
@@ -143,6 +170,21 @@ export default function RemovalNoticeEmailModal({ open, onClose, supabase, membe
                     onChange={(e) => setRemovalDateNote(e.target.value)}
                     placeholder="Defaults to today"
                   />
+                </div>
+                <div className="col-12">
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="removalDeactivateDirectory"
+                      checked={removeFromDirectory}
+                      onChange={(e) => setRemoveFromDirectory(e.target.checked)}
+                    />
+                    <label className="form-check-label small" htmlFor="removalDeactivateDirectory">
+                      After send, remove from public Members directory
+                      {stillOnDirectory ? '' : ' (already inactive)'}
+                    </label>
+                  </div>
                 </div>
               </div>
 
@@ -173,7 +215,12 @@ export default function RemovalNoticeEmailModal({ open, onClose, supabase, membe
                   <div className="px-2 py-1 bg-light border-bottom small">
                     <strong>Subject:</strong> {previewSubject}
                   </div>
-                  <iframe title="Email preview" srcDoc={previewHtml} className="w-100 border-0" style={{ height: '360px' }} />
+                  <iframe
+                    title="Email preview"
+                    srcDoc={previewHtml}
+                    className="w-100 border-0"
+                    style={{ height: '360px' }}
+                  />
                 </div>
               )}
             </div>

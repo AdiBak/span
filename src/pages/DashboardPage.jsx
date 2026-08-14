@@ -7204,6 +7204,11 @@ function DashboardPage() {
         onClose={() => setShowRemovalNoticeEmailModal(false)}
         supabase={supabase}
         membersList={allMembersForManagement}
+        onSent={async () => {
+          await loadExecConductData()
+          await loadAllMembersForManagement()
+          await loadAllMembers()
+        }}
       />
 
       <PolicyViolationEmailModal

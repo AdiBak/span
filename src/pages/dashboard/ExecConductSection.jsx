@@ -144,7 +144,8 @@ export default function ExecConductSection({
       {(removalProposals || []).some((p) => p.status === 'dual_confirmed') && (
         <div className="alert alert-danger mb-4">
           <strong>Dual-confirmed removals:</strong> prior work on the site can remain credited. Confirm below to
-          hide each person from the public directory when ready.
+          hide each person from the public directory when ready — or send the removal email (which records letter
+          sent and removes them by default).
           <ul className="mt-2 mb-0">
             {(removalProposals || [])
               .filter((p) => p.status === 'dual_confirmed')
@@ -172,6 +173,58 @@ export default function ExecConductSection({
           </ul>
         </div>
       )}
+
+      <div className="mb-4">
+        <h4 className="mb-2">Removal / firing letters sent</h4>
+        <p className="small text-muted mb-2">
+          Recorded when an exec sends the membership-ended email. Also check Member Management → Inactive for
+          directory status.
+        </p>
+        {(removalProposals || []).filter((p) => p.status === 'removal_letter_sent').length === 0 ? (
+          <p className="text-muted small mb-0">No removal letters recorded yet.</p>
+        ) : (
+          <div className="table-responsive" style={{ maxHeight: '280px', overflowY: 'auto' }}>
+            <table className="table table-sm table-hover align-middle mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th>Member</th>
+                  <th>Letter sent</th>
+                  <th>Directory</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(removalProposals || [])
+                  .filter((p) => p.status === 'removal_letter_sent')
+                  .map((p) => {
+                    const mem = membersById[p.member_id]
+                    const name = mem ? `${mem.first_name} ${mem.last_name}` : p.member_id
+                    const stillActive = mem ? mem.active !== false : true
+                    const when = p.letter_sent_at ? formatDateLong(p.letter_sent_at) : '—'
+                    return (
+                      <tr key={p.proposal_id}>
+                        <td className="fw-semibold">{name}</td>
+                        <td className="small text-nowrap">{when}</td>
+                        <td>
+                          {stillActive && typeof onDeactivateMemberFromDirectory === 'function' ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() => onDeactivateMemberFromDirectory(p.member_id)}
+                            >
+                              Still listed — remove
+                            </button>
+                          ) : (
+                            <span className="badge bg-secondary">Off directory</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Strike log */}
       <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">

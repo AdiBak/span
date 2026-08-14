@@ -41,7 +41,11 @@ serve(async (req) => {
       html?: string
       attachments?: Attachment[]
       mark_honorable_letter_sent?: boolean
-      /** When true, CC all executive directors (SPAN emails). */
+      /** After firing/removal notice: mark proposal + optionally deactivate directory listing. */
+      mark_removal_letter_sent?: boolean
+      /** Default true when mark_removal_letter_sent — set members.active = false. */
+      deactivate_directory?: boolean
+      /** When true, CC Executive Directors (role). */
       cc_execs?: boolean
       cc?: string[]
     }
@@ -51,6 +55,11 @@ serve(async (req) => {
     let html = String(body.html ?? "")
     const attachments = Array.isArray(body.attachments) ? body.attachments : []
     const markHonorableLetterSent = body.mark_honorable_letter_sent === true
+    const markRemovalLetterSent = body.mark_removal_letter_sent === true
+    const deactivateDirectory =
+      body.deactivate_directory === undefined
+        ? markRemovalLetterSent
+        : body.deactivate_directory === true
     const ccExecs = body.cc_execs === true
     const extraCc = Array.isArray(body.cc)
       ? body.cc.map((s) => String(s || "").trim().toLowerCase()).filter(Boolean)
@@ -207,12 +216,67 @@ serve(async (req) => {
         .in("status", ["requested", "meeting_scheduled", "met", "directors_contacted"])
     }
 
+    let directoryDeactivated = false
+    let removalProposalUpdated = false
+    if (markRemovalLetterSent) {
+      const nowIso = new Date().toISOString()
+      const senderId = String((callerMember as { member_id?: string })?.member_id || "").trim() || null
+
+      if (deactivateDirectory) {
+        const { error: deactErr } = await admin
+          .from("members")
+          .update({ active: false })
+          .eq("member_id", memberId)
+        if (deactErr) {
+          console.error("deactivate after removal letter failed", deactErr)
+        } else {
+          directoryDeactivated = true
+        }
+      }
+
+      const { data: updatedProposals, error: propErr } = await admin
+        .from("member_removal_proposals")
+        .update({
+          status: "removal_letter_sent",
+          letter_sent_at: nowIso,
+          letter_sent_by: senderId,
+          updated_at: nowIso,
+        })
+        .eq("member_id", memberId)
+        .in("status", ["awaiting_second", "dual_confirmed"])
+        .select("proposal_id")
+
+      if (propErr) {
+        console.error("update removal proposal after letter failed", propErr)
+      } else if (updatedProposals && updatedProposals.length > 0) {
+        removalProposalUpdated = true
+      } else if (senderId) {
+        // No open proposal — create an audit row so Letter sent is visible in Exec Conduct.
+        const { error: insErr } = await admin.from("member_removal_proposals").insert({
+          member_id: memberId,
+          initiated_by: senderId,
+          confirmed_by: null,
+          status: "removal_letter_sent",
+          letter_sent_at: nowIso,
+          letter_sent_by: senderId,
+          notes: "Recorded when membership-ended email was sent (no prior dual-confirm proposal).",
+        })
+        if (insErr) {
+          console.error("insert removal_letter_sent audit row failed", insErr)
+        } else {
+          removalProposalUpdated = true
+        }
+      }
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,
         email_id: resendData.id,
         to: toEmail,
         cc: ccList,
+        directory_deactivated: directoryDeactivated,
+        removal_proposal_updated: removalProposalUpdated,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     )

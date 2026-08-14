@@ -36,6 +36,7 @@ import MemberStrikeModal from './dashboard/MemberStrikeModal'
 import MemberRemovalModal from './dashboard/MemberRemovalModal'
 import HonorableExitEmailModal from './dashboard/HonorableExitEmailModal'
 import RemovalNoticeEmailModal from './dashboard/RemovalNoticeEmailModal'
+import PolicyViolationEmailModal from './dashboard/PolicyViolationEmailModal'
 import { strikeLimitForMember, isAtStrikeLimit } from '../lib/memberStrikeRules'
 import IdeasSuggestionsSection from './dashboard/IdeasSuggestionsSection'
 import LeaveExtensionSection from './dashboard/LeaveExtensionSection'
@@ -295,6 +296,7 @@ function DashboardPage() {
     nature: '',
     regardingMemberId: '',
     regardingName: '',
+    regardingContact: '',
     dateOccurred: '',
     details: ''
   })
@@ -312,6 +314,11 @@ function DashboardPage() {
   const [showRemovalModal, setShowRemovalModal] = useState(false)
   const [showHonorableExitEmailModal, setShowHonorableExitEmailModal] = useState(false)
   const [showRemovalNoticeEmailModal, setShowRemovalNoticeEmailModal] = useState(false)
+  const [showPolicyViolationEmailModal, setShowPolicyViolationEmailModal] = useState(false)
+  const [policyViolationEmailSeed, setPolicyViolationEmailSeed] = useState({
+    memberId: '',
+    nature: '',
+  })
   const [recordingHrStrike, setRecordingHrStrike] = useState(false)
   const [resignSubmitLoading, setResignSubmitLoading] = useState(false)
   const [myRequests, setMyRequests] = useState([])
@@ -1429,7 +1436,8 @@ function DashboardPage() {
 
   // HR Report handlers
   const handleSubmitHrReport = async () => {
-    const { nature, regardingMemberId, regardingName, dateOccurred, details } = hrReportForm
+    const { nature, regardingMemberId, regardingName, regardingContact, dateOccurred, details } =
+      hrReportForm
     setHrReportError('')
     setHrReportSuccess('')
 
@@ -1439,24 +1447,38 @@ function DashboardPage() {
       return
     }
 
+    const isOther = regardingMemberId === '__other__'
+    if (isOther && !String(regardingName || '').trim()) {
+      setHrReportError('Enter a name for Other (person not in the directory).')
+      return
+    }
+
     if (!member) {
       setHrReportError('Member data not loaded.')
       return
     }
 
+    const resolvedMemberId =
+      regardingMemberId && !isOther ? regardingMemberId : null
+    const resolvedName = isOther
+      ? regardingName.trim()
+      : resolvedMemberId
+        ? null
+        : regardingName.trim() || null
+    const resolvedContact = isOther ? String(regardingContact || '').trim() || null : null
+
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('hr_reports')
         .insert({
           submitted_by: member.member_id,
           nature_of_complaint: nature.trim(),
-          regarding_member_id: regardingMemberId || null,
-          regarding_name: regardingName.trim() || null,
+          regarding_member_id: resolvedMemberId,
+          regarding_name: resolvedName,
+          regarding_contact: resolvedContact,
           date_occurred: dateOccurred,
           details: details.trim() || null
         })
-        .select()
-        .single()
 
       if (error) {
         console.error('Error submitting HR report:', error)
@@ -1464,37 +1486,14 @@ function DashboardPage() {
         return
       }
 
-      let leadershipEmailed = false
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-        const base = import.meta.env.VITE_SUPABASE_URL
-        if (session?.access_token && data?.report_id && base) {
-          const resp = await fetch(`${base.replace(/\/$/, '')}/functions/v1/notify-hr-report`, {
-            method: 'POST',
-            headers: supabaseInvokeHeaders(session.access_token),
-            body: JSON.stringify({ report_id: data.report_id }),
-          })
-          leadershipEmailed = resp.ok
-          if (!resp.ok) {
-            const errBody = await resp.json().catch(() => ({}))
-            console.warn('HR report notify email failed:', resp.status, errBody)
-          }
-        }
-      } catch (notifyErr) {
-        console.warn('HR report notify email error:', notifyErr)
-      }
-
-      setHrReportSuccess(
-        leadershipEmailed
-          ? 'HR report submitted successfully. Leadership has been emailed with the details.'
-          : 'HR report submitted successfully.'
-      )
+      // No email on submit — execs review in the dashboard. Member policy notices
+      // (with execs CC'd) are sent separately via Email member when appropriate.
+      setHrReportSuccess('HR report submitted. Executive directors can review it in HR Reports.')
       setHrReportForm({
         nature: '',
         regardingMemberId: '',
         regardingName: '',
+        regardingContact: '',
         dateOccurred: '',
         details: ''
       })
@@ -6698,6 +6697,7 @@ function DashboardPage() {
                     nature: '',
                     regardingMemberId: '',
                     regardingName: '',
+                    regardingContact: '',
                     dateOccurred: '',
               details: '',
                   })
@@ -6709,6 +6709,15 @@ function DashboardPage() {
                                 setSelectedHrReport(report)
                                 setShowHrReportViewModal(true)
                               }}
+          onOpenPolicyViolationEmail={(report) => {
+            if (!report?.regarding_member_id) return
+            setSelectedHrReport(report)
+            setPolicyViolationEmailSeed({
+              memberId: report.regarding_member_id,
+              nature: report.nature_of_complaint || '',
+            })
+            setShowPolicyViolationEmailModal(true)
+          }}
         />
 
         {hasPermission('volunteer') &&
@@ -7092,6 +7101,7 @@ function DashboardPage() {
         hrReportError={hrReportError}
         hrReportSuccess={hrReportSuccess}
         onSubmit={handleSubmitHrReport}
+        membersList={allMembers}
       />
 
       <HrReportViewModal
@@ -7116,6 +7126,22 @@ function DashboardPage() {
         }
         recordingStrike={recordingHrStrike}
         onRecordStrikeFromReport={handleRecordStrikeFromHrReport}
+        showPolicyViolationEmail={
+          !viewAsData &&
+          hasPermission('volunteer') &&
+          hasPermission('applications') &&
+          hasPermission('bills') &&
+          hasPermission('registration')
+        }
+        onOpenPolicyViolationEmail={() => {
+          const report = selectedHrReport
+          if (!report?.regarding_member_id) return
+          setPolicyViolationEmailSeed({
+            memberId: report.regarding_member_id,
+            nature: report.nature_of_complaint || '',
+          })
+          setShowPolicyViolationEmailModal(true)
+        }}
         canDelete={
           !viewAsData &&
           hasPermission('volunteer') &&
@@ -7178,6 +7204,16 @@ function DashboardPage() {
         onClose={() => setShowRemovalNoticeEmailModal(false)}
         supabase={supabase}
         membersList={allMembersForManagement}
+      />
+
+      <PolicyViolationEmailModal
+        open={showPolicyViolationEmailModal}
+        onClose={() => setShowPolicyViolationEmailModal(false)}
+        supabase={supabase}
+        membersList={allMembersForManagement}
+        memberStrikeRows={memberStrikeRows}
+        initialMemberId={policyViolationEmailSeed.memberId}
+        initialNature={policyViolationEmailSeed.nature}
       />
 
       <DeleteApplicationConfirmModal

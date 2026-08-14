@@ -151,3 +151,98 @@ export function buildDishonorableRemovalEmailHtml({ firstName, effectiveDateDisp
     html: spanEmailShell(inner),
   }
 }
+
+const DASHBOARD_URL = 'https://spanationwide.org/dashboard.html'
+
+function offenceOrdinalLabel(n) {
+  if (n === 1) return 'first'
+  if (n === 2) return 'second'
+  if (n === 3) return 'third'
+  return `${n}th`
+}
+
+/**
+ * Policy-violation / strike notice email (exec-sent).
+ * @param {1|2|3|number} offenceNumber
+ */
+export function buildPolicyViolationEmailHtml({
+  firstName,
+  offenceNumber = 1,
+  natureOfComplaint,
+  signerName = 'Joel Blessan',
+  signerEmail = 'joel.blessan@spanationwide.org',
+  signerTitle = 'Executive Director | Students for Patient Advocacy Nationwide',
+}) {
+  const fn = escapeHtml(firstName || 'there')
+  const nature = escapeHtml(
+    String(natureOfComplaint || '').trim() || 'a policy concern under review',
+  )
+  const n = Math.max(1, Math.min(3, Number(offenceNumber) || 1))
+  const ordinal = offenceOrdinalLabel(n)
+  const signer = escapeHtml(signerName)
+  const email = escapeHtml(signerEmail)
+  const title = escapeHtml(signerTitle)
+
+  let bodyMiddle = ''
+  if (n === 1) {
+    bodyMiddle = `
+<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px;">
+  However, given that this is your <strong>${ordinal}</strong> recorded offence, you can remain in good standing by responding to this email with times that I could meet with you, and then we will be able to discuss this matter further.
+</p>
+<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px;">
+  If you no longer wish to be a part of SPAN, please inform me by replying to this email or by submitting a resignation request on your SPAN dashboard (<a href="${DASHBOARD_URL}" style="color: #0b6ef9;">${DASHBOARD_URL}</a>).
+</p>
+<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px;">
+  Please note that failure to respond to this email within 7 days will result in automatic termination from SPAN.
+</p>`
+  } else if (n === 2) {
+    bodyMiddle = `
+<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px;">
+  This is your <strong>${ordinal}</strong> recorded offence. Remaining in good standing requires that you respond promptly to this email with times you are available to meet so we can discuss corrective expectations and next steps.
+</p>
+<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px;">
+  Please treat this as a serious warning. Further violations may result in removal from SPAN. If you no longer wish to continue with SPAN, reply to this email or submit a resignation request on your SPAN dashboard (<a href="${DASHBOARD_URL}" style="color: #0b6ef9;">${DASHBOARD_URL}</a>).
+</p>
+<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px;">
+  Failure to respond to this email within 7 days will result in automatic termination from SPAN.
+</p>`
+  } else {
+    bodyMiddle = `
+<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px;">
+  This is your <strong>${ordinal}</strong> recorded offence. At this stage, continued membership is at serious risk. You must respond to this email immediately with times you can meet so leadership can determine whether you may remain with SPAN and under what conditions.
+</p>
+<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px;">
+  If you no longer wish to be a part of SPAN, please inform me by replying to this email or by submitting a resignation request on your SPAN dashboard (<a href="${DASHBOARD_URL}" style="color: #0b6ef9;">${DASHBOARD_URL}</a>).
+</p>
+<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px;">
+  Failure to respond to this email within 7 days will result in automatic termination from SPAN. Additional violations after this notice may lead to immediate removal.
+</p>`
+  }
+
+  const inner = `
+<p style="font-size: 16px; color: #212529; margin: 0 0 16px;">Hello ${fn},</p>
+<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 0 0 14px;">
+  I'm writing to you regarding a policy violation that has been recorded against you for <strong>${nature}</strong>.
+</p>
+${bodyMiddle}
+<p style="font-size: 15px; color: #212529; line-height: 1.6; margin: 16px 0 0;">
+  Best,<br/>
+  <strong>${signer}</strong><br/>
+  <a href="mailto:${email}" style="color: #0b6ef9;">${email}</a><br/>
+  ${title}
+</p>
+`
+
+  const subject =
+    n === 1
+      ? 'SPAN Policy Violation Notice — Response Required'
+      : n === 2
+        ? 'SPAN Policy Violation Notice — Second Offence, Response Required'
+        : 'SPAN Policy Violation Notice — Third Offence, Immediate Response Required'
+
+  return {
+    subject,
+    html: spanEmailShell(inner),
+  }
+}
+

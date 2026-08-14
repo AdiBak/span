@@ -11,6 +11,8 @@ export default function HrReportViewModal({
   showRecordStrikeForRegarding,
   recordingStrike,
   onRecordStrikeFromReport,
+  showPolicyViolationEmail,
+  onOpenPolicyViolationEmail,
   canDelete,
   onDelete,
 }) {
@@ -53,11 +55,16 @@ export default function HrReportViewModal({
                 </div>
                 <div className="col-md-6">
                   <strong>Regarding:</strong>
-                  <p>
+                  <p className="mb-0">
                     {report.regarding_member
                       ? `${report.regarding_member.first_name} ${report.regarding_member.last_name}`
                       : report.regarding_name || 'N/A'}
                   </p>
+                  {!report.regarding_member_id && report.regarding_contact ? (
+                    <p className="small text-muted mb-0 mt-1">
+                      Contact: {report.regarding_contact}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="col-md-6">
                   <strong>Date Occurred:</strong>
@@ -177,6 +184,18 @@ export default function HrReportViewModal({
                   )}
                 </button>
               )}
+              {showPolicyViolationEmail &&
+                report.regarding_member_id &&
+                typeof onOpenPolicyViolationEmail === 'function' && (
+                  <button
+                    type="button"
+                    className="btn btn-outline-dark"
+                    onClick={onOpenPolicyViolationEmail}
+                  >
+                    <i className="bi bi-envelope me-1" />
+                    Email member (CC EDs)
+                  </button>
+                )}
               <button type="button" className="btn btn-outline-dark" onClick={() => onClose()}>
                 Close
               </button>

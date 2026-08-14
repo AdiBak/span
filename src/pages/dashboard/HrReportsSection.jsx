@@ -17,6 +17,7 @@ export default function HrReportsSection({
   formatDate,
   onOpenSubmitHrReport,
   onViewReport,
+  onOpenPolicyViolationEmail,
 }) {
   // Status filter is exec-only; hide the redundant Status column when a specific status is selected.
   const showExecStatusColumn = hrReportFilter === 'all'
@@ -75,7 +76,9 @@ export default function HrReportsSection({
         <>
           <div className="alert alert-info mb-3">
             <i className="bi bi-info-circle me-2"></i>
-            You can view all HR reports except those that involve you directly.
+            New reports appear here for review — nothing is emailed on submit. For a SPAN member, use{' '}
+            <strong>Email member</strong> to send Joel&apos;s policy notice (Executive Directors are CC&apos;d) after
+            a strike is on record. You cannot see reports that name you as the subject.
           </div>
           {filteredHrReports.length > 0 ? (
             <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
@@ -125,12 +128,25 @@ export default function HrReportsSection({
                         </td>
                       )}
                       <td>
-                        <button
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={() => onViewReport(report)}
-                        >
-                          <i className="bi bi-eye me-1"></i>View
-                        </button>
+                        <div className="d-flex flex-wrap gap-1">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => onViewReport(report)}
+                          >
+                            <i className="bi bi-eye me-1"></i>View
+                          </button>
+                          {report.regarding_member_id && typeof onOpenPolicyViolationEmail === 'function' && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-dark"
+                              title="Email policy notice to the member (CC Executive Directors) — requires a strike on record"
+                              onClick={() => onOpenPolicyViolationEmail(report)}
+                            >
+                              <i className="bi bi-envelope me-1"></i>Email member
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -146,7 +162,9 @@ export default function HrReportsSection({
         </>
       ) : memberLoaded ? (
         <>
-          <p className="text-muted mb-2">Your submitted HR reports.</p>
+          <p className="text-muted mb-2">
+            Your submitted HR reports. Filing a report does not email anyone; executives review it in the dashboard.
+          </p>
           {filteredHrReports.length > 0 ? (
             <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>
               <table className="table table-hover">
@@ -188,6 +206,7 @@ export default function HrReportsSection({
                       </td>
                       <td>
                         <button
+                          type="button"
                           className="btn btn-sm btn-outline-primary"
                           onClick={() => onViewReport(report)}
                         >
@@ -208,7 +227,8 @@ export default function HrReportsSection({
         </>
       ) : (
         <p className="text-muted mb-0">
-          Submit a confidential HR complaint or report using the button above. Reports are reviewed by executive directors.
+          Submit a confidential HR complaint or report using the button above. Reports are reviewed by executive
+          directors.
         </p>
       )}
     </section>

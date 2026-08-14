@@ -41,6 +41,9 @@ serve(async (req) => {
       html?: string
       attachments?: Attachment[]
       mark_honorable_letter_sent?: boolean
+      /** When true, CC all executive directors (SPAN emails). */
+      cc_execs?: boolean
+      cc?: string[]
     }
 
     const memberId = String(body.member_id ?? "").trim()
@@ -48,6 +51,10 @@ serve(async (req) => {
     let html = String(body.html ?? "")
     const attachments = Array.isArray(body.attachments) ? body.attachments : []
     const markHonorableLetterSent = body.mark_honorable_letter_sent === true
+    const ccExecs = body.cc_execs === true
+    const extraCc = Array.isArray(body.cc)
+      ? body.cc.map((s) => String(s || "").trim().toLowerCase()).filter(Boolean)
+      : []
 
     if (!memberId || !subject || !html) {
       return new Response(JSON.stringify({ error: "member_id, subject, and html are required" }), {
@@ -146,6 +153,28 @@ serve(async (req) => {
       resendBody.attachments = safeAttachments
     }
 
+    const ccSet = new Set<string>(extraCc)
+    if (ccExecs) {
+      // True EDs only — not everyone with full dashboard permissions.
+      const { data: execRows } = await admin
+        .from("members")
+        .select("member_id, email, role, active")
+
+      for (const row of execRows || []) {
+        if (row.active === false || row.active === "false") continue
+        if (String(row.role || "").trim() !== "Executive Director") continue
+        if (String(row.member_id) === String(memberId)) continue
+        const em = String(row.email || "").trim().toLowerCase()
+        if (em) ccSet.add(em)
+      }
+    }
+    // Never CC the primary recipient
+    ccSet.delete(toEmail.toLowerCase())
+    const ccList = Array.from(ccSet)
+    if (ccList.length > 0) {
+      resendBody.cc = ccList
+    }
+
     const resendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -178,10 +207,15 @@ serve(async (req) => {
         .in("status", ["requested", "meeting_scheduled", "met", "directors_contacted"])
     }
 
-    return new Response(JSON.stringify({ ok: true, email_id: resendData.id, to: toEmail }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    })
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        email_id: resendData.id,
+        to: toEmail,
+        cc: ccList,
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    )
   } catch (err) {
     console.error("send-member-letter-email error:", err)
     return new Response(JSON.stringify({ error: "Internal server error" }), {

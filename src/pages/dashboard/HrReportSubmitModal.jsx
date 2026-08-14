@@ -1,4 +1,6 @@
-import React from 'react'
+import React, { useMemo } from 'react'
+
+const OTHER = '__other__'
 
 export default function HrReportSubmitModal({
   open,
@@ -8,8 +10,48 @@ export default function HrReportSubmitModal({
   hrReportError,
   hrReportSuccess,
   onSubmit,
+  membersList = [],
 }) {
+  const sortedMembers = useMemo(() => {
+    return [...(membersList || [])].sort((a, b) => {
+      const an = `${a.last_name || ''} ${a.first_name || ''}`.toLowerCase()
+      const bn = `${b.last_name || ''} ${b.first_name || ''}`.toLowerCase()
+      return an.localeCompare(bn)
+    })
+  }, [membersList])
+
   if (!open) return null
+
+  const regardingSelectValue = hrReportForm.regardingMemberId || ''
+  const isOther = regardingSelectValue === OTHER
+
+  function handleRegardingSelect(value) {
+    if (value === OTHER) {
+      setHrReportForm({
+        ...hrReportForm,
+        regardingMemberId: OTHER,
+        regardingName: hrReportForm.regardingName || '',
+        regardingContact: hrReportForm.regardingContact || '',
+      })
+      return
+    }
+    if (!value) {
+      setHrReportForm({
+        ...hrReportForm,
+        regardingMemberId: '',
+        regardingName: '',
+        regardingContact: '',
+      })
+      return
+    }
+    const m = sortedMembers.find((row) => String(row.member_id) === String(value))
+    setHrReportForm({
+      ...hrReportForm,
+      regardingMemberId: value,
+      regardingName: m ? `${m.first_name || ''} ${m.last_name || ''}`.trim() : '',
+      regardingContact: '',
+    })
+  }
 
   return (
     <>
@@ -34,8 +76,9 @@ export default function HrReportSubmitModal({
 
               <div className="alert alert-info">
                 <i className="bi bi-info-circle me-2"></i>
-                All HR reports are confidential and will be reviewed by executive directors. Reports involving an executive
-                director will not be visible to that person.
+                Reports are confidential and reviewed by executive directors in the dashboard. Submitting does{' '}
+                <strong>not</strong> email the person named — leadership sends any follow-up separately. Reports about
+                an executive director are hidden from that person.
               </div>
 
               <div className="row g-3">
@@ -54,15 +97,23 @@ export default function HrReportSubmitModal({
                 </div>
 
                 <div className="col-md-6">
-                  <label className="form-label">Regarding (Member Name)</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={hrReportForm.regardingName}
-                    onChange={(e) => setHrReportForm({ ...hrReportForm, regardingName: e.target.value })}
-                    placeholder="Name of person this report is about (optional)"
-                  />
-                  <small className="text-muted">If this is about a specific member, enter their name</small>
+                  <label className="form-label">Regarding</label>
+                  <select
+                    className="form-select"
+                    value={regardingSelectValue}
+                    onChange={(e) => handleRegardingSelect(e.target.value)}
+                  >
+                    <option value="">Select… (optional)</option>
+                    {sortedMembers.map((m) => (
+                      <option key={m.member_id} value={m.member_id}>
+                        {m.first_name} {m.last_name}
+                      </option>
+                    ))}
+                    <option value={OTHER}>Other (not in directory)…</option>
+                  </select>
+                  <small className="text-muted">
+                    SPAN member from the directory, or Other for someone outside the organization.
+                  </small>
                 </div>
 
                 <div className="col-md-6">
@@ -77,6 +128,39 @@ export default function HrReportSubmitModal({
                     required
                   />
                 </div>
+
+                {isOther && (
+                  <>
+                    <div className="col-md-6">
+                      <label className="form-label">
+                        Name <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={hrReportForm.regardingName}
+                        onChange={(e) =>
+                          setHrReportForm({ ...hrReportForm, regardingName: e.target.value })
+                        }
+                        placeholder="Full name"
+                        required
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Contact info (optional)</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={hrReportForm.regardingContact || ''}
+                        onChange={(e) =>
+                          setHrReportForm({ ...hrReportForm, regardingContact: e.target.value })
+                        }
+                        placeholder="Email, phone, or other reference"
+                      />
+                      <small className="text-muted">For leadership reference only — not emailed automatically.</small>
+                    </div>
+                  </>
+                )}
 
                 <div className="col-md-12">
                   <label className="form-label">Details</label>

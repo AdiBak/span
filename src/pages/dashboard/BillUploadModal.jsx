@@ -43,11 +43,10 @@ export default function BillUploadModal({
               {billModalSourceAssignmentId && (
                 <div className="alert alert-info small py-2 mb-3">
                   This task is marked approved. Finish this form to create an <strong>approved</strong> bill (visible on the
-                  public Bills page). It will also appear under <strong>Bill Management → Outreach</strong> for LegiScan
-                  sponsors and optional Open States prospects. Assignees are pre-selected as collaborators; the doc link is
-                  prefilled from the task when available. If state and bill number match LegiScan, we try to prefill the
-                  LegiScan link automatically (requires <code className="small">VITE_LEGISCAN_API_KEY</code>). Upload the
-                  proposal PDF file below for the site (required).
+                  public Bills page). It will also appear under <strong>Outreach</strong> for sponsors and optional committee
+                  prospects. Assignees are pre-selected as collaborators; the doc link is prefilled from the task when
+                  available. If state and bill number match LegiScan, we try to prefill the LegiScan link automatically.
+                  Upload the proposal PDF file below for the site (required).
                 </div>
               )}
               <div className="mb-3">

@@ -15,6 +15,7 @@ export default function ExecBillManagementSection({
   // Tab: outreach
   execOutreachBills,
   member,
+  loadAllBills,
 
   // Tab: research
   researchBills,
@@ -122,7 +123,9 @@ export default function ExecBillManagementSection({
         </div>
       </div>
 
-      {execBillSectionTab === 'outreach' && <BillOutreachPanel bills={execOutreachBills} member={member} />}
+      {execBillSectionTab === 'outreach' && (
+        <BillOutreachPanel bills={execOutreachBills} member={member} onBillsChanged={loadAllBills} />
+      )}
 
       {execBillSectionTab === 'research' && (
         <BillResearchPanel
@@ -204,8 +207,9 @@ export default function ExecBillManagementSection({
           {(() => {
             const filteredBills =
               billFilter === 'all'
-                ? effectiveBills
+                ? effectiveBills.filter((bill) => bill.status !== 'outreach_only')
                 : effectiveBills.filter((bill) => {
+                    if (bill.status === 'outreach_only') return false
                     if (billFilter === 'approved' && (!bill.status || bill.status === 'approved')) return true
                     return bill.status === billFilter
                   })

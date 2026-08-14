@@ -445,8 +445,8 @@ export default function BillResearchPanel({
                 </>
               ) : (
                 <>
-                  Browse every SPAN proposal in the database (all statuses). Internal review notes are not shown here.
-                  Filter by state, bill number, and keywords (all optional). Bills are grouped by state.
+                  Browse SPAN proposals (all statuses). Review notes are not shown. Filter by state, bill number, and
+                  keywords (optional). Bills are grouped by state.
                 </>
               )}
             </p>
@@ -856,7 +856,7 @@ export default function BillResearchPanel({
           <p className="text-muted small mb-3">
             Search LegiScan using any combination: <strong>State</strong> alone lists recent bills in that state; add{' '}
             <strong>Bill number</strong> (e.g. HB970) and/or <strong>Keywords</strong> to narrow results. Bill number
-            requires a state. Keywords alone search nationwide. Uses your project&apos;s LegiScan API key.
+            requires a state. Keywords alone search nationwide.
           </p>
           <form className="row g-2 align-items-end mb-3" onSubmit={handleLegislatureLookup}>
             <div className="col-sm-6 col-md-3 col-lg-2">

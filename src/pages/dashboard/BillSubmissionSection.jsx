@@ -57,10 +57,12 @@ export default function BillSubmissionSection({
 
   outreachBills,
   member,
+  loadAllBills,
 }) {
   const { billsByState, sortedStates } = useMemo(() => {
     const grouped = {}
     ;(effectiveBills || []).forEach((bill) => {
+      if (bill.status === 'outreach_only') return
       const k = billStateGroupKey(bill.state)
       if (!grouped[k]) grouped[k] = []
       grouped[k].push(bill)
@@ -149,7 +151,7 @@ export default function BillSubmissionSection({
       )}
 
       {billSubmissionViewTab === 'outreach' ? (
-        <BillOutreachPanel bills={outreachBills} member={member} />
+        <BillOutreachPanel bills={outreachBills} member={member} onBillsChanged={loadAllBills} />
       ) : billSubmissionViewTab === 'research' ? (
         <BillResearchPanel
           bills={researchBills}

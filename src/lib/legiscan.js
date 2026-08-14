@@ -208,44 +208,86 @@ function cacheBillStatus(cacheKey, data, hash) {
 }
 
 /**
+ * LegiScan bill-number aliases for getSearch `bill=` lookups.
+ * Congress uses HB/SB (not HR/S) on LegiScan — e.g. “HR 2018” → HB2018.
+ */
+export function legiscanBillNumberSearchCandidates(state, billNumber) {
+  const stateCode = normalizeStateCode(state)
+  const compact = String(billNumber || '')
+    .replace(/[\s._-]+/g, '')
+    .toUpperCase()
+  if (!compact) return []
+
+  const out = []
+  const push = (v) => {
+    if (v && !out.includes(v)) out.push(v)
+  }
+  push(compact)
+
+  // H.R. / H R already compacted to HR…
+  if (/^HR\d/.test(compact)) push(`HB${compact.slice(2)}`)
+  if (/^HB\d/.test(compact)) push(`HR${compact.slice(2)}`)
+  if (/^HJRES\d/.test(compact)) push(`HJR${compact.slice(5)}`)
+  if (/^SJRES\d/.test(compact)) push(`SJR${compact.slice(5)}`)
+
+  if (stateCode === 'US') {
+    // Senate: “S.100” / “S100” → SB100 on LegiScan
+    if (/^S\d/.test(compact) && !/^(SB|SR|SJR)/.test(compact)) {
+      push(`SB${compact.slice(1)}`)
+    }
+  }
+
+  return out
+}
+
+/**
  * Search for a bill by state and bill number. Returns first match's bill_id and change_hash.
  * @param {string} state - State code (e.g. AZ) or full state name (e.g. Michigan)
- * @param {string} billNumber - Bill number (e.g. SB1210)
+ * @param {string} billNumber - Bill number (e.g. SB1210, HR2018)
  * @returns {Promise<{billId: number, changeHash: string}|null>} bill_id and change_hash or null
  */
 export async function searchBill(state, billNumber) {
   if (!state || !billNumber) return null
-  
-  // Normalize state to 2-letter code if needed (LegiScan expects codes)
+
   const stateCode = normalizeStateCode(state)
   if (!stateCode) return null
-  
-  const bill = billNumber.replace(/\s/g, '')
-  
-  try {
-    const data = await callLegiscanApi('getSearch', { state: stateCode, bill })
-    
-    // Check status code (LegiScan best practice)
-    if (data?.status !== 'OK') {
-      console.warn('LegiScan API error:', data?.status, data?.alert?.message || 'Unknown error')
-      return null
-    }
-    
-    const sr = data?.searchresult
-    if (!sr || sr.summary?.count === 0) return null
 
-    // LegiScan getSearch returns results as numeric keys "0", "1", ... or as .bills array
-    let first = null
-    if (Array.isArray(sr.bills) && sr.bills.length > 0) {
-      first = sr.bills[0]
-    } else {
-      const key = Object.keys(sr).find((k) => /^\d+$/.test(k))
-      if (key) first = sr[key]
-    }
-    if (first?.bill_id) {
-      return {
-        billId: first.bill_id,
-        changeHash: first.change_hash || null
+  const candidates = legiscanBillNumberSearchCandidates(stateCode, billNumber)
+  if (!candidates.length) return null
+
+  try {
+    for (const bill of candidates) {
+      const data = await callLegiscanApi('getSearch', { state: stateCode, bill })
+
+      if (data?.status !== 'OK') {
+        console.warn('LegiScan API error:', data?.status, data?.alert?.message || 'Unknown error')
+        continue
+      }
+
+      const sr = data?.searchresult
+      if (!sr || sr.summary?.count === 0) continue
+
+      let rows = []
+      if (Array.isArray(sr.bills) && sr.bills.length > 0) {
+        rows = sr.bills
+      } else {
+        rows = Object.keys(sr)
+          .filter((k) => /^\d+$/.test(k))
+          .map((k) => sr[k])
+          .filter(Boolean)
+      }
+      if (!rows.length) continue
+
+      const want = bill.toUpperCase()
+      const exact =
+        rows.find((r) => String(r.bill_number || '').replace(/\s/g, '').toUpperCase() === want) ||
+        rows[0]
+      if (exact?.bill_id) {
+        return {
+          billId: exact.bill_id,
+          changeHash: exact.change_hash || null,
+          billNumber: exact.bill_number || bill,
+        }
       }
     }
     return null
@@ -469,7 +511,9 @@ function normalizeStateCode(state) {
     'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
     'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT',
     'vermont': 'VT', 'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV',
-    'wisconsin': 'WI', 'wyoming': 'WY', 'district of columbia': 'DC'
+    'wisconsin': 'WI', 'wyoming': 'WY', 'district of columbia': 'DC',
+    'united states': 'US', 'usa': 'US', 'us congress': 'US', 'congress': 'US',
+    'federal': 'US',
   }
   
   const normalized = state.toLowerCase().trim()
@@ -1332,7 +1376,8 @@ export async function fetchLegiscanBillBySearch(state, billNumber) {
       return {
         ok: false,
         code: 'not_found',
-        message: 'No matching bill in LegiScan for that state and number.',
+        message:
+          'No matching bill in LegiScan for that state and number. For Congress, try HR2018 or HB2018 (LegiScan stores House bills as HB).',
       }
     }
     const data = await callLegiscanApi('getBill', { id: String(searchResult.billId) })
@@ -1354,7 +1399,7 @@ export async function fetchLegiscanBillBySearch(state, billNumber) {
       return {
         ok: false,
         code: 'config',
-        message: 'LegiScan API key is not set (add VITE_LEGISCAN_API_KEY). If the browser blocks the API, use a server proxy.',
+        message: 'LegiScan is temporarily unavailable. Please try again later or contact an executive director.',
       }
     }
     return {
@@ -1461,12 +1506,24 @@ export async function fetchLegiscanBillsByFilters(filters = {}) {
 
   const params = {}
   if (stateCode) params.state = stateCode
-  if (bill) params.bill = bill
   if (query) params.query = query
   if (stateCode && !bill && !query) params.query = '*'
 
   try {
-    const data = await callLegiscanApi('getSearch', params)
+    let data = null
+    if (bill && stateCode) {
+      const candidates = legiscanBillNumberSearchCandidates(stateCode, bill)
+      for (const candidate of candidates) {
+        data = await callLegiscanApi('getSearch', { ...params, bill: candidate })
+        if (data?.status === 'OK') {
+          const rows = extractSearchRows(data.searchresult)
+          if (rows.length > 0) break
+        }
+        data = null
+      }
+    } else {
+      data = await callLegiscanApi('getSearch', params)
+    }
     if (data?.status !== 'OK') {
       return {
         ok: false,
@@ -1486,7 +1543,7 @@ export async function fetchLegiscanBillsByFilters(filters = {}) {
       return {
         ok: false,
         code: 'config',
-        message: 'LegiScan API key is not set (add VITE_LEGISCAN_API_KEY).',
+        message: 'LegiScan is temporarily unavailable. Please try again later or contact an executive director.',
       }
     }
     return {
@@ -1542,7 +1599,7 @@ export async function fetchLegiscanBillsByQuery(queryText) {
       return {
         ok: false,
         code: 'config',
-        message: 'LegiScan API key is not set (add VITE_LEGISCAN_API_KEY).',
+        message: 'LegiScan is temporarily unavailable. Please try again later or contact an executive director.',
       }
     }
     return {

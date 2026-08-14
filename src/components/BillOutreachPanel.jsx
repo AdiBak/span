@@ -3,8 +3,10 @@ import { supabase } from '../lib/supabase'
 import OutreachContactModal from './OutreachContactModal'
 import { chamberTitleFromSponsorRole, legislatorContactSearchUrl } from '../lib/outreachEmail'
 import {
+  fetchLegiscanBillBySearch,
   fetchLegiscanPersonContactByName,
   fetchLegiscanSponsorsForSpanBill,
+  isLegiscanBillNumberShape,
   legiscanSponsorStorageKey,
 } from '../lib/legiscan'
 import {
@@ -17,7 +19,15 @@ import {
   openStatesChamberLabel,
   outreachNameMatchKeys,
 } from '../lib/openStates'
-import { usStateAbbreviation } from '../lib/usStateCanonical'
+import {
+  US_STATE_CODE_TO_NAME,
+  canonicalUSStateName,
+  usStateAbbreviation,
+} from '../lib/usStateCanonical'
+
+const OUTREACH_SOURCE_STATE_OPTIONS = Object.entries(US_STATE_CODE_TO_NAME)
+  .map(([code, name]) => ({ code, name }))
+  .sort((a, b) => a.name.localeCompare(b.name))
 
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Not contacted' },
@@ -53,9 +63,12 @@ function OutreachTargetsTable({
 }) {
   if (!targets.length) return null
   return (
-    <div className="table-responsive">
+    <div
+      className="table-responsive border rounded"
+      style={{ maxHeight: 'min(420px, 55vh)', overflow: 'auto' }}
+    >
       <table className="table table-sm table-hover align-middle mb-0">
-        <thead className="table-light">
+        <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 1 }}>
           <tr>
             <th scope="col">Name</th>
             <th scope="col">Party</th>
@@ -183,13 +196,21 @@ function OutreachTargetsTable({
  * Exec Bill Management → Outreach: LegiScan sponsors + Open States committee prospects.
  * @param {{ bills: object[], member: object | null }} props
  */
-export default function BillOutreachPanel({ bills, member }) {
+export default function BillOutreachPanel({ bills, member, onBillsChanged }) {
   const [selectedBillId, setSelectedBillId] = useState(null)
   const [targets, setTargets] = useState([])
   const [loadError, setLoadError] = useState('')
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMessage, setRefreshMessage] = useState('')
+
+  const [sourceState, setSourceState] = useState('United States')
+  const [sourceBillNumber, setSourceBillNumber] = useState('')
+  const [sourcePosition, setSourcePosition] = useState('Support')
+  const [sourcing, setSourcing] = useState(false)
+  const [sourceMessage, setSourceMessage] = useState('')
+  const [sourceError, setSourceError] = useState('')
+  const [pendingSelectBillId, setPendingSelectBillId] = useState(null)
 
   const [osModalOpen, setOsModalOpen] = useState(false)
   const [osChamber, setOsChamber] = useState('')
@@ -222,11 +243,19 @@ export default function BillOutreachPanel({ bills, member }) {
       setSelectedBillId(null)
       return
     }
+    if (
+      pendingSelectBillId != null &&
+      sortedBills.some((b) => b.bill_id === pendingSelectBillId)
+    ) {
+      setSelectedBillId(pendingSelectBillId)
+      setPendingSelectBillId(null)
+      return
+    }
     setSelectedBillId((prev) => {
       if (prev != null && sortedBills.some((b) => b.bill_id === prev)) return prev
       return sortedBills[0].bill_id
     })
-  }, [sortedBills])
+  }, [sortedBills, pendingSelectBillId])
 
   const loadTargets = useCallback(async () => {
     if (selectedBillId == null) return
@@ -852,13 +881,205 @@ export default function BillOutreachPanel({ bills, member }) {
     setContactTarget(t)
   }
 
+  const handleSourceBillFromLegiscan = async () => {
+    setSourceError('')
+    setSourceMessage('')
+    const stateStored = canonicalUSStateName(sourceState) || String(sourceState || '').trim()
+    const billRaw = String(sourceBillNumber || '').trim()
+    const compactBill = billRaw.replace(/\s+/g, '')
+    if (!stateStored) {
+      setSourceError('Choose a state (use United States for federal bills like HR 2018).')
+      return
+    }
+    if (!compactBill || !isLegiscanBillNumberShape(compactBill)) {
+      setSourceError('Enter a bill number like HR2018, HB 970, or S.123.')
+      return
+    }
+
+    setSourcing(true)
+    try {
+      const result = await fetchLegiscanBillBySearch(stateStored, compactBill)
+      if (!result.ok) {
+        setSourceError(result.message || 'Could not find that bill on LegiScan.')
+        return
+      }
+      const detail = result.detail
+      const billName = String(detail.billNumber || compactBill).trim()
+      const legiscanUrl = String(detail.url || '').trim() || null
+      const description =
+        String(detail.title || '').trim() ||
+        String(detail.description || '').trim() ||
+        `${stateStored} ${billName}`
+      const billDate =
+        (detail.statusDate && String(detail.statusDate).slice(0, 10)) ||
+        new Date().toISOString().slice(0, 10)
+
+      const stateKey = (s) => (usStateAbbreviation(s) || '').toUpperCase()
+      const nameKey = (n) => {
+        let k = String(n || '').replace(/[\s._-]+/g, '').toUpperCase()
+        if (stateKey(stateStored) === 'US' && /^HR\d/.test(k)) k = `HB${k.slice(2)}`
+        return k
+      }
+      const existing = (bills || []).find((b) => {
+        if (legiscanUrl && String(b.legiscan_link || '').trim() === legiscanUrl) return true
+        return stateKey(b.state) === stateKey(stateStored) && nameKey(b.name) === nameKey(billName)
+      })
+      if (existing) {
+        setPendingSelectBillId(existing.bill_id)
+        setSourceMessage(
+          `${usStateAbbreviation(existing.state) || ''} ${existing.name} is already in Outreach — selected below.`
+        )
+        setSourceBillNumber('')
+        return
+      }
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('bills')
+        .insert([
+          {
+            state: stateStored,
+            name: billName,
+            position: sourcePosition || 'Support',
+            description,
+            bill_date: billDate,
+            legiscan_link: legiscanUrl,
+            google_doc_link: null,
+            bill_collaborators: member?.member_id ? [member.member_id] : null,
+            status: 'outreach_only',
+            hidden: true,
+            submitted_by: member?.member_id || null,
+            submitted_at: new Date().toISOString(),
+          },
+        ])
+        .select('bill_id')
+        .single()
+
+      if (insertError) throw insertError
+
+      setSourceMessage(
+        `Added ${usStateAbbreviation(stateStored) || stateStored} ${billName} to Outreach. Click Refresh from LegiScan to load sponsors. This does not create a public proposal or change any assigned task.`
+      )
+      setSourceBillNumber('')
+      if (inserted?.bill_id != null) {
+        setPendingSelectBillId(inserted.bill_id)
+      }
+      if (typeof onBillsChanged === 'function') {
+        await onBillsChanged()
+      }
+    } catch (e) {
+      console.error('[outreach] source bill failed', e)
+      setSourceError(e.message || 'Failed to add bill for outreach.')
+    } finally {
+      setSourcing(false)
+    }
+  }
+
+  const sourceBillForm = (
+    <div className="border rounded p-3 mb-3 bg-light">
+      <div className="fw-semibold small mb-1">Add a bill to Outreach</div>
+      <p className="text-muted small mb-2 mb-md-3">
+        Search LegiScan by state and bill number to track sponsors here. For Congress, use <strong>United States</strong>{' '}
+        and <strong>HR2018</strong> or <strong>HB2018</strong>. This only adds the bill to Outreach — it is not a SPAN
+        proposal, will not show on the public Bills page, and does not change assigned tasks.
+      </p>
+      <div className="row g-2 align-items-end">
+        <div className="col-md-4">
+          <label className="form-label small text-muted mb-1" htmlFor="outreach-source-state">
+            State / jurisdiction
+          </label>
+          <select
+            id="outreach-source-state"
+            className="form-select form-select-sm"
+            value={sourceState}
+            onChange={(e) => setSourceState(e.target.value)}
+            disabled={sourcing}
+          >
+            {OUTREACH_SOURCE_STATE_OPTIONS.map(({ code, name }) => (
+              <option key={code} value={name}>
+                {name} ({code})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="col-md-3">
+          <label className="form-label small text-muted mb-1" htmlFor="outreach-source-bill">
+            Bill number
+          </label>
+          <input
+            id="outreach-source-bill"
+            type="text"
+            className="form-control form-control-sm"
+            placeholder="HR2018"
+            value={sourceBillNumber}
+            onChange={(e) => setSourceBillNumber(e.target.value)}
+            disabled={sourcing}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                handleSourceBillFromLegiscan()
+              }
+            }}
+          />
+        </div>
+        <div className="col-md-2">
+          <label className="form-label small text-muted mb-1" htmlFor="outreach-source-position">
+            Position
+          </label>
+          <select
+            id="outreach-source-position"
+            className="form-select form-select-sm"
+            value={sourcePosition}
+            onChange={(e) => setSourcePosition(e.target.value)}
+            disabled={sourcing}
+          >
+            <option value="Support">Support</option>
+            <option value="Oppose">Oppose</option>
+            <option value="Support If Amended">Support If Amended</option>
+            <option value="Propose">Propose</option>
+          </select>
+        </div>
+        <div className="col-md-3">
+          <button
+            type="button"
+            className="btn btn-sm btn-success w-100"
+            disabled={sourcing}
+            onClick={handleSourceBillFromLegiscan}
+          >
+            {sourcing ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-1" role="status" />
+                Looking up…
+              </>
+            ) : (
+              <>
+                <i className="bi bi-plus-lg me-1" aria-hidden="true" />
+                Add from LegiScan
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+      {sourceError && (
+        <div className="alert alert-danger py-2 small mt-2 mb-0" role="alert">
+          {sourceError}
+        </div>
+      )}
+      {sourceMessage && !sourceError && (
+        <div className="alert alert-success py-2 small mt-2 mb-0" role="status">
+          {sourceMessage}
+        </div>
+      )}
+    </div>
+  )
+
   if (!sortedBills.length) {
     return (
       <div className="card border-0 shadow-sm">
-        <div className="card-body text-muted">
-          <p className="mb-0">
-            No bills in outreach yet. Bills that are under review, approved, or modified appear here. Use Open
-            States to prospect committee members, or add a LegiScan link to pull official sponsors.
+        <div className="card-body">
+          {sourceBillForm}
+          <p className="text-muted mb-0 small">
+            Nothing in Outreach yet. Add a bill above to track sponsors, or open a SPAN proposal that is already under
+            review or approved.
           </p>
         </div>
       </div>
@@ -868,12 +1089,12 @@ export default function BillOutreachPanel({ bills, member }) {
   return (
     <div className="card border-0 shadow-sm">
       <div className="card-body">
+        {sourceBillForm}
         <p className="text-muted small mb-3">
-          <strong>On record</strong> = official sponsors from LegiScan (click <strong>Refresh</strong>).{' '}
-          <strong>Prospects</strong> = committee members from Open States (click{' '}
-          <strong>Import from committee</strong>). Use <strong>Fill from LegiScan matches</strong> to add missing
-          contact info to prospects. Use <strong>Compose</strong> to draft and send/copy outreach. Status and notes
-          stay saved.
+          <strong>On record</strong> = sponsors from LegiScan (<strong>Refresh from LegiScan</strong>).{' '}
+          <strong>Prospects</strong> = committee members from Open States (<strong>Import from committee</strong>). Use{' '}
+          <strong>Fill from LegiScan matches</strong> to copy contact info onto prospects when names match. Use{' '}
+          <strong>Compose</strong> to draft outreach. Status and notes are saved on this bill.
         </p>
 
         <div className="row g-2 align-items-end flex-wrap mb-3">
@@ -889,7 +1110,10 @@ export default function BillOutreachPanel({ bills, member }) {
             >
               {sortedBills.map((b) => (
                 <option key={b.bill_id} value={b.bill_id}>
-                  {(usStateAbbreviation(b.state) || '?') + ' · ' + (b.name || '')}
+                  {(usStateAbbreviation(b.state) || '?') +
+                    ' · ' +
+                    (b.name || '') +
+                    (b.status === 'outreach_only' ? ' (Outreach only)' : '')}
                 </option>
               ))}
             </select>

@@ -946,7 +946,7 @@ function DashboardPage() {
       setResearchBillsLoading(false)
       return
     }
-    const raw = data || []
+    const raw = (data || []).filter((b) => b.status !== 'outreach_only')
     const billsWithPDF = await Promise.all(
       raw.map(async (bill) => {
         const { exists, url } = await checkBillPdfExists(bill.state, bill.name)
@@ -5792,7 +5792,7 @@ function DashboardPage() {
     : effectiveVolunteerEntries.filter(e => e.approved === approvedToFilter())
 
   const effectiveBills = viewAsData ? (viewAsData.bills ?? []) : hasPermission('bills') ? allBills : []
-  /** Under review, approved, or modified (plus legacy unset); LegiScan optional — Outreach + Open States prospects. */
+  /** Under review, approved, modified, or outreach-only stubs (plus legacy unset). Not rejected. */
   const execOutreachBills = effectiveBills.filter((b) => {
     if (b.status === 'rejected') return false
     const s = b.status
@@ -5800,6 +5800,7 @@ function DashboardPage() {
       s === 'under_review' ||
       s === 'approved' ||
       s === 'modified' ||
+      s === 'outreach_only' ||
       s == null ||
       s === ''
     )
@@ -6143,6 +6144,7 @@ function DashboardPage() {
             setExecBillSectionTab={setExecBillSectionTab}
             execOutreachBills={execOutreachBills}
             member={member}
+            loadAllBills={loadAllBills}
             researchBills={researchBills}
             researchBillsLoading={researchBillsLoading}
             researchBillsError={researchBillsError}
@@ -6280,6 +6282,7 @@ function DashboardPage() {
             formatDateLong={formatDateLong}
             outreachBills={execOutreachBills}
             member={member}
+            loadAllBills={loadAllBills}
           />
         )}
 

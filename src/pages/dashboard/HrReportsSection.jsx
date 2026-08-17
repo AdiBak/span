@@ -76,7 +76,7 @@ export default function HrReportsSection({
         <>
           <div className="alert alert-info mb-3">
             <i className="bi bi-info-circle me-2"></i>
-            New reports appear here for review — nothing is emailed on submit. For a SPAN member, use{' '}
+            New reports appear here for review, and leadership is emailed when a report is filed. For a SPAN member, use{' '}
             <strong>Email member</strong> to send Joel&apos;s policy notice (Executive Directors are CC&apos;d) after
             a strike is on record. You cannot see reports that name you as the subject.
           </div>
@@ -163,7 +163,7 @@ export default function HrReportsSection({
       ) : memberLoaded ? (
         <>
           <p className="text-muted mb-2">
-            Your submitted HR reports. Filing a report does not email anyone; executives review it in the dashboard.
+            Your submitted HR reports. Filing a report notifies leadership by email and stores it for executives to review.
           </p>
           {filteredHrReports.length > 0 ? (
             <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>

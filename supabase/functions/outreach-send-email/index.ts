@@ -138,6 +138,9 @@ serve(async (req) => {
       html?: string
       text?: string
       attachment_url?: string | null
+      /** Client-generated PDF (e.g. personalized outreach letter). Prefer over attachment_url when set. */
+      attachment_base64?: string | null
+      attachment_filename?: string | null
       /** When set, sends to leadership only (Joel/Vishank) for webmail reference logging. */
       mode?: string
     }
@@ -148,6 +151,9 @@ serve(async (req) => {
     const html = String(body.html ?? "").trim()
     const text = body.text != null ? String(body.text) : ""
     const attachmentUrl = body.attachment_url != null ? String(body.attachment_url).trim() : ""
+    const attachmentBase64 = body.attachment_base64 != null ? String(body.attachment_base64).trim() : ""
+    const attachmentFilenameRaw =
+      body.attachment_filename != null ? String(body.attachment_filename).trim() : ""
 
     if (mode !== "primary" && mode !== "reference_log") {
       return new Response(JSON.stringify({ error: "Invalid mode." }), {
@@ -242,7 +248,47 @@ serve(async (req) => {
     type Attachment = { filename: string; content: string }
     let attachments: Attachment[] | undefined
 
-    if (attachmentUrl) {
+    if (attachmentBase64) {
+      const raw = attachmentBase64.replace(/^data:application\/pdf;base64,/i, "")
+      if (!/^[A-Za-z0-9+/=\s]+$/.test(raw) || raw.length < 64) {
+        return new Response(JSON.stringify({ error: "Invalid PDF attachment data." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      // Rough size check: base64 is ~4/3 of bytes
+      const approxBytes = Math.floor((raw.replace(/\s/g, "").length * 3) / 4)
+      if (approxBytes > MAX_ATTACHMENT_BYTES) {
+        return new Response(JSON.stringify({ error: "PDF is too large to attach." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      let headerOk = false
+      try {
+        const head = atob(raw.replace(/\s/g, "").slice(0, 32))
+        headerOk = head.startsWith("%PDF")
+      } catch {
+        headerOk = false
+      }
+      if (!headerOk) {
+        return new Response(JSON.stringify({ error: "Attachment must be a PDF." }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      const safeName = attachmentFilenameRaw
+        .replace(/[^a-zA-Z0-9._-]+/g, "_")
+        .replace(/^\.+/, "")
+        .slice(0, 120)
+      const filename =
+        safeName && safeName.toLowerCase().endsWith(".pdf")
+          ? safeName
+          : safeName
+            ? `${safeName}.pdf`
+            : "SPAN_outreach_letter.pdf"
+      attachments = [{ filename, content: raw.replace(/\s/g, "") }]
+    } else if (attachmentUrl) {
       if (!allowlistedAttachmentUrl(attachmentUrl)) {
         return new Response(
           JSON.stringify({ error: "Attachment URL must be a public proposals PDF on SPAN storage." }),

@@ -7,6 +7,7 @@ import {
   outreachPlainWhenAttachingViaEmail,
   resolveProposalPdfPublicUrl,
 } from '../lib/outreachEmail'
+import { generatePersonalizedOutreachPdf } from '../lib/generateOutreachLetterPDF'
 import { sendOutreachEmailViaResend, sendOutreachReferenceCopy } from '../lib/outreachSend'
 
 async function copyToClipboard(text) {
@@ -20,6 +21,7 @@ async function copyToClipboard(text) {
 
 /**
  * Compose outreach for one target; HTML preview when a direct email path exists; copy + webmail otherwise.
+ * Builds a personalized "Dear …" letter PDF in memory (does not overwrite stored proposal PDFs).
  */
 export default function OutreachContactModal({
   open,
@@ -31,7 +33,7 @@ export default function OutreachContactModal({
 }) {
   const [subject, setSubject] = useState('')
   const [bodyPlain, setBodyPlain] = useState('')
-  const [tab, setTab] = useState('edit') // 'edit' | 'preview'
+  const [tab, setTab] = useState('edit') // 'edit' | 'preview' | 'pdf'
   const [attachPdf, setAttachPdf] = useState(true)
   const [sending, setSending] = useState(false)
   const [sendingRef, setSendingRef] = useState(false)
@@ -42,6 +44,8 @@ export default function OutreachContactModal({
   const [copyHint, setCopyHint] = useState('')
   const [resolvedPdfUrl, setResolvedPdfUrl] = useState(null)
   const [pdfResolving, setPdfResolving] = useState(false)
+  const [letterPdf, setLetterPdf] = useState(null) // { base64, filename, objectUrl, pageCount }
+  const [letterPdfError, setLetterPdfError] = useState('')
 
   const toEmail = (target?.contact_email || '').trim()
   const canMailto = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)
@@ -57,6 +61,11 @@ export default function OutreachContactModal({
     if (!open || !bill || !target) {
       setResolvedPdfUrl(null)
       setPdfResolving(false)
+      setLetterPdf((prev) => {
+        if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl)
+        return null
+      })
+      setLetterPdfError('')
       return
     }
     let cancelled = false
@@ -67,6 +76,11 @@ export default function OutreachContactModal({
     setRefOk('')
     setSendingRef(false)
     setCopyHint('')
+    setLetterPdfError('')
+    setLetterPdf((prev) => {
+      if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl)
+      return null
+    })
     ;(async () => {
       const pdfUrl = await resolveProposalPdfPublicUrl(bill)
       if (cancelled) return
@@ -77,17 +91,55 @@ export default function OutreachContactModal({
       const pdfDelivery = hasWeb ? 'link' : 'attach'
       const d = buildOutreachDraft(bill, target, member, { pdfUrl, pdfDelivery })
       setSubject(d.subject)
-      setBodyPlain(d.body)
+      let body = d.body
+      if (!hasWeb && canM) {
+        body = body.replace(
+          'Please find our proposal PDF attached.',
+          'Please find our proposal PDF attached (greeting addressed to this legislator).'
+        )
+      }
+      setBodyPlain(body)
       setTab('edit')
-      setAttachPdf(!!pdfUrl && canM)
+
+      const built = await generatePersonalizedOutreachPdf({
+        bill,
+        target,
+        proposalPdfUrl: pdfUrl,
+      })
+      if (cancelled) {
+        if (built.ok && built.objectUrl) URL.revokeObjectURL(built.objectUrl)
+        return
+      }
+      if (!built.ok) {
+        setLetterPdfError(built.message || 'Could not personalize the proposal PDF.')
+        setAttachPdf(!!pdfUrl && canM)
+      } else {
+        setLetterPdf({
+          base64: built.base64,
+          filename: built.filename,
+          objectUrl: built.objectUrl,
+          pageCount: built.pageCount,
+          replacedGreeting: built.replacedGreeting,
+        })
+        setAttachPdf(canM || hasWeb)
+      }
       setPdfResolving(false)
-    })().catch(() => {
-      if (!cancelled) setPdfResolving(false)
+    })().catch((e) => {
+      if (!cancelled) {
+        setLetterPdfError(e.message || 'Could not prepare letter PDF.')
+        setPdfResolving(false)
+      }
     })
     return () => {
       cancelled = true
     }
   }, [open, bill, target, member])
+
+  useEffect(() => {
+    return () => {
+      if (letterPdf?.objectUrl) URL.revokeObjectURL(letterPdf.objectUrl)
+    }
+  }, [letterPdf?.objectUrl])
 
   const htmlBody = useMemo(() => outreachBodyPlainToHtml(bodyPlain), [bodyPlain])
   const webformContactPasteText = useMemo(() => buildWebformContactPasteText(member), [member])
@@ -99,6 +151,21 @@ export default function OutreachContactModal({
     q.set('body', bodyPlain)
     return `mailto:${encodeURIComponent(toEmail)}?${q.toString()}`
   }, [canMailto, toEmail, subject, bodyPlain])
+
+  const attachmentPayload = () => {
+    if (!attachPdf) return {}
+    if (letterPdf?.base64) {
+      return {
+        attachment_base64: letterPdf.base64,
+        attachment_filename: letterPdf.filename,
+        attachment_url: null,
+      }
+    }
+    if (resolvedPdfUrl) {
+      return { attachment_url: resolvedPdfUrl }
+    }
+    return {}
+  }
 
   const handleSendResend = async () => {
     if (!canMailto) {
@@ -119,7 +186,7 @@ export default function OutreachContactModal({
         subject,
         html: sendHtml,
         text: sendText,
-        attachment_url: attachPdf && resolvedPdfUrl ? resolvedPdfUrl : null,
+        ...attachmentPayload(),
       })
       if (!res.ok) {
         setSendError(res.error || 'Send failed.')
@@ -148,8 +215,7 @@ export default function OutreachContactModal({
         subject,
         html: htmlBody,
         text: bodyPlain,
-        attachment_url:
-          resolvedPdfUrl && (canMailto ? attachPdf : true) ? resolvedPdfUrl : null,
+        ...attachmentPayload(),
       })
       if (!res.ok) {
         setRefError(res.error || 'Send failed.')
@@ -263,48 +329,84 @@ export default function OutreachContactModal({
               {pdfResolving && (
                 <p className="small text-muted mb-2">
                   <span className="spinner-border spinner-border-sm me-1" role="status" />
-                  Looking up proposal PDF link…
+                  Looking up proposal PDF and personalizing the greeting…
                 </p>
               )}
-              {!pdfResolving && resolvedPdfUrl && canMailto && (
-                <div className="form-check mb-3">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    id="outreach-attach-pdf"
-                    checked={attachPdf}
-                    onChange={(e) => setAttachPdf(e.target.checked)}
-                  />
-                  <label className="form-check-label small" htmlFor="outreach-attach-pdf">
-                    Attach proposal PDF when sending via SPAN email ({resolvedPdfUrl.split('/').pop()})
-                  </label>
+              {letterPdfError && !pdfResolving && (
+                <div className="alert alert-warning py-2 small mb-3" role="alert">
+                  {letterPdfError}
+                  {resolvedPdfUrl
+                    ? ' You can still attach the stored proposal PDF if available.'
+                    : ''}
+                </div>
+              )}
+              {!pdfResolving && (letterPdf || resolvedPdfUrl) && (
+                <div className="mb-3">
+                  {(canMailto || hasWebmail) && (
+                    <div className="form-check mb-2">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="outreach-attach-pdf"
+                        checked={attachPdf}
+                        onChange={(e) => setAttachPdf(e.target.checked)}
+                      />
+                      <label className="form-check-label small" htmlFor="outreach-attach-pdf">
+                        {letterPdf
+                          ? `Attach proposal PDF with personalized greeting (${letterPdf.filename}${
+                              letterPdf.pageCount ? `, ${letterPdf.pageCount} page${letterPdf.pageCount === 1 ? '' : 's'}` : ''
+                            })`
+                          : `Attach proposal PDF (${resolvedPdfUrl.split('/').pop()})`}
+                      </label>
+                    </div>
+                  )}
+                  {letterPdf && (
+                    <p className="small text-muted mb-0">
+                      Same SPAN proposal — old greeting lines are removed from the PDF when possible, then replaced with
+                      Dear … for this legislator. The file in storage is not changed. Use <strong>Preview (PDF)</strong>{' '}
+                      before sending.
+                      {letterPdf.replacedGreeting
+                        ? ` Removed: “${letterPdf.replacedGreeting}”.`
+                        : ' No existing greeting line was detected; Dear … was added near the top of page 1.'}
+                    </p>
+                  )}
                 </div>
               )}
 
-              {showHtmlPreview ? (
-                <ul className="nav nav-tabs mb-3">
-                  <li className="nav-item">
-                    <button
-                      type="button"
-                      className={`nav-link ${tab === 'edit' ? 'active' : ''}`}
-                      onClick={() => setTab('edit')}
-                    >
-                      Edit
-                    </button>
-                  </li>
+              <ul className="nav nav-tabs mb-3">
+                <li className="nav-item">
+                  <button
+                    type="button"
+                    className={`nav-link ${tab === 'edit' ? 'active' : ''}`}
+                    onClick={() => setTab('edit')}
+                  >
+                    Edit
+                  </button>
+                </li>
+                {showHtmlPreview && (
                   <li className="nav-item">
                     <button
                       type="button"
                       className={`nav-link ${tab === 'preview' ? 'active' : ''}`}
                       onClick={() => setTab('preview')}
                     >
-                      Preview (HTML)
+                      Preview (email)
                     </button>
                   </li>
-                </ul>
-              ) : null}
+                )}
+                <li className="nav-item">
+                  <button
+                    type="button"
+                    className={`nav-link ${tab === 'pdf' ? 'active' : ''}`}
+                    onClick={() => setTab('pdf')}
+                    disabled={!letterPdf && !resolvedPdfUrl}
+                  >
+                    Preview (PDF)
+                  </button>
+                </li>
+              </ul>
 
-              {tab === 'edit' || !showHtmlPreview ? (
+              {tab === 'edit' ? (
                 <>
                   <div className="mb-3">
                     <label className="form-label small" htmlFor="outreach-subject">
@@ -322,7 +424,7 @@ export default function OutreachContactModal({
                   <div className="mb-2">
                     <label className="form-label small" htmlFor="outreach-body">
                       {showHtmlPreview
-                        ? 'Message (plain text — edits appear in preview)'
+                        ? 'Message (plain text — edits appear in email preview)'
                         : 'Message (plain text — copy into the legislator web form)'}
                     </label>
                     <textarea
@@ -334,13 +436,48 @@ export default function OutreachContactModal({
                     />
                   </div>
                 </>
-              ) : showHtmlPreview ? (
+              ) : null}
+
+              {tab === 'preview' && showHtmlPreview ? (
                 <div
                   className="border rounded p-2 bg-white overflow-auto"
                   style={{ maxHeight: 'min(60vh, 520px)' }}
                 >
                   <div dangerouslySetInnerHTML={{ __html: htmlBody }} />
                 </div>
+              ) : null}
+
+              {tab === 'pdf' ? (
+                letterPdf?.objectUrl ? (
+                  <div>
+                    <p className="small text-muted mb-2">
+                      Proposal for <strong>{target.display_name}</strong>
+                      {letterPdf.replacedGreeting
+                        ? ` — greeting was “${letterPdf.replacedGreeting}”.`
+                        : ' — Dear … added on page 1.'}
+                    </p>
+                    <iframe
+                      title="Personalized proposal PDF preview"
+                      src={letterPdf.objectUrl}
+                      className="w-100 border rounded"
+                      style={{ height: 'min(60vh, 520px)' }}
+                    />
+                  </div>
+                ) : resolvedPdfUrl ? (
+                  <div>
+                    <p className="small text-muted mb-2">
+                      Stored proposal PDF (personalized cover could not be built).
+                    </p>
+                    <iframe
+                      title="Proposal PDF preview"
+                      src={resolvedPdfUrl}
+                      className="w-100 border rounded"
+                      style={{ height: 'min(60vh, 520px)' }}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-muted small mb-0">No PDF available to preview.</p>
+                )
               ) : null}
 
               {sendError && (
@@ -388,8 +525,17 @@ export default function OutreachContactModal({
                     flashCopy(ok ? 'PDF link copied.' : 'Could not copy link.')
                   }}
                 >
-                  Copy PDF link
+                  Copy proposal PDF link
                 </button>
+              )}
+              {letterPdf?.objectUrl && (
+                <a
+                  className="btn btn-sm btn-outline-dark"
+                  href={letterPdf.objectUrl}
+                  download={letterPdf.filename}
+                >
+                  Download letter PDF
+                </a>
               )}
               {canMailto && (
                 <a className="btn btn-sm btn-outline-primary" href={mailtoHref}>
@@ -410,7 +556,7 @@ export default function OutreachContactModal({
                 <button
                   type="button"
                   className="btn btn-sm btn-primary"
-                  disabled={sending}
+                  disabled={sending || pdfResolving}
                   onClick={handleSendResend}
                 >
                   {sending ? 'Sending…' : 'Send via SPAN email'}

@@ -5,7 +5,15 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
 
 /**
  * Send outreach email via Resend (Edge Function). Exec-only.
- * @param {{ to: string, subject: string, html: string, text?: string, attachment_url?: string | null }} payload
+ * @param {{
+ *   to: string,
+ *   subject: string,
+ *   html: string,
+ *   text?: string,
+ *   attachment_url?: string | null,
+ *   attachment_base64?: string | null,
+ *   attachment_filename?: string | null,
+ * }} payload
  * @returns {Promise<{ ok: boolean, email_id?: string, error?: string }>}
  */
 export async function sendOutreachEmailViaResend(payload) {
@@ -44,7 +52,14 @@ export async function sendOutreachEmailViaResend(payload) {
 /**
  * After submitting via a legislator web form, send the same message to Joel/Vishank for internal records.
  * Recipients are fixed server-side. Exec-only.
- * @param {{ subject: string, html: string, text?: string, attachment_url?: string | null }} payload
+ * @param {{
+ *   subject: string,
+ *   html: string,
+ *   text?: string,
+ *   attachment_url?: string | null,
+ *   attachment_base64?: string | null,
+ *   attachment_filename?: string | null,
+ * }} payload
  * @returns {Promise<{ ok: boolean, email_id?: string, error?: string }>}
  */
 export async function sendOutreachReferenceCopy(payload) {
@@ -57,7 +72,7 @@ export async function sendOutreachReferenceCopy(payload) {
     return { ok: false, error: 'Not signed in' }
   }
 
-  const { subject, html, text, attachment_url } = payload
+  const { subject, html, text, attachment_url, attachment_base64, attachment_filename } = payload
   const resp = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/outreach-send-email`, {
     method: 'POST',
     headers: {
@@ -71,6 +86,8 @@ export async function sendOutreachReferenceCopy(payload) {
       html,
       text: text ?? '',
       attachment_url: attachment_url ?? null,
+      attachment_base64: attachment_base64 ?? null,
+      attachment_filename: attachment_filename ?? null,
     }),
   })
 

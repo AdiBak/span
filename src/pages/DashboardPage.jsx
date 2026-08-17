@@ -1468,7 +1468,7 @@ function DashboardPage() {
     const resolvedContact = isOther ? String(regardingContact || '').trim() || null : null
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('hr_reports')
         .insert({
           submitted_by: member.member_id,
@@ -1479,6 +1479,8 @@ function DashboardPage() {
           date_occurred: dateOccurred,
           details: details.trim() || null
         })
+        .select()
+        .single()
 
       if (error) {
         console.error('Error submitting HR report:', error)
@@ -1486,9 +1488,33 @@ function DashboardPage() {
         return
       }
 
-      // No email on submit — execs review in the dashboard. Member policy notices
-      // (with execs CC'd) are sent separately via Email member when appropriate.
-      setHrReportSuccess('HR report submitted. Executive directors can review it in HR Reports.')
+      let leadershipEmailed = false
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        const base = import.meta.env.VITE_SUPABASE_URL
+        if (session?.access_token && data?.report_id && base) {
+          const resp = await fetch(`${base.replace(/\/$/, '')}/functions/v1/notify-hr-report`, {
+            method: 'POST',
+            headers: supabaseInvokeHeaders(session.access_token),
+            body: JSON.stringify({ report_id: data.report_id }),
+          })
+          leadershipEmailed = resp.ok
+          if (!resp.ok) {
+            const errBody = await resp.json().catch(() => ({}))
+            console.warn('HR report notify email failed:', resp.status, errBody)
+          }
+        }
+      } catch (notifyErr) {
+        console.warn('HR report notify email error:', notifyErr)
+      }
+
+      setHrReportSuccess(
+        leadershipEmailed
+          ? 'HR report submitted. Leadership has been notified by email.'
+          : 'HR report submitted. Leadership may not have been emailed — please tell an executive director if needed.'
+      )
       setHrReportForm({
         nature: '',
         regardingMemberId: '',

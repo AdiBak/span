@@ -95,7 +95,7 @@ serve(async (req) => {
     const { data: report, error: reportError } = await admin
       .from("hr_reports")
       .select(
-        "report_id, submitted_by, nature_of_complaint, regarding_member_id, regarding_name, date_occurred, details, status, created_at"
+        "report_id, submitted_by, nature_of_complaint, regarding_member_id, regarding_name, regarding_contact, date_occurred, details, status, created_at"
       )
       .eq("report_id", reportId)
       .maybeSingle()
@@ -142,6 +142,7 @@ serve(async (req) => {
     const regarding =
       regardingDisplay ||
       (report.regarding_member_id ? `(member id: ${report.regarding_member_id})` : "—")
+    const regardingContact = String(report.regarding_contact ?? "").trim()
     const dateOccurred = String(report.date_occurred ?? "").trim()
     const details = String(report.details ?? "").trim()
     const createdAt = report.created_at
@@ -158,6 +159,11 @@ serve(async (req) => {
           <tr><td style="padding: 8px 0; vertical-align: top;"><strong>Submitted by</strong></td><td style="padding: 8px 0;">${escapeHtml(submitterName)}${submitterEmail ? ` &lt;${escapeHtml(submitterEmail)}&gt;` : ""}</td></tr>
           <tr><td style="padding: 8px 0; vertical-align: top;"><strong>Nature</strong></td><td style="padding: 8px 0;">${escapeHtml(nature)}</td></tr>
           <tr><td style="padding: 8px 0; vertical-align: top;"><strong>Regarding</strong></td><td style="padding: 8px 0;">${escapeHtml(regarding)}</td></tr>
+          ${
+            regardingContact
+              ? `<tr><td style="padding: 8px 0; vertical-align: top;"><strong>Outside contact</strong></td><td style="padding: 8px 0;">${escapeHtml(regardingContact)}</td></tr>`
+              : ""
+          }
           <tr><td style="padding: 8px 0; vertical-align: top;"><strong>Date occurred</strong></td><td style="padding: 8px 0;">${escapeHtml(dateOccurred)}</td></tr>
           <tr><td style="padding: 8px 0; vertical-align: top;"><strong>Filed at</strong></td><td style="padding: 8px 0;">${escapeHtml(createdAt)} (ET)</td></tr>
         </table>

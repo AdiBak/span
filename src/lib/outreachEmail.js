@@ -56,11 +56,24 @@ export function getProposalPdfUrlCandidates(bill) {
  */
 async function publicProposalPdfExists(url) {
   try {
-    let r = await fetch(url, { method: 'HEAD', mode: 'cors' })
-    if (r.ok) return true
-    if (r.status === 405 || r.status === 501) {
-      r = await fetch(url, { method: 'GET', mode: 'cors', headers: { Range: 'bytes=0-0' } })
+    // Prefer a tiny ranged GET and verify %PDF — HEAD can 200 on non-PDF error bodies.
+    let r = await fetch(url, {
+      method: 'GET',
+      mode: 'cors',
+      headers: { Range: 'bytes=0-7' },
+      cache: 'no-store',
+    })
+    if (!r.ok && r.status !== 206) {
+      r = await fetch(url, { method: 'HEAD', mode: 'cors', cache: 'no-store' })
       return r.ok
+    }
+    const buf = new Uint8Array(await r.arrayBuffer())
+    if (buf.length >= 5 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) {
+      return true
+    }
+    // Some CDNs ignore Range and return the whole file — still check header
+    if (buf.length >= 5 && String.fromCharCode(buf[0], buf[1], buf[2], buf[3]) === '%PDF') {
+      return true
     }
   } catch {
     /* network / CORS */

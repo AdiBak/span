@@ -18,6 +18,13 @@ const STRIKE_BTN_OUTLINE = {
   'btn-secondary': 'btn-outline-secondary',
 }
 
+/** Shared scroll region for Strike / Removal / Resignation tables */
+const SECTION_TABLE_SCROLL = {
+  maxHeight: '360px',
+  overflowY: 'auto',
+  overflowX: 'auto',
+}
+
 export default function ExecConductSection({
   sectionOrder,
   sectionId,
@@ -91,13 +98,13 @@ export default function ExecConductSection({
   return (
     <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-        <h3 className="mb-0">Executive Conduct &amp; Resignations</h3>
+        <h3 className="mb-0">Executive Conduct</h3>
       </div>
 
       <div className="alert alert-info mb-4">
         <i className="bi bi-info-circle me-2"></i>
-        Strike counts in Member Management match this log. Use the status/source filters like HR Reports, then{' '}
-        <strong>View</strong> to open the resignation message or strike detail.
+        Strike log, removal / firing letters, then resignations. Strike counts in Member Management match this log.
+        Use the filters, then <strong>View</strong> for resignation messages or strike detail.
       </div>
 
       {awaiting.length > 0 && (
@@ -174,58 +181,6 @@ export default function ExecConductSection({
         </div>
       )}
 
-      <div className="mb-4">
-        <h4 className="mb-2">Removal / firing letters sent</h4>
-        <p className="small text-muted mb-2">
-          Recorded when an exec sends the membership-ended email. Also check Member Management → Inactive for
-          directory status.
-        </p>
-        {(removalProposals || []).filter((p) => p.status === 'removal_letter_sent').length === 0 ? (
-          <p className="text-muted small mb-0">No removal letters recorded yet.</p>
-        ) : (
-          <div className="table-responsive" style={{ maxHeight: '280px', overflowY: 'auto' }}>
-            <table className="table table-sm table-hover align-middle mb-0">
-              <thead className="table-light">
-                <tr>
-                  <th>Member</th>
-                  <th>Letter sent</th>
-                  <th>Directory</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(removalProposals || [])
-                  .filter((p) => p.status === 'removal_letter_sent')
-                  .map((p) => {
-                    const mem = membersById[p.member_id]
-                    const name = mem ? `${mem.first_name} ${mem.last_name}` : p.member_id
-                    const stillActive = mem ? mem.active !== false : true
-                    const when = p.letter_sent_at ? formatDateLong(p.letter_sent_at) : '—'
-                    return (
-                      <tr key={p.proposal_id}>
-                        <td className="fw-semibold">{name}</td>
-                        <td className="small text-nowrap">{when}</td>
-                        <td>
-                          {stillActive && typeof onDeactivateMemberFromDirectory === 'function' ? (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={() => onDeactivateMemberFromDirectory(p.member_id)}
-                            >
-                              Still listed — remove
-                            </button>
-                          ) : (
-                            <span className="badge bg-secondary">Off directory</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
       {/* Strike log */}
       <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <h4 className="mb-0">Strike Log</h4>
@@ -265,7 +220,7 @@ export default function ExecConductSection({
       {strikes.length === 0 ? (
         <p className="text-muted small mb-4">No strikes recorded.</p>
       ) : (
-        <div className="table-responsive mb-4" style={{ maxHeight: '420px', overflowY: 'auto' }}>
+        <div className="table-responsive mb-4 border rounded" style={SECTION_TABLE_SCROLL}>
           <table className="table table-hover table-sm align-middle mb-0">
             <thead className="sticky-top bg-body-tertiary border-bottom" style={{ zIndex: 1 }}>
               <tr>
@@ -319,6 +274,58 @@ export default function ExecConductSection({
         </div>
       )}
 
+      <div className="mb-4">
+        <h4 className="mb-2">Removal / firing letters sent</h4>
+        <p className="small text-muted mb-2">
+          Recorded when an exec sends the membership-ended email. Also check Member Management → Inactive for
+          directory status.
+        </p>
+        {(removalProposals || []).filter((p) => p.status === 'removal_letter_sent').length === 0 ? (
+          <p className="text-muted small mb-0">No removal letters recorded yet.</p>
+        ) : (
+          <div className="table-responsive border rounded" style={SECTION_TABLE_SCROLL}>
+            <table className="table table-sm table-hover align-middle mb-0">
+              <thead className="sticky-top bg-body-tertiary border-bottom" style={{ zIndex: 1 }}>
+                <tr>
+                  <th>Member</th>
+                  <th>Letter sent</th>
+                  <th>Directory</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(removalProposals || [])
+                  .filter((p) => p.status === 'removal_letter_sent')
+                  .map((p) => {
+                    const mem = membersById[p.member_id]
+                    const name = mem ? `${mem.first_name} ${mem.last_name}` : p.member_id
+                    const stillActive = mem ? mem.active !== false : true
+                    const when = p.letter_sent_at ? formatDateLong(p.letter_sent_at) : '—'
+                    return (
+                      <tr key={p.proposal_id}>
+                        <td className="fw-semibold">{name}</td>
+                        <td className="small text-nowrap">{when}</td>
+                        <td>
+                          {stillActive && typeof onDeactivateMemberFromDirectory === 'function' ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-danger"
+                              onClick={() => onDeactivateMemberFromDirectory(p.member_id)}
+                            >
+                              Still listed — remove
+                            </button>
+                          ) : (
+                            <span className="badge bg-secondary">Off directory</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
       {/* Resignation requests */}
       <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <h4 className="mb-0">Resignation Requests</h4>
@@ -356,7 +363,7 @@ export default function ExecConductSection({
       {resignations.length === 0 ? (
         <p className="text-muted small">No resignation requests yet.</p>
       ) : (
-        <div className="table-responsive mb-0" style={{ maxHeight: '500px', overflowY: 'auto' }}>
+        <div className="table-responsive mb-0 border rounded" style={SECTION_TABLE_SCROLL}>
           <table className="table table-hover table-sm align-middle mb-0">
             <thead className="sticky-top bg-body-tertiary border-bottom" style={{ zIndex: 1 }}>
               <tr>

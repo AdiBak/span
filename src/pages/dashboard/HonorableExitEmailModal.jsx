@@ -189,7 +189,11 @@ export default function HonorableExitEmailModal({ open, onClose, supabase, membe
         alert(data.error || 'Send failed.')
         return
       }
-      alert(`Email sent to ${data.to || 'member'}.`)
+      const bits = [`Email sent to ${data.to || 'member'}.`]
+      if (data.slack_deactivate_reminded) {
+        bits.push('Execs were emailed to deactivate them in Slack (manual — Free plan).')
+      }
+      alert(bits.join(' '))
       onClose()
     } catch (err) {
       alert(err.message || 'Send failed.')

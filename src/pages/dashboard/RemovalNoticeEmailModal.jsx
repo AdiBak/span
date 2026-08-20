@@ -95,6 +95,9 @@ export default function RemovalNoticeEmailModal({
       const bits = [`Email sent to ${data.to || 'member'}.`]
       if (data.directory_deactivated) bits.push('Removed from the public Members directory.')
       if (data.removal_proposal_updated) bits.push('Recorded as removal letter sent.')
+      if (data.slack_deactivate_reminded) {
+        bits.push('Execs were emailed to deactivate them in Slack (manual — Free plan).')
+      }
       alert(bits.join(' '))
       if (typeof onSent === 'function') await onSent()
       onClose()

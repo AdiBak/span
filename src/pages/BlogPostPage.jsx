@@ -2,7 +2,16 @@ import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { memberNameLookupKeys, memberSiteDisplayName } from '../lib/memberDisplayName'
 import { fetchMediumBlogItems, findMediumBlogItem } from '../lib/mediumBlog'
+import {
+  absoluteUrl,
+  descriptionFromHtml,
+  setPageSeo,
+  SEO_SITE_ORIGIN,
+} from '../lib/documentSeo'
 import '../pages/BlogPage.css'
+
+const DEFAULT_BLOG_TITLE = 'Blog Post | SPAN - Students for Patient Advocacy Nationwide'
+const DEFAULT_BLOG_DESCRIPTION = 'Read our latest blog post about SPAN and healthcare advocacy.'
 
 const MEMBER_IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
 
@@ -200,7 +209,10 @@ function BlogPostPage({ postId }) {
           image,
           formattedDate,
           author,
-          link: foundPost.link // Keep original link for "View on Medium" option
+          link: foundPost.link, // Keep original link for "View on Medium" option
+          guid: foundPost.guid || foundPost.link,
+          pubDate: foundPost.pubDate,
+          descriptionHtml: foundPost.description || foundPost.content || '',
         })
         setError(null)
       } catch (err) {
@@ -215,6 +227,69 @@ function BlogPostPage({ postId }) {
       fetchPost()
     }
   }, [postId])
+
+  useEffect(() => {
+    if (!post || !postId) return undefined
+
+    const canonicalPath = `/blog-post.html?id=${encodeURIComponent(postId)}`
+    const description =
+      descriptionFromHtml(post.descriptionHtml || post.content, 160) || DEFAULT_BLOG_DESCRIPTION
+    const title = `${post.title} | SPAN`
+    const pageUrl = absoluteUrl(canonicalPath)
+
+    setPageSeo({
+      title,
+      description,
+      canonicalPath,
+      image: post.image || '/images/index/preview.jpg',
+      type: 'article',
+      jsonLdId: 'span-blog-post-jsonld',
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        headline: post.title,
+        description,
+        image: post.image ? [absoluteUrl(post.image)] : undefined,
+        datePublished: post.pubDate
+          ? new Date(`${String(post.pubDate).replace(' ', 'T')}Z`).toISOString()
+          : undefined,
+        author: {
+          '@type': 'Person',
+          name: post.author?.name || 'SPAN',
+        },
+        publisher: {
+          '@type': 'Organization',
+          name: 'Students for Patient Advocacy Nationwide',
+          url: SEO_SITE_ORIGIN,
+          logo: {
+            '@type': 'ImageObject',
+            url: `${SEO_SITE_ORIGIN}/assets/images/index/logo-icon-dark.svg`,
+          },
+        },
+        mainEntityOfPage: {
+          '@type': 'WebPage',
+          '@id': pageUrl,
+        },
+        isPartOf: {
+          '@type': 'WebSite',
+          name: 'SPAN',
+          url: SEO_SITE_ORIGIN,
+        },
+      },
+    })
+
+    return () => {
+      setPageSeo({
+        title: DEFAULT_BLOG_TITLE,
+        description: DEFAULT_BLOG_DESCRIPTION,
+        canonicalPath: '/blog-post.html',
+        image: '/images/index/preview.jpg',
+        type: 'article',
+        jsonLdId: 'span-blog-post-jsonld',
+        jsonLd: null,
+      })
+    }
+  }, [post, postId])
 
   useEffect(() => {
     if (window.AOS && typeof window.AOS.init === 'function') {

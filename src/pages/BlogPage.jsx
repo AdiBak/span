@@ -4,6 +4,7 @@ import BlogCard from '../components/BlogCard'
 import { supabase } from '../lib/supabase'
 import { memberNameLookupKeys, memberSiteDisplayName } from '../lib/memberDisplayName'
 import { fetchMediumBlogItems } from '../lib/mediumBlog'
+import { setPageSeo } from '../lib/documentSeo'
 import '../pages/BlogPage.css'
 
 const ITEMS_PER_PAGE = 6
@@ -209,6 +210,17 @@ function BlogPage() {
   const [yearFilter, setYearFilter] = useState('')
   const [monthFilter, setMonthFilter] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+
+  useEffect(() => {
+    setPageSeo({
+      title: 'Blog | SPAN - Students for Patient Advocacy Nationwide',
+      description:
+        'SPAN blog: student-written insights on healthcare policy, advocacy, and patient-centered reform. Mirrored from our Medium publication onto spanationwide.org.',
+      canonicalPath: '/blog.html',
+      image: '/images/index/preview.jpg',
+      type: 'website',
+    })
+  }, [])
 
   useEffect(() => {
     let isMounted = true

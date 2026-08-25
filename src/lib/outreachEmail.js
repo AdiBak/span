@@ -1,97 +1,10 @@
-import { SUPABASE_PUBLIC_OBJECT_BASE_URL } from './supabasePublicUrls'
-import { canonicalUSStateName } from './usStateCanonical'
+import { getProposalPdfPublicUrl } from './proposalPdf'
 
-const PROPOSALS_BASE = `${SUPABASE_PUBLIC_OBJECT_BASE_URL}/proposals`
-
-/**
- * Best-effort guess (no network): first candidate path. Prefer {@link resolveProposalPdfPublicUrl}.
- * @param {{ state?: string, name?: string }} bill
- * @returns {string | null}
- */
-export function getProposalPdfPublicUrl(bill) {
-  const c = getProposalPdfUrlCandidates(bill)
-  return c.length ? c[0] : null
-}
-
-/**
- * Ordered URL candidates for `proposals/{state}/{name}.pdf` (upload naming has varied over time).
- * Matches the spirit of BillsPage / Dashboard `checkBillPdfExists` (sanitized + URL-encoded originals + variants).
- * @param {{ state?: string, name?: string }} bill
- * @returns {string[]}
- */
-export function getProposalPdfUrlCandidates(bill) {
-  if (!bill?.state || !bill?.name) return []
-  const name = String(bill.name).trim()
-  const rawState = String(bill.state).trim()
-  const canon = canonicalUSStateName(rawState)
-  const stateVariants = [...new Set([rawState, canon].filter(Boolean))]
-
-  const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_')
-  /** e.g. "SB 60" → "SB60" for uploads that dropped spaces */
-  const compactSanitized = name.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '_')
-  /** spaces only → underscores, keeps periods etc. (then encoded in path segment) */
-  const spacesToUnderscore = name.replace(/\s+/g, '_')
-
-  const urls = []
-  const add = (u) => {
-    if (u && !urls.includes(u)) urls.push(u)
-  }
-
-  for (const s of stateVariants) {
-    const sanitizedState = s.replace(/[^a-zA-Z0-9]/g, '_')
-    add(`${PROPOSALS_BASE}/${sanitizedState}/${sanitizedName}.pdf`)
-    add(`${PROPOSALS_BASE}/${encodeURIComponent(s)}/${encodeURIComponent(name)}.pdf`)
-    add(`${PROPOSALS_BASE}/${encodeURIComponent(s)}/${encodeURIComponent(spacesToUnderscore)}.pdf`)
-    if (compactSanitized && compactSanitized !== sanitizedName) {
-      add(`${PROPOSALS_BASE}/${sanitizedState}/${compactSanitized}.pdf`)
-    }
-  }
-
-  return urls
-}
-
-/**
- * @param {string} url
- * @returns {Promise<boolean>}
- */
-async function publicProposalPdfExists(url) {
-  try {
-    // Prefer a tiny ranged GET and verify %PDF — HEAD can 200 on non-PDF error bodies.
-    let r = await fetch(url, {
-      method: 'GET',
-      mode: 'cors',
-      headers: { Range: 'bytes=0-7' },
-      cache: 'no-store',
-    })
-    if (!r.ok && r.status !== 206) {
-      r = await fetch(url, { method: 'HEAD', mode: 'cors', cache: 'no-store' })
-      return r.ok
-    }
-    const buf = new Uint8Array(await r.arrayBuffer())
-    if (buf.length >= 5 && buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) {
-      return true
-    }
-    // Some CDNs ignore Range and return the whole file — still check header
-    if (buf.length >= 5 && String.fromCharCode(buf[0], buf[1], buf[2], buf[3]) === '%PDF') {
-      return true
-    }
-  } catch {
-    /* network / CORS */
-  }
-  return false
-}
-
-/**
- * Resolves the real public PDF URL by probing candidates (same bucket paths as the rest of the app).
- * @param {{ state?: string, name?: string }} bill
- * @returns {Promise<string | null>}
- */
-export async function resolveProposalPdfPublicUrl(bill) {
-  for (const url of getProposalPdfUrlCandidates(bill)) {
-    if (await publicProposalPdfExists(url)) return url
-  }
-  return null
-}
+export {
+  getProposalPdfPublicUrl,
+  getProposalPdfUrlCandidates,
+  resolveProposalPdfPublicUrl,
+} from './proposalPdf'
 
 /**
  * @param {string | undefined} displayName

@@ -7,6 +7,10 @@ import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import { memberLegalName, memberSiteDisplayName } from '../lib/memberDisplayName'
 import { resolveMemberGrade, splitMemberGradeForForm } from '../lib/memberGrades'
 import { billStateGroupKey, canonicalUSStateName } from '../lib/usStateCanonical'
+import {
+  buildCanonicalProposalPdf,
+  enrichBillWithStoredPdf,
+} from '../lib/proposalPdf'
 import { fetchLegiscanBillBySearch, isLegiscanBillNumberShape } from '../lib/legiscan'
 import { isAllowedApplicationStatusTransition } from './dashboard/applications'
 import AssignBillWorkModal from './dashboard/AssignBillWorkModal'
@@ -845,42 +849,16 @@ function DashboardPage() {
       return
     }
 
-    const billsWithPDF = await Promise.all((billsData || []).map(async (bill) => {
-      const { exists, url } = await checkBillPdfExists(bill.state, bill.name)
-      return { ...bill, pdfExists: exists, pdfUrl: url || undefined }
-    }))
+    const billsWithPDF = (billsData || []).map((bill) => enrichBillWithStoredPdf(bill))
     setAllBills(billsWithPDF)
-  }
-
-  async function checkBillPdfExists(state, name) {
-    if (!state || !name) return { exists: false, url: null }
-    const sanitizedName = (name || '').replace(/[^a-zA-Z0-9]/g, '_')
-    const raw = String(state).trim()
-    const canon = canonicalUSStateName(raw)
-    const stateVariants = [...new Set([raw, canon].filter(Boolean))]
-
-    for (const s of stateVariants) {
-      const sanitizedState = s.replace(/[^a-zA-Z0-9]/g, '_')
-      const sanitizedPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
-      try {
-        const r = await fetch(sanitizedPath, { method: 'HEAD' })
-        if (r.ok) return { exists: true, url: sanitizedPath }
-      } catch {}
-      const originalPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${encodeURIComponent(s)}/${encodeURIComponent(name)}.pdf`
-      try {
-        const r = await fetch(originalPath, { method: 'HEAD' })
-        if (r.ok) return { exists: true, url: originalPath }
-      } catch {}
-    }
-    return { exists: false, url: null }
   }
 
   function getBillPdfUrl(bill) {
     if (!bill) return null
     if (bill.pdfUrl) return bill.pdfUrl
-    const st = canonicalUSStateName(bill.state) || bill.state || ''
-    const nm = bill.name || ''
-    return `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${st.replace(/[^a-zA-Z0-9]/g, '_')}/${nm.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+    if (bill.proposal_pdf_url) return bill.proposal_pdf_url
+    const built = buildCanonicalProposalPdf(bill.state, bill.name)
+    return built?.publicUrl || null
   }
 
 
@@ -947,12 +925,7 @@ function DashboardPage() {
       return
     }
     const raw = (data || []).filter((b) => b.status !== 'outreach_only')
-    const billsWithPDF = await Promise.all(
-      raw.map(async (bill) => {
-        const { exists, url } = await checkBillPdfExists(bill.state, bill.name)
-        return { ...bill, pdfExists: exists, pdfUrl: url || undefined }
-      })
-    )
+    const billsWithPDF = raw.map((bill) => enrichBillWithStoredPdf(bill))
     setResearchBills(billsWithPDF)
     setResearchBillsLoading(false)
   }
@@ -3619,15 +3592,16 @@ function DashboardPage() {
 
     try {
       // 1. Upload PDF if provided
-      let pdfUploaded = true
+      let proposalPdfUrl = null
       if (billPdfFile) {
-        const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_')
-        const sanitizedState = stateStored.replace(/[^a-zA-Z0-9]/g, '_')
-        const pdfPath = `${sanitizedState}/${sanitizedName}.pdf`
-        
+        const built = buildCanonicalProposalPdf(stateStored, name.trim())
+        if (!built) {
+          setBillError('Invalid state/name for PDF path.')
+          return
+        }
         const { error: uploadError } = await supabase.storage
           .from('proposals')
-          .upload(pdfPath, billPdfFile, {
+          .upload(built.storagePath, billPdfFile, {
             cacheControl: '3600',
             upsert: true
           })
@@ -3637,7 +3611,7 @@ function DashboardPage() {
           setBillError('Failed to upload PDF. ' + uploadError.message)
           return
         }
-        pdfUploaded = true
+        proposalPdfUrl = built.publicUrl
       }
 
       // 2. Determine bill status based on permissions
@@ -3660,7 +3634,8 @@ function DashboardPage() {
           bill_collaborators: collaborators.length > 0 ? collaborators : null,
           status: billStatus,
           submitted_by: billStatus === 'under_review' ? member.member_id : null,
-          submitted_at: new Date().toISOString()
+          submitted_at: new Date().toISOString(),
+          proposal_pdf_url: proposalPdfUrl,
         }])
         .select()
         .single()
@@ -3724,7 +3699,10 @@ function DashboardPage() {
       return
     }
     const hasNewPdf = !!editBillPdfFile
-    const hadPdf = !!(selectedBillForEdit && selectedBillForEdit.pdfExists)
+    const hadPdf = !!(
+      selectedBillForEdit &&
+      (selectedBillForEdit.pdfExists || selectedBillForEdit.proposal_pdf_url)
+    )
     const hasDocLink = !!(googleDocLink && googleDocLink.trim())
     if (!hasDocLink) {
       setBillError('Please provide a link to the proposal document (e.g. Google Doc).')
@@ -3743,14 +3721,17 @@ function DashboardPage() {
 
     try {
       // 1. Upload new PDF if provided
+      let proposalPdfUrl =
+        selectedBillForEdit.proposal_pdf_url || selectedBillForEdit.pdfUrl || null
       if (editBillPdfFile) {
-        const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_')
-        const sanitizedState = stateStoredEdit.replace(/[^a-zA-Z0-9]/g, '_')
-        const pdfPath = `${sanitizedState}/${sanitizedName}.pdf`
-        
+        const built = buildCanonicalProposalPdf(stateStoredEdit, name.trim())
+        if (!built) {
+          setBillError('Invalid state/name for PDF path.')
+          return
+        }
         const { error: uploadError } = await supabase.storage
           .from('proposals')
-          .upload(pdfPath, editBillPdfFile, {
+          .upload(built.storagePath, editBillPdfFile, {
             cacheControl: '3600',
             upsert: true
           })
@@ -3759,6 +3740,7 @@ function DashboardPage() {
           setBillError('Failed to upload PDF. ' + uploadError.message)
           return
         }
+        proposalPdfUrl = built.publicUrl
       }
 
       // 2. Update bill in database
@@ -3784,7 +3766,8 @@ function DashboardPage() {
           legiscan_link: legiscanLink.trim() || null,
           google_doc_link: googleDocLink.trim() || null,
           hidden: !!hidden,
-          bill_collaborators: collaborators.length > 0 ? collaborators : null
+          bill_collaborators: collaborators.length > 0 ? collaborators : null,
+          ...(proposalPdfUrl ? { proposal_pdf_url: proposalPdfUrl } : {}),
         })
         .eq('bill_id', selectedBillForEdit.bill_id)
         .select()

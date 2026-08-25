@@ -97,7 +97,7 @@ export async function checkAiFromPdfUrl(pdfUrl, accessToken) {
  * @param {(bill: object) => string | null | undefined} [getPdfUrl]
  */
 export async function checkAiFromBill(bill, accessToken, getPdfUrl) {
-  let url = bill?.pdfUrl || (getPdfUrl ? getPdfUrl(bill) : null)
+  let url = bill?.proposal_pdf_url || bill?.pdfUrl || (getPdfUrl ? getPdfUrl(bill) : null)
   if (!url) {
     url = await resolveProposalPdfPublicUrl(bill)
   }

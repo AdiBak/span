@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { enrichBillWithStoredPdf } from '../lib/proposalPdf'
 import BillCard from './BillCard'
 import CollaboratorModal from './CollaboratorModal'
 
@@ -25,64 +26,30 @@ function BillsPreview() {
 
       if (billsError) throw billsError
 
-      // Sort by date (newest first) and take first 4
+      // Sort by date (newest first) and take first 3
       const processedBills = (billsData || [])
-        .map(b => ({
+        .map((b) => ({
           ...b,
-          bill_date: new Date(b.bill_date)
+          bill_date: new Date(b.bill_date),
         }))
         .sort((a, b) => b.bill_date - a.bill_date)
-        .slice(0, 3) // Show 3 for homepage preview
+        .slice(0, 3)
 
-      // Check PDF existence
-      const billsWithPDF = await Promise.all(
-        processedBills.map(async (bill) => {
-          // Try both formats: sanitized (new) and original with spaces (old, URL-encoded)
-          const sanitizedName = bill.name.replace(/[^a-zA-Z0-9]/g, '_')
-          const sanitizedState = bill.state.replace(/[^a-zA-Z0-9]/g, '_')
-          
-          // New format: sanitized (underscores)
-          const sanitizedPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
-          const sanitizedExists = await checkPDFExists(sanitizedPath)
-          
-          if (sanitizedExists) {
-            return { ...bill, pdfExists: true }
-          }
-          
-          // Old format: original names with spaces (URL-encoded)
-          const originalState = encodeURIComponent(bill.state)
-          const originalName = encodeURIComponent(bill.name)
-          const originalPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${originalState}/${originalName}.pdf`
-          const originalExists = await checkPDFExists(originalPath)
-          
-          return { ...bill, pdfExists: originalExists }
-        })
-      )
+      // Stored URL only — no Storage HEAD probes (egress)
+      const billsWithPDF = processedBills.map((bill) => enrichBillWithStoredPdf(bill))
 
       setBills(billsWithPDF)
 
-      // Fetch members (needed for collaborator avatars)
-      const { data: membersData, error: membersError } = await supabase
-        .from('members')
-        .select('*')
+      const { data: membersData, error: membersError } = await supabase.from('members').select('*')
 
       if (membersError) throw membersError
       setMembers(membersData || [])
 
       setLoading(false)
-    } catch (error) {
-      console.error('Error fetching data:', error)
-      setError(error.message || 'Failed to load bills')
+    } catch (err) {
+      console.error('Error fetching bills preview:', err)
+      setError(err.message || 'Failed to load bills')
       setLoading(false)
-    }
-  }
-
-  async function checkPDFExists(url) {
-    try {
-      const response = await fetch(url, { method: 'HEAD' })
-      return response.ok
-    } catch {
-      return false
     }
   }
 
@@ -132,11 +99,11 @@ function BillsPreview() {
             bill={{
               ...bill,
               index: idx,
-              bill_id: bill.bill_id || `${bill.state}-${bill.name}`
+              bill_id: bill.bill_id || `${bill.state}-${bill.name}`,
             }}
             members={members}
             onCollaboratorClick={handleCollaboratorClick}
-            onKeywordExtracted={() => {}} // No keyword extraction needed for preview
+            onKeywordExtracted={() => {}}
           />
         ))}
       </div>
@@ -153,4 +120,3 @@ function BillsPreview() {
 }
 
 export default BillsPreview
-

@@ -9,6 +9,7 @@ import {
 } from '../lib/outreachEmail'
 import { generatePersonalizedOutreachPdf } from '../lib/generateOutreachLetterPDF'
 import { sendOutreachEmailViaResend, sendOutreachReferenceCopy } from '../lib/outreachSend'
+import { supabase } from '../lib/supabase'
 
 async function copyToClipboard(text) {
   try {
@@ -82,7 +83,7 @@ export default function OutreachContactModal({
       return null
     })
     ;(async () => {
-      const pdfUrl = await resolveProposalPdfPublicUrl(bill)
+      const pdfUrl = await resolveProposalPdfPublicUrl(bill, { supabase, persist: true })
       if (cancelled) return
       setResolvedPdfUrl(pdfUrl)
       const hasWeb = !!(target?.contact_webmail_url || '').trim()

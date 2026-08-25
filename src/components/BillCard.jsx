@@ -56,29 +56,24 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
 
   useEffect(() => {
     if (showPDF && !pdfPath) {
-      const getPdfPath = async () => {
-        const sanitizedName = bill.name.replace(/[^a-zA-Z0-9]/g, '_')
-        const sanitizedState = bill.state.replace(/[^a-zA-Z0-9]/g, '_')
-        const sanitizedPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
-
-        try {
-          const response = await fetch(sanitizedPath, { method: 'HEAD' })
-          if (response.ok) {
-            setPdfPath(sanitizedPath)
-            return
-          }
-        } catch {}
-
-        const originalState = encodeURIComponent(bill.state)
-        const originalName = encodeURIComponent(bill.name)
-        const originalPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${originalState}/${originalName}.pdf`
-        setPdfPath(originalPath)
+      const stored =
+        bill.pdfUrl ||
+        bill.proposal_pdf_url ||
+        null
+      if (stored) {
+        setPdfPath(stored)
+        return
       }
-      getPdfPath()
+      // Legacy fallback: open canonical path without probing (iframe 404s if missing)
+      const sanitizedName = bill.name.replace(/[^a-zA-Z0-9]/g, '_')
+      const sanitizedState = bill.state.replace(/[^a-zA-Z0-9]/g, '_')
+      setPdfPath(
+        `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
+      )
     } else if (!showPDF) {
       setPdfPath(null)
     }
-  }, [showPDF, pdfPath, bill.name, bill.state])
+  }, [showPDF, pdfPath, bill.name, bill.state, bill.pdfUrl, bill.proposal_pdf_url])
 
   useEffect(() => {
     if (!modalRef.current) {

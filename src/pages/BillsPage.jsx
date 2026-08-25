@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { canonicalUSStateName } from '../lib/usStateCanonical'
+import { buildCanonicalProposalPdf, enrichBillWithStoredPdf } from '../lib/proposalPdf'
 import BillCard from '../components/BillCard'
 import Pagination from '../components/Pagination'
 import CollaboratorModal from '../components/CollaboratorModal'
@@ -134,30 +135,8 @@ function BillsPage() {
         }))
         .sort((a, b) => b.bill_date - a.bill_date)
 
-      // Check PDF existence for each bill (concurrently)
-      const billsWithPDF = await Promise.all(
-        processedBills.map(async (bill) => {
-          // Try both formats: sanitized (new) and original with spaces (old, URL-encoded)
-          const sanitizedName = bill.name.replace(/[^a-zA-Z0-9]/g, '_')
-          const sanitizedState = bill.state.replace(/[^a-zA-Z0-9]/g, '_')
-          
-          // New format: sanitized (underscores)
-          const sanitizedPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
-          const sanitizedExists = await checkPDFExists(sanitizedPath)
-          
-          if (sanitizedExists) {
-            return { ...bill, pdfExists: true }
-          }
-          
-          // Old format: original names with spaces (URL-encoded)
-          const originalState = encodeURIComponent(bill.state)
-          const originalName = encodeURIComponent(bill.name)
-          const originalPath = `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${originalState}/${originalName}.pdf`
-          const originalExists = await checkPDFExists(originalPath)
-          
-          return { ...bill, pdfExists: originalExists }
-        })
-      )
+      // Use stored proposal_pdf_url only — do not HEAD-probe Storage (egress).
+      const billsWithPDF = processedBills.map((bill) => enrichBillWithStoredPdf(bill))
 
       setBills(billsWithPDF)
 
@@ -173,15 +152,6 @@ function BillsPage() {
     } catch (error) {
       console.error('Error fetching data:', error)
       setLoading(false)
-    }
-  }
-
-  async function checkPDFExists(url) {
-    try {
-      const response = await fetch(url, { method: 'HEAD' })
-      return response.ok
-    } catch {
-      return false
     }
   }
 
@@ -274,7 +244,7 @@ function BillsPage() {
       return
     }
     const hasNewPdf = !!editBillPdfFile
-    const hadPdf = !!(selectedBill && selectedBill.pdfExists)
+    const hadPdf = !!(selectedBill && (selectedBill.pdfExists || selectedBill.proposal_pdf_url))
     const hasDocLink = !!(googleDocLink && googleDocLink.trim())
     if (!hasDocLink) {
       setBillError('Please provide a link to the proposal document (e.g. Google Doc).')
@@ -293,14 +263,16 @@ function BillsPage() {
 
     try {
       // 1. Upload new PDF if provided
+      let proposalPdfUrl = selectedBill.proposal_pdf_url || selectedBill.pdfUrl || null
       if (editBillPdfFile) {
-        const sanitizedName = name.replace(/[^a-zA-Z0-9]/g, '_')
-        const sanitizedState = stateStored.replace(/[^a-zA-Z0-9]/g, '_')
-        const pdfPath = `${sanitizedState}/${sanitizedName}.pdf`
-        
+        const built = buildCanonicalProposalPdf(stateStored, name.trim())
+        if (!built) {
+          setBillError('Invalid state/name for PDF path.')
+          return
+        }
         const { error: uploadError } = await supabase.storage
           .from('proposals')
-          .upload(pdfPath, editBillPdfFile, {
+          .upload(built.storagePath, editBillPdfFile, {
             cacheControl: '3600',
             upsert: true
           })
@@ -309,6 +281,7 @@ function BillsPage() {
           setBillError('Failed to upload PDF. ' + uploadError.message)
           return
         }
+        proposalPdfUrl = built.publicUrl
       }
 
       // 2. Update bill in database
@@ -334,7 +307,8 @@ function BillsPage() {
           legiscan_link: legiscanLink.trim() || null,
           google_doc_link: googleDocLink.trim() || null,
           hidden: !!hidden,
-          bill_collaborators: collaborators.length > 0 ? collaborators : null
+          bill_collaborators: collaborators.length > 0 ? collaborators : null,
+          ...(proposalPdfUrl ? { proposal_pdf_url: proposalPdfUrl } : {}),
         })
         .eq('bill_id', selectedBill.bill_id)
         .select()

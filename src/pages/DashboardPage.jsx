@@ -1540,8 +1540,8 @@ function DashboardPage() {
     }
   }
 
-  // Update HR report status
-  const handleUpdateHrReportStatus = async (reportId, newStatus) => {
+  // Update HR report status (and optional resolution / incident notes via review_notes)
+  const handleUpdateHrReportStatus = async (reportId, newStatus, reviewNotes) => {
     if (!member) {
       console.error('No member data available')
       return
@@ -1550,13 +1550,18 @@ function DashboardPage() {
     console.log('Updating HR report status:', { reportId, newStatus, memberId: member.member_id })
 
     try {
+      const payload = {
+        status: newStatus,
+        reviewed_by: member.member_id,
+        reviewed_at: new Date().toISOString(),
+      }
+      if (reviewNotes !== undefined) {
+        payload.review_notes = String(reviewNotes || '').trim() || null
+      }
+
       const { data: updateResult, error } = await supabase
         .from('hr_reports')
-        .update({
-          status: newStatus,
-          reviewed_by: member.member_id,
-          reviewed_at: new Date().toISOString()
-        })
+        .update(payload)
         .eq('report_id', reportId)
         .select()
 

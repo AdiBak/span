@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 
 export default function HrReportViewModal({
   open,
@@ -16,7 +16,35 @@ export default function HrReportViewModal({
   canDelete,
   onDelete,
 }) {
+  const [resolutionNotes, setResolutionNotes] = useState('')
+  const [savingNotes, setSavingNotes] = useState(false)
+
+  useEffect(() => {
+    if (!open || !report) return
+    setResolutionNotes(report.review_notes || '')
+  }, [open, report?.report_id, report?.review_notes])
+
   if (!open || !report) return null
+
+  const applyStatus = async (status) => {
+    if (!report.report_id || typeof onUpdateStatus !== 'function') return
+    setSavingNotes(true)
+    try {
+      await onUpdateStatus(report.report_id, status, resolutionNotes)
+    } finally {
+      setSavingNotes(false)
+    }
+  }
+
+  const saveNotesOnly = async () => {
+    if (!report.report_id || typeof onUpdateStatus !== 'function') return
+    setSavingNotes(true)
+    try {
+      await onUpdateStatus(report.report_id, report.status, resolutionNotes)
+    } finally {
+      setSavingNotes(false)
+    }
+  }
 
   return (
     <>
@@ -77,10 +105,11 @@ export default function HrReportViewModal({
                       <button
                         type="button"
                         className={`btn btn-sm ${report.status === 'pending' ? 'btn-warning' : 'btn-outline-warning'}`}
+                        disabled={savingNotes}
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
-                          if (report.report_id) onUpdateStatus(report.report_id, 'pending')
+                          applyStatus('pending')
                         }}
                       >
                         Pending
@@ -88,10 +117,11 @@ export default function HrReportViewModal({
                       <button
                         type="button"
                         className={`btn btn-sm ${report.status === 'reviewed' ? 'btn-info' : 'btn-outline-info'}`}
+                        disabled={savingNotes}
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
-                          if (report.report_id) onUpdateStatus(report.report_id, 'reviewed')
+                          applyStatus('reviewed')
                         }}
                       >
                         Reviewed
@@ -99,10 +129,11 @@ export default function HrReportViewModal({
                       <button
                         type="button"
                         className={`btn btn-sm ${report.status === 'resolved' ? 'btn-success' : 'btn-outline-success'}`}
+                        disabled={savingNotes}
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
-                          if (report.report_id) onUpdateStatus(report.report_id, 'resolved')
+                          applyStatus('resolved')
                         }}
                       >
                         Resolved
@@ -112,10 +143,11 @@ export default function HrReportViewModal({
                         className={`btn btn-sm ${
                           report.status === 'dismissed' ? 'btn-secondary' : 'btn-outline-secondary'
                         }`}
+                        disabled={savingNotes}
                         onClick={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
-                          if (report.report_id) onUpdateStatus(report.report_id, 'dismissed')
+                          applyStatus('dismissed')
                         }}
                       >
                         Dismissed
@@ -143,16 +175,57 @@ export default function HrReportViewModal({
                   <strong>Details:</strong>
                   <p style={{ whiteSpace: 'pre-wrap' }}>{report.details || 'No additional details provided.'}</p>
                 </div>
-                {report.review_notes && (
+
+                {showExecStatusControls ? (
                   <div className="col-12">
-                    <strong>Review Notes:</strong>
+                    <div className="border rounded p-3 bg-light">
+                      <label className="form-label fw-semibold mb-1" htmlFor="hr-resolution-notes">
+                        Resolution / incident notes
+                      </label>
+                      <p className="small text-muted mb-2">
+                        Meeting details, outcome, and follow-ups for this report. Prefer this over the strike log
+                        unless you are recording an actual strike.
+                      </p>
+                      <textarea
+                        id="hr-resolution-notes"
+                        className="form-control"
+                        rows={4}
+                        value={resolutionNotes}
+                        onChange={(e) => setResolutionNotes(e.target.value)}
+                        placeholder="e.g. Met with member on 8/20 — discussed conduct, agreed next steps…"
+                        disabled={savingNotes}
+                      />
+                      <div className="d-flex flex-wrap gap-2 mt-2 align-items-center">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-dark"
+                          disabled={savingNotes}
+                          onClick={saveNotesOnly}
+                        >
+                          {savingNotes ? 'Saving…' : 'Save notes'}
+                        </button>
+                        <span className="small text-muted">
+                          Notes also save when you change status (including Resolved).
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : report.review_notes ? (
+                  <div className="col-12">
+                    <strong>Resolution notes:</strong>
                     <p style={{ whiteSpace: 'pre-wrap' }}>{report.review_notes}</p>
                   </div>
-                )}
+                ) : null}
+
                 {report.reviewed_by && report.reviewed_at && (
                   <div className="col-md-6">
-                    <strong>Reviewed:</strong>
-                    <p>{formatDateLong(report.reviewed_at)}</p>
+                    <strong>Last reviewed:</strong>
+                    <p className="mb-0">{formatDateLong(report.reviewed_at)}</p>
+                    {report.reviewed_by_member ? (
+                      <p className="small text-muted mb-0">
+                        {report.reviewed_by_member.first_name} {report.reviewed_by_member.last_name}
+                      </p>
+                    ) : null}
                   </div>
                 )}
               </div>

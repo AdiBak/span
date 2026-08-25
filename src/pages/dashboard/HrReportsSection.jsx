@@ -76,9 +76,11 @@ export default function HrReportsSection({
         <>
           <div className="alert alert-info mb-3">
             <i className="bi bi-info-circle me-2"></i>
-            New reports appear here for review, and leadership is emailed when a report is filed. For a SPAN member, use{' '}
-            <strong>Email member</strong> to send Joel&apos;s policy notice (Executive Directors are CC&apos;d) after
-            a strike is on record. You cannot see reports that name you as the subject.
+            New reports appear here for review, and leadership is emailed when a report is filed. Open{' '}
+            <strong>View</strong> to add resolution / incident notes (meetings, outcomes) when you mark a report
+            resolved — keep the strike log for actual strikes. For a SPAN member, use <strong>Email member</strong>{' '}
+            to send Joel&apos;s policy notice (Executive Directors are CC&apos;d) after a strike is on record. You
+            cannot see reports that name you as the subject.
           </div>
           {filteredHrReports.length > 0 ? (
             <div className="table-responsive" style={{ maxHeight: '500px', overflowY: 'auto' }}>

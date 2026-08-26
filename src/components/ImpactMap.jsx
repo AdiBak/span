@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { fetchPublicBills } from '../lib/publicData'
 import './ImpactMap.css'
 
 const STATE_NAME_TO_CODE = {
@@ -169,11 +169,7 @@ function ImpactMap() {
   async function fetchBillsAndDraw() {
     try {
       setLoading(true)
-      const { data: bills, error: fetchError } = await supabase
-        .from('bills')
-        .select('state')
-
-      if (fetchError) throw fetchError
+      const bills = await fetchPublicBills()
 
       // Count bills by state
       const counts = {}

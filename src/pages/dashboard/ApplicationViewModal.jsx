@@ -1,12 +1,11 @@
-import React from 'react'
+import React, { useState } from 'react'
 import {
   applicationStatusBadgeClass,
   applicationStatusLabel,
   isAllowedApplicationStatusTransition,
   isApplicationPipelineStatus,
 } from './applications'
-
-import { APPLICATIONS_RESUMES_BASE_URL } from './constants'
+import { supabase } from '../../lib/supabase'
 import AiCheckResultPanel from '../../components/AiCheckResultPanel'
 
 export default function ApplicationViewModal({
@@ -30,6 +29,28 @@ export default function ApplicationViewModal({
   aiCheckLoading,
   onCheckAi,
 }) {
+  const [resumeOpening, setResumeOpening] = useState(false)
+  const [resumeError, setResumeError] = useState('')
+
+  async function openResume() {
+    if (!application?.resume_file) return
+    setResumeOpening(true)
+    setResumeError('')
+    try {
+      const { data, error } = await supabase.storage
+        .from('applications-resumes')
+        .createSignedUrl(application.resume_file, 3600)
+      if (error) throw error
+      if (!data?.signedUrl) throw new Error('No signed URL returned')
+      window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      console.error('Resume signed URL error:', err)
+      setResumeError('Could not open resume. Try again or check storage permissions.')
+    } finally {
+      setResumeOpening(false)
+    }
+  }
+
   if (!open || !application) return null
 
   return (
@@ -129,17 +150,27 @@ export default function ApplicationViewModal({
                 {application.resume_file && (
                   <div className="col-12">
                     <strong>Resume:</strong>
-                    <p>
-                      <a
-                        href={`${APPLICATIONS_RESUMES_BASE_URL}/${application.resume_file}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <p className="mb-1">
+                      <button
+                        type="button"
                         className="btn btn-sm btn-outline-primary"
+                        onClick={openResume}
+                        disabled={resumeOpening}
                       >
-                        <i className="bi bi-file-earmark-pdf me-1"></i>
-                        View Resume
-                      </a>
+                        {resumeOpening ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                            Opening…
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-file-earmark-pdf me-1"></i>
+                            View Resume
+                          </>
+                        )}
+                      </button>
                     </p>
+                    {resumeError && <p className="text-danger small mb-0">{resumeError}</p>}
                   </div>
                 )}
                 <div className="col-12">

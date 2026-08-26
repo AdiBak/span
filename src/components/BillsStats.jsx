@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { fetchPublicBills } from '../lib/publicData'
 
 const FEDERAL_ALIASES = [
   'federal',
@@ -34,10 +34,10 @@ function BillsStats() {
 
   async function updateStats() {
     try {
-      const { data: bills, error } = await supabase.from('bills').select('state')
+      const bills = await fetchPublicBills()
 
-      if (error) {
-        console.error('Failed to load bills stats:', error)
+      if (!bills) {
+        console.error('Failed to load bills stats: empty result')
         return
       }
 

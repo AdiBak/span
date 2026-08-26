@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { fetchPublicBills, fetchPublicDirectoryMembers } from '../lib/publicData'
 import { enrichBillWithStoredPdf } from '../lib/proposalPdf'
 import BillCard from './BillCard'
 import CollaboratorModal from './CollaboratorModal'
@@ -17,14 +17,7 @@ function BillsPreview() {
 
   async function fetchData() {
     try {
-      // Fetch only approved/modified bills that are not hidden (public Bills page)
-      const { data: billsData, error: billsError } = await supabase
-        .from('bills')
-        .select('*')
-        .or('status.eq.approved,status.eq.modified,status.is.null')
-        .eq('hidden', false)
-
-      if (billsError) throw billsError
+      const billsData = await fetchPublicBills()
 
       // Sort by date (newest first) and take first 3
       const processedBills = (billsData || [])
@@ -40,9 +33,7 @@ function BillsPreview() {
 
       setBills(billsWithPDF)
 
-      const { data: membersData, error: membersError } = await supabase.from('members').select('*')
-
-      if (membersError) throw membersError
+      const membersData = await fetchPublicDirectoryMembers({ requireRegistration: false })
       setMembers(membersData || [])
 
       setLoading(false)

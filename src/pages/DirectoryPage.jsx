@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchPublicDirectoryMembers } from '../lib/publicData'
 import { memberLegalName, memberSiteDisplayName } from '../lib/memberDisplayName'
 import Pagination from '../components/Pagination'
 import DirectoryEmailGateModal from '../components/DirectoryEmailGateModal'
@@ -143,11 +144,7 @@ function DirectoryPage() {
     try {
       setLoading(true)
       const [membersResult, advisorsResult, teamLeadsResult] = await Promise.all([
-        supabase
-          .from('members')
-          .select('*')
-          .eq('active', true)
-          .eq('registration_complete', true),
+        fetchPublicDirectoryMembers({ requireRegistration: true }),
         supabase
           .from('advisors')
           .select('advisor_id, full_name, title, company, photo, linkedin_url, display_order')
@@ -157,7 +154,6 @@ function DirectoryPage() {
         supabase.rpc('get_public_directory_team_leads'),
       ])
 
-      if (membersResult.error) throw membersResult.error
       if (advisorsResult.error) {
         console.warn('Board of Mentors load skipped:', advisorsResult.error.message)
         setAdvisors([])
@@ -171,7 +167,7 @@ function DirectoryPage() {
         setTeamLeadRows(teamLeadsResult.data || [])
       }
 
-      const processedMembers = (membersResult.data || []).map((m) => {
+      const processedMembers = (membersResult || []).map((m) => {
         const firstName = (m.first_name || '').trim()
         const lastName = (m.last_name || '').trim()
         const displayName = memberSiteDisplayName(m) || m.email || ''

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
+import { fetchPublicBills, fetchPublicDirectoryMembers } from '../lib/publicData'
 import { canonicalUSStateName } from '../lib/usStateCanonical'
 import { buildCanonicalProposalPdf, enrichBillWithStoredPdf } from '../lib/proposalPdf'
 import BillCard from '../components/BillCard'
@@ -118,14 +119,7 @@ function BillsPage() {
 
   async function fetchData() {
     try {
-      // Fetch only approved bills (or bills without status for backwards compatibility), excluding hidden
-      const { data: billsData, error: billsError } = await supabase
-        .from('bills')
-        .select('*')
-        .or('status.eq.approved,status.eq.modified,status.is.null')
-        .eq('hidden', false)
-
-      if (billsError) throw billsError
+      const billsData = await fetchPublicBills()
 
       // Sort by date (newest first) and add bill_date as Date object
       const processedBills = (billsData || [])
@@ -140,12 +134,7 @@ function BillsPage() {
 
       setBills(billsWithPDF)
 
-      // Fetch members
-      const { data: membersData, error: membersError } = await supabase
-        .from('members')
-        .select('*')
-
-      if (membersError) throw membersError
+      const membersData = await fetchPublicDirectoryMembers({ requireRegistration: false })
       setMembers(membersData || [])
 
       setLoading(false)

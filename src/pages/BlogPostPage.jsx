@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { fetchPublicDirectoryMembers } from '../lib/publicData'
 import { memberNameLookupKeys, memberSiteDisplayName } from '../lib/memberDisplayName'
 import { fetchMediumBlogItems, findMediumBlogItem } from '../lib/mediumBlog'
 import {
@@ -160,11 +160,13 @@ function BlogPostPage({ postId }) {
         setLoading(true)
         
         // Fetch members for author resolution
-        const { data: membersData } = await supabase
-          .from('members')
-          .select('first_name,middle_name,last_name,preferred_name,image')
-          .eq('active', true)
-        setMembers(membersData || [])
+        let membersData = []
+        try {
+          membersData = await fetchPublicDirectoryMembers({ requireRegistration: false })
+        } catch (memberErr) {
+          console.warn('Failed to fetch members for blog author:', memberErr)
+        }
+        setMembers(membersData)
 
         // Fetch Medium posts (live RSS + archived older stories)
         const feed = await fetchMediumBlogItems()

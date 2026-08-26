@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
+import { fetchPublicDirectoryMembers } from '../lib/publicData'
 import { memberSiteDisplayName } from '../lib/memberDisplayName'
 
 const IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
@@ -15,14 +15,11 @@ function TeamSection() {
 
   async function fetchMembers() {
     try {
-      const { data, error } = await supabase
-        .from('members')
-        .select('*')
-        .eq('role', 'Executive Director')
-        .limit(4)
-
-      if (error) throw error
-      setMembers(data || [])
+      const data = await fetchPublicDirectoryMembers({
+        requireRegistration: true,
+        role: 'Executive Director',
+      })
+      setMembers((data || []).slice(0, 4))
       setLoading(false)
     } catch (error) {
       console.error('Error fetching Executive Directors:', error)

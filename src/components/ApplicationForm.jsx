@@ -139,9 +139,13 @@ function ApplicationForm() {
       // Use anonymous client to ensure no authenticated session is used
       const stateValue = isUnitedStates ? formData.state.trim() : (formData.state.trim() || null)
 
-      const { data, error } = await anonymousSupabase
+      // Client-generated id so we need no anon SELECT on applications (scraping hardening).
+      const applicationId = crypto.randomUUID()
+
+      const { error } = await anonymousSupabase
         .from('applications')
         .insert([{
+          application_id: applicationId,
           email: formData.email.trim().toLowerCase(),
           phone_number: formData.phoneNumber.trim(),
           full_name: formData.fullName.trim(),
@@ -160,8 +164,6 @@ function ApplicationForm() {
           resume_file: resumeFileName,
           status: 'pending'
         }])
-        .select()
-        .single()
 
       if (error) {
         console.error('Application submission error:', error)
@@ -171,16 +173,14 @@ function ApplicationForm() {
       }
 
       // Notify leadership via Resend (non-blocking; application already saved)
-      if (data?.application_id) {
-        anonymousSupabase.functions
-          .invoke('notify-new-application', {
-            body: { application_id: data.application_id },
-          })
-          .then(({ error: notifyError }) => {
-            if (notifyError) console.warn('New application notify failed:', notifyError)
-          })
-          .catch((notifyErr) => console.warn('New application notify error:', notifyErr))
-      }
+      anonymousSupabase.functions
+        .invoke('notify-new-application', {
+          body: { application_id: applicationId },
+        })
+        .then(({ error: notifyError }) => {
+          if (notifyError) console.warn('New application notify failed:', notifyError)
+        })
+        .catch((notifyErr) => console.warn('New application notify error:', notifyErr))
 
       // Success!
       setSubmitSuccess(true)

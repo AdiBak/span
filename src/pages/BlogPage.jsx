@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import Pagination from '../components/Pagination'
 import BlogCard from '../components/BlogCard'
-import { supabase } from '../lib/supabase'
+import { fetchPublicDirectoryMembers } from '../lib/publicData'
 import { memberNameLookupKeys, memberSiteDisplayName } from '../lib/memberDisplayName'
 import { fetchMediumBlogItems } from '../lib/mediumBlog'
 import { setPageSeo } from '../lib/documentSeo'
@@ -234,16 +234,7 @@ function BlogPage() {
 
         let membersData = []
         try {
-          const { data: memberData, error: memberError } = await supabase
-            .from('members')
-            .select('first_name,middle_name,last_name,preferred_name,image')
-            .eq('active', true)
-
-          if (memberError) {
-            console.warn('Failed to fetch members for blog authors:', memberError)
-          } else {
-            membersData = memberData || []
-          }
+          membersData = await fetchPublicDirectoryMembers({ requireRegistration: false })
         } catch (memberFetchError) {
           console.warn('Failed to fetch members for blog authors:', memberFetchError)
         }

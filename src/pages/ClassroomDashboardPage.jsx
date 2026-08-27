@@ -2,18 +2,71 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import {
   CLASSROOM_FEATURE_LABELS,
+  CLASSROOM_FILE_TYPE_OPTIONS,
+  acceptAttrForExtensions,
   createClass,
+  deleteAssignmentMaterial,
   fetchAssignmentSubmissions,
   fetchClassAssignments,
   fetchClassRoster,
   fetchStudentEnrollments,
   fetchTeacherClasses,
   getClassroomSessionRole,
+  getSubmissionFileUrl,
+  gradeSubmission,
   insertAssignment,
+  removeSubmissionFile,
+  updateAssignment,
   updateClassFeatures,
+  uploadAssignmentMaterial,
+  uploadSubmissionFile,
   upsertSubmission,
+  validateSubmissionFile,
 } from '../lib/classroom'
 import './ClassroomDashboardPage.css'
+
+const EMPTY_ASSIGNMENT_FORM = {
+  title: '',
+  instructions: '',
+  dueAt: '',
+  allowFileUpload: true,
+  requireFile: false,
+  allowedExtensions: CLASSROOM_FILE_TYPE_OPTIONS.map((o) => o.ext),
+  materialFiles: [],
+}
+
+function assignmentToForm(a) {
+  return {
+    title: a.title || '',
+    instructions: a.instructions || '',
+    dueAt: a.due_at || '',
+    allowFileUpload: a.allow_file_upload !== false,
+    requireFile: !!a.require_file,
+    allowedExtensions: a.allowed_extensions?.length
+      ? [...a.allowed_extensions]
+      : CLASSROOM_FILE_TYPE_OPTIONS.map((o) => o.ext),
+    materialFiles: [],
+  }
+}
+
+function buildAssignmentPatch(form) {
+  const allExts = CLASSROOM_FILE_TYPE_OPTIONS.map((o) => o.ext)
+  const selected = form.allowedExtensions
+  const allowed =
+    form.allowFileUpload && selected.length
+      ? selected.length === allExts.length && allExts.every((e) => selected.includes(e))
+        ? null
+        : selected
+      : null
+  return {
+    title: form.title.trim(),
+    instructions: form.instructions.trim() || null,
+    due_at: form.dueAt || null,
+    allow_file_upload: form.allowFileUpload,
+    require_file: form.allowFileUpload && form.requireFile,
+    allowed_extensions: form.allowFileUpload ? allowed : null,
+  }
+}
 
 function FeatureToggles({ features, onChange }) {
   return (
@@ -33,19 +86,62 @@ function FeatureToggles({ features, onChange }) {
   )
 }
 
+function SubmissionFileLink({ filePath, fileName }) {
+  const [url, setUrl] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  if (!filePath) return null
+
+  async function openFile() {
+    setBusy(true)
+    setErr('')
+    try {
+      const signed = await getSubmissionFileUrl(filePath)
+      if (!signed) throw new Error('Could not open file')
+      setUrl(signed)
+      window.open(signed, '_blank', 'noopener,noreferrer')
+    } catch (e) {
+      setErr(e.message || 'Download failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-1">
+      <button type="button" className="btn btn-link btn-sm p-0 align-baseline" onClick={openFile} disabled={busy}>
+        <i className="bi bi-paperclip me-1" />
+        {busy ? 'Opening…' : (fileName || 'Attached file')}
+      </button>
+      {err && <div className="text-danger small">{err}</div>}
+      {url && (
+        <a className="visually-hidden" href={url}>
+          file
+        </a>
+      )}
+    </div>
+  )
+}
+
 function TeacherDashboard({ profile }) {
   const [classes, setClasses] = useState([])
   const [selectedClassId, setSelectedClassId] = useState('')
   const [roster, setRoster] = useState([])
   const [assignments, setAssignments] = useState([])
   const [submissions, setSubmissions] = useState([])
+  const [gradeDrafts, setGradeDrafts] = useState({})
+  const [savingGradeId, setSavingGradeId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
   const [newClassName, setNewClassName] = useState('')
   const [newClassTerm, setNewClassTerm] = useState('Fall 2026')
   const [showNewClass, setShowNewClass] = useState(false)
   const [showNewAssignment, setShowNewAssignment] = useState(false)
-  const [newAssignment, setNewAssignment] = useState({ title: '', instructions: '', dueAt: '' })
+  const [editingAssignmentId, setEditingAssignmentId] = useState(null)
+  const [newAssignment, setNewAssignment] = useState(EMPTY_ASSIGNMENT_FORM)
+  const [creatingAssignment, setCreatingAssignment] = useState(false)
 
   const selectedClass = classes.find((c) => c.class_id === selectedClassId) || classes[0]
 
@@ -67,6 +163,14 @@ function TeacherDashboard({ profile }) {
     setAssignments(assignmentRows)
     const subs = await fetchAssignmentSubmissions(assignmentRows.map((a) => a.assignment_id))
     setSubmissions(subs)
+    setGradeDrafts(
+      Object.fromEntries(
+        subs.map((sub) => [
+          sub.submission_id,
+          { grade: sub.grade || '', feedback: sub.feedback || '' },
+        ]),
+      ),
+    )
   }, [])
 
   useEffect(() => {
@@ -88,6 +192,24 @@ function TeacherDashboard({ profile }) {
     }
   }, [selectedClass?.class_id, loadClassDetail])
 
+  async function handleSaveGrade(sub) {
+    setSavingGradeId(sub.submission_id)
+    setError('')
+    setMessage('')
+    try {
+      const draft = gradeDrafts[sub.submission_id] || { grade: '', feedback: '' }
+      const updated = await gradeSubmission(sub.submission_id, draft.grade, draft.feedback)
+      setSubmissions((prev) =>
+        prev.map((s) => (s.submission_id === sub.submission_id ? { ...s, ...updated } : s)),
+      )
+      setMessage(`Saved feedback for ${sub.classroom_students?.first_name || 'student'}.`)
+    } catch (err) {
+      setError(err.message || 'Could not save grade.')
+    } finally {
+      setSavingGradeId(null)
+    }
+  }
+
   async function handleCreateClass(e) {
     e.preventDefault()
     try {
@@ -104,19 +226,100 @@ function TeacherDashboard({ profile }) {
   async function handleCreateAssignment(e) {
     e.preventDefault()
     if (!selectedClass) return
+    setCreatingAssignment(true)
+    setError('')
     try {
-      await insertAssignment({
-        class_id: selectedClass.class_id,
-        title: newAssignment.title.trim(),
-        instructions: newAssignment.instructions.trim() || null,
-        due_at: newAssignment.dueAt || null,
-      })
+      const patch = buildAssignmentPatch(newAssignment)
+      if (editingAssignmentId) {
+        await updateAssignment(editingAssignmentId, patch)
+        for (const file of newAssignment.materialFiles || []) {
+          await uploadAssignmentMaterial({
+            classId: selectedClass.class_id,
+            assignmentId: editingAssignmentId,
+            file,
+          })
+        }
+        setMessage('Assignment updated.')
+      } else {
+        const row = await insertAssignment({
+          class_id: selectedClass.class_id,
+          ...patch,
+        })
+        for (const file of newAssignment.materialFiles || []) {
+          await uploadAssignmentMaterial({
+            classId: selectedClass.class_id,
+            assignmentId: row.assignment_id,
+            file,
+          })
+        }
+        setMessage('Assignment created.')
+      }
+
       setShowNewAssignment(false)
-      setNewAssignment({ title: '', instructions: '', dueAt: '' })
+      setEditingAssignmentId(null)
+      setNewAssignment(EMPTY_ASSIGNMENT_FORM)
       await loadClassDetail(selectedClass.class_id)
     } catch (err) {
-      setError(err.message || 'Could not create assignment.')
+      setError(err.message || 'Could not save assignment.')
+    } finally {
+      setCreatingAssignment(false)
     }
+  }
+
+  function openCreateAssignment() {
+    setEditingAssignmentId(null)
+    setNewAssignment(EMPTY_ASSIGNMENT_FORM)
+    setShowNewAssignment(true)
+  }
+
+  function openEditAssignment(a) {
+    setEditingAssignmentId(a.assignment_id)
+    setNewAssignment(assignmentToForm(a))
+    setShowNewAssignment(true)
+  }
+
+  function closeAssignmentModal() {
+    setShowNewAssignment(false)
+    setEditingAssignmentId(null)
+    setNewAssignment(EMPTY_ASSIGNMENT_FORM)
+  }
+
+  async function handleAddMaterials(assignmentId, fileList) {
+    if (!selectedClass || !fileList?.length) return
+    setError('')
+    try {
+      for (const file of Array.from(fileList)) {
+        await uploadAssignmentMaterial({
+          classId: selectedClass.class_id,
+          assignmentId,
+          file,
+        })
+      }
+      await loadClassDetail(selectedClass.class_id)
+      setMessage('Materials uploaded.')
+    } catch (err) {
+      setError(err.message || 'Could not upload materials.')
+    }
+  }
+
+  async function handleDeleteMaterial(material) {
+    setError('')
+    try {
+      await deleteAssignmentMaterial(material)
+      await loadClassDetail(selectedClass.class_id)
+    } catch (err) {
+      setError(err.message || 'Could not remove material.')
+    }
+  }
+
+  function toggleAllowedExt(ext) {
+    setNewAssignment((prev) => {
+      const has = prev.allowedExtensions.includes(ext)
+      const next = has
+        ? prev.allowedExtensions.filter((e) => e !== ext)
+        : [...prev.allowedExtensions, ext]
+      return { ...prev, allowedExtensions: next }
+    })
   }
 
   async function handleFeatureChange(features) {
@@ -140,6 +343,7 @@ function TeacherDashboard({ profile }) {
   return (
     <>
       {error && <div className="alert alert-danger">{error}</div>}
+      {message && <div className="alert alert-success py-2">{message}</div>}
       <p className="text-muted">
         Signed in as <strong>{profile.first_name} {profile.last_name}</strong> ({profile.email})
       </p>
@@ -246,7 +450,7 @@ function TeacherDashboard({ profile }) {
               <div className="card shadow-sm">
                 <div className="card-header bg-white d-flex justify-content-between align-items-center">
                   <h5 className="mb-0">Assignments</h5>
-                  <button type="button" className="btn btn-sm btn-dark" onClick={() => setShowNewAssignment(true)}>
+                  <button type="button" className="btn btn-sm btn-dark" onClick={openCreateAssignment}>
                     New assignment
                   </button>
                 </div>
@@ -256,22 +460,149 @@ function TeacherDashboard({ profile }) {
                   ) : (
                     assignments.map((a) => {
                       const subs = submissions.filter((s) => s.assignment_id === a.assignment_id)
+                      const gradedCount = subs.filter((s) => s.grade || s.feedback).length
                       return (
                         <div key={a.assignment_id} className="border rounded p-3 mb-3">
-                          <div className="d-flex justify-content-between">
+                          <div className="d-flex justify-content-between flex-wrap gap-2">
                             <strong>{a.title}</strong>
-                            {a.due_at && <span className="badge bg-light text-dark border">Due {a.due_at}</span>}
+                            <div className="d-flex flex-wrap gap-2 align-items-center">
+                              {a.due_at && <span className="badge bg-light text-dark border">Due {a.due_at}</span>}
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-secondary"
+                                onClick={() => openEditAssignment(a)}
+                              >
+                                Edit
+                              </button>
+                            </div>
                           </div>
                           <p className="small text-muted mb-2 classroom-submission-body">{a.instructions}</p>
-                          <div className="small mb-2">{subs.length} submission(s)</div>
-                          {subs.map((sub) => (
-                            <div key={sub.submission_id} className="bg-light rounded p-2 small mb-1">
-                              <strong>
-                                {sub.classroom_students?.first_name} {sub.classroom_students?.last_name}
-                              </strong>
-                              <div className="classroom-submission-body">{sub.body}</div>
-                            </div>
-                          ))}
+                          <div className="small text-muted mb-2">
+                            {a.allow_file_upload === false
+                              ? 'Text only'
+                              : a.require_file
+                                ? 'File required'
+                                : a.allowed_extensions?.length
+                                  ? `Accepts: ${a.allowed_extensions.map((e) => `.${e}`).join(', ')}`
+                                  : 'Accepts files (any supported type)'}
+                            {a.require_file && a.allowed_extensions?.length
+                              ? ` · ${a.allowed_extensions.map((e) => `.${e}`).join(', ')}`
+                              : a.require_file
+                                ? ' · any supported type'
+                                : ''}
+                          </div>
+                          <div className="mb-2">
+                            <div className="small fw-semibold mb-1">Teacher materials</div>
+                            {(a.classroom_assignment_materials || []).length === 0 ? (
+                              <div className="small text-muted mb-1">No materials yet.</div>
+                            ) : (
+                              (a.classroom_assignment_materials || []).map((m) => (
+                                <div key={m.material_id} className="d-flex align-items-center gap-2 small mb-1">
+                                  <SubmissionFileLink filePath={m.file_path} fileName={m.file_name} />
+                                  <button
+                                    type="button"
+                                    className="btn btn-link btn-sm text-danger p-0"
+                                    onClick={() => handleDeleteMaterial(m)}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              ))
+                            )}
+                            <label className="btn btn-sm btn-outline-secondary mt-1 mb-0">
+                              Add materials
+                              <input
+                                type="file"
+                                className="d-none"
+                                multiple
+                                onChange={(e) => {
+                                  handleAddMaterials(a.assignment_id, e.target.files)
+                                  e.target.value = ''
+                                }}
+                              />
+                            </label>
+                          </div>
+                          <div className="small mb-2">
+                            {subs.length} submission(s)
+                            {subs.length > 0 && (
+                              <span className="text-muted"> · {gradedCount} graded</span>
+                            )}
+                          </div>
+                          {subs.map((sub) => {
+                            const draft = gradeDrafts[sub.submission_id] || {
+                              grade: sub.grade || '',
+                              feedback: sub.feedback || '',
+                            }
+                            return (
+                              <div key={sub.submission_id} className="bg-light rounded p-3 small mb-2">
+                                <div className="d-flex flex-wrap justify-content-between gap-2 mb-1">
+                                  <strong>
+                                    {sub.classroom_students?.first_name} {sub.classroom_students?.last_name}
+                                  </strong>
+                                  <span className="text-muted">
+                                    {sub.submitted_at
+                                      ? new Date(sub.submitted_at).toLocaleString()
+                                      : ''}
+                                  </span>
+                                </div>
+                                {sub.body && (
+                                  <div className="classroom-submission-body mb-1">
+                                    <span className="text-muted">
+                                      {a.require_file ? 'Comments: ' : ''}
+                                    </span>
+                                    {sub.body}
+                                  </div>
+                                )}
+                                <SubmissionFileLink filePath={sub.file_path} fileName={sub.file_name} />
+                                <div className="row g-2 mt-2">
+                                  <div className="col-md-3">
+                                    <label className="form-label mb-1">Grade</label>
+                                    <input
+                                      className="form-control form-control-sm"
+                                      placeholder="e.g. A / 92 / Complete"
+                                      value={draft.grade}
+                                      onChange={(e) =>
+                                        setGradeDrafts((prev) => ({
+                                          ...prev,
+                                          [sub.submission_id]: { ...draft, grade: e.target.value },
+                                        }))
+                                      }
+                                    />
+                                  </div>
+                                  <div className="col-md-9">
+                                    <label className="form-label mb-1">Feedback</label>
+                                    <textarea
+                                      className="form-control form-control-sm"
+                                      rows={2}
+                                      placeholder="Comments for the student…"
+                                      value={draft.feedback}
+                                      onChange={(e) =>
+                                        setGradeDrafts((prev) => ({
+                                          ...prev,
+                                          [sub.submission_id]: { ...draft, feedback: e.target.value },
+                                        }))
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                                <div className="d-flex flex-wrap align-items-center gap-2 mt-2">
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-dark"
+                                    disabled={savingGradeId === sub.submission_id}
+                                    onClick={() => handleSaveGrade(sub)}
+                                  >
+                                    {savingGradeId === sub.submission_id ? 'Saving…' : 'Save grade'}
+                                  </button>
+                                  {sub.graded_at && (
+                                    <span className="text-muted">
+                                      Last graded {new Date(sub.graded_at).toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       )
                     })
@@ -327,11 +658,11 @@ function TeacherDashboard({ profile }) {
 
       {showNewAssignment && (
         <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog">
+          <div className="modal-dialog modal-dialog-scrollable">
             <form className="modal-content" onSubmit={handleCreateAssignment}>
               <div className="modal-header">
-                <h5 className="modal-title">New assignment</h5>
-                <button type="button" className="btn-close" onClick={() => setShowNewAssignment(false)} />
+                <h5 className="modal-title">{editingAssignmentId ? 'Edit assignment' : 'New assignment'}</h5>
+                <button type="button" className="btn-close" onClick={closeAssignmentModal} />
               </div>
               <div className="modal-body">
                 <div className="mb-2">
@@ -352,7 +683,7 @@ function TeacherDashboard({ profile }) {
                     onChange={(e) => setNewAssignment({ ...newAssignment, instructions: e.target.value })}
                   />
                 </div>
-                <div>
+                <div className="mb-3">
                   <label className="form-label">Due date</label>
                   <input
                     type="date"
@@ -361,13 +692,103 @@ function TeacherDashboard({ profile }) {
                     onChange={(e) => setNewAssignment({ ...newAssignment, dueAt: e.target.value })}
                   />
                 </div>
+
+                <div className="border rounded p-3 mb-3">
+                  <div className="form-check mb-2">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="allow-file-upload"
+                      checked={newAssignment.allowFileUpload}
+                      onChange={(e) =>
+                        setNewAssignment({
+                          ...newAssignment,
+                          allowFileUpload: e.target.checked,
+                          requireFile: e.target.checked ? newAssignment.requireFile : false,
+                        })
+                      }
+                    />
+                    <label className="form-check-label" htmlFor="allow-file-upload">
+                      Allow file submissions
+                    </label>
+                  </div>
+                  {newAssignment.allowFileUpload && (
+                    <>
+                      <div className="form-check mb-2">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="require-file"
+                          checked={newAssignment.requireFile}
+                          onChange={(e) =>
+                            setNewAssignment({ ...newAssignment, requireFile: e.target.checked })
+                          }
+                        />
+                        <label className="form-check-label" htmlFor="require-file">
+                          Require a file (students upload a file; optional comments only)
+                        </label>
+                      </div>
+                      <div className="small fw-semibold mb-1">Accepted file types</div>
+                      <div className="d-flex flex-wrap gap-2 mb-1">
+                        {CLASSROOM_FILE_TYPE_OPTIONS.map((opt) => (
+                          <label key={opt.ext} className="form-check form-check-inline m-0">
+                            <input
+                              className="form-check-input me-1"
+                              type="checkbox"
+                              checked={newAssignment.allowedExtensions.includes(opt.ext)}
+                              onChange={() => toggleAllowedExt(opt.ext)}
+                            />
+                            <span className="small">{opt.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="small text-muted">Leave several checked, or all for any supported type.</div>
+                    </>
+                  )}
+                </div>
+
+                <div className="mb-0">
+                  <label className="form-label">
+                    {editingAssignmentId ? 'Add more context materials (optional)' : 'Context materials (optional)'}
+                  </label>
+                  <input
+                    type="file"
+                    className="form-control"
+                    multiple
+                    onChange={(e) =>
+                      setNewAssignment({
+                        ...newAssignment,
+                        materialFiles: Array.from(e.target.files || []),
+                      })
+                    }
+                  />
+                  <small className="text-muted">
+                    Rubrics, readings, templates — students can download these.
+                    {editingAssignmentId ? ' Existing materials stay unless you remove them on the assignment card.' : ''}
+                  </small>
+                  {newAssignment.materialFiles?.length > 0 && (
+                    <ul className="small mb-0 mt-1">
+                      {newAssignment.materialFiles.map((f) => (
+                        <li key={f.name + f.size}>{f.name}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-outline-secondary" onClick={() => setShowNewAssignment(false)}>
+                <button type="button" className="btn btn-outline-secondary" onClick={closeAssignmentModal}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-dark">
-                  Create
+                <button
+                  type="submit"
+                  className="btn btn-dark"
+                  disabled={creatingAssignment || (newAssignment.allowFileUpload && !newAssignment.allowedExtensions.length)}
+                >
+                  {creatingAssignment
+                    ? 'Saving…'
+                    : editingAssignmentId
+                      ? 'Save changes'
+                      : 'Create'}
                 </button>
               </div>
             </form>
@@ -383,6 +804,9 @@ function StudentDashboard({ profile }) {
   const [assignments, setAssignments] = useState([])
   const [submissions, setSubmissions] = useState([])
   const [drafts, setDrafts] = useState({})
+  const [files, setFiles] = useState({})
+  const [editingSubmissionId, setEditingSubmissionId] = useState(null)
+  const [submittingId, setSubmittingId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedClassId, setSelectedClassId] = useState('')
@@ -419,21 +843,96 @@ function StudentDashboard({ profile }) {
     })()
   }, [load])
 
-  async function handleSubmit(assignmentId) {
+  async function handleSubmit(assignmentId, existing = null) {
+    const assignment = assignments.find((a) => a.assignment_id === assignmentId)
     const body = (drafts[assignmentId] || '').trim()
-    if (!body) return
+    const file = files[assignmentId] || null
+    const allowFileUpload = assignment?.allow_file_upload !== false
+    const requireFile = !!assignment?.require_file
+    const allowedExtensions = assignment?.allowed_extensions || null
+    const keepingExistingFile = !file && !!existing?.file_path
+
+    if (file) {
+      const typeError = validateSubmissionFile(file, { allowFileUpload, allowedExtensions })
+      if (typeError) {
+        setError(typeError)
+        return
+      }
+    }
+    if (!allowFileUpload && file) {
+      setError('This assignment does not accept file uploads.')
+      return
+    }
+
+    if (requireFile && allowFileUpload) {
+      if (!file && !keepingExistingFile) {
+        setError('This assignment requires a file attachment.')
+        return
+      }
+    } else if (!allowFileUpload) {
+      if (!body) {
+        setError('Add a written response before submitting.')
+        return
+      }
+    } else if (!body && !file && !keepingExistingFile) {
+      setError('Add a written response and/or attach a file before submitting.')
+      return
+    }
+
+    setSubmittingId(assignmentId)
+    setError('')
     try {
+      let filePath = existing?.file_path || null
+      let fileName = existing?.file_name || null
+      if (file && allowFileUpload) {
+        const uploaded = await uploadSubmissionFile({
+          classId: selectedClassId || enrollments[0]?.class_id,
+          assignmentId,
+          studentId: profile.student_id,
+          file,
+          allowFileUpload,
+          allowedExtensions,
+        })
+        if (existing?.file_path && existing.file_path !== uploaded.path) {
+          try {
+            await removeSubmissionFile(existing.file_path)
+          } catch {
+            // Non-fatal if old file cleanup fails
+          }
+        }
+        filePath = uploaded.path
+        fileName = uploaded.fileName
+      }
+
       await upsertSubmission({
         assignment_id: assignmentId,
         student_id: profile.student_id,
-        body,
+        body: body || null,
+        file_path: allowFileUpload ? filePath : null,
+        file_name: allowFileUpload ? fileName : null,
         submitted_at: new Date().toISOString(),
       })
       setDrafts((prev) => ({ ...prev, [assignmentId]: '' }))
+      setFiles((prev) => ({ ...prev, [assignmentId]: null }))
+      setEditingSubmissionId(null)
       await load()
     } catch (err) {
       setError(err.message || 'Submit failed.')
+    } finally {
+      setSubmittingId(null)
     }
+  }
+
+  function startEditSubmission(assignment, existing) {
+    setEditingSubmissionId(assignment.assignment_id)
+    setDrafts((prev) => ({ ...prev, [assignment.assignment_id]: existing.body || '' }))
+    setFiles((prev) => ({ ...prev, [assignment.assignment_id]: null }))
+  }
+
+  function cancelEditSubmission(assignmentId) {
+    setEditingSubmissionId(null)
+    setDrafts((prev) => ({ ...prev, [assignmentId]: '' }))
+    setFiles((prev) => ({ ...prev, [assignmentId]: null }))
   }
 
   const activeEnrollment = enrollments.find((e) => e.class_id === selectedClassId) || enrollments[0]
@@ -495,35 +994,169 @@ function StudentDashboard({ profile }) {
             <h5 className="mb-0">Assignments</h5>
           </div>
           <div className="card-body classroom-scroll-tall">
-            {assignments.map((a) => {
-              const existing = submissions.find((s) => s.assignment_id === a.assignment_id)
-              return (
-                <div key={a.assignment_id} className="border rounded p-3 mb-3">
-                  <strong>{a.title}</strong>
-                  {a.due_at && <span className="badge bg-light text-dark border ms-2">Due {a.due_at}</span>}
-                  <p className="small text-muted mt-2 mb-2 classroom-submission-body">{a.instructions}</p>
-                  {existing ? (
-                    <div className="alert alert-success py-2 small mb-0">
-                      Submitted {new Date(existing.submitted_at).toLocaleString()}
-                      <div className="mt-1 classroom-submission-body">{existing.body}</div>
-                    </div>
-                  ) : (
+            {assignments.length === 0 ? (
+              <p className="text-muted mb-0">No assignments yet.</p>
+            ) : (
+              assignments.map((a) => {
+                const existing = submissions.find((s) => s.assignment_id === a.assignment_id)
+                const materials = a.classroom_assignment_materials || []
+                const allowFileUpload = a.allow_file_upload !== false
+                const requireFile = !!a.require_file
+                const isEditing = editingSubmissionId === a.assignment_id
+                const showForm = !existing || isEditing
+
+                function renderSubmitFields() {
+                  return (
                     <>
-                      <textarea
-                        className="form-control form-control-sm mb-2"
-                        rows={3}
-                        placeholder="Your response…"
-                        value={drafts[a.assignment_id] || ''}
-                        onChange={(e) => setDrafts((prev) => ({ ...prev, [a.assignment_id]: e.target.value }))}
-                      />
-                      <button type="button" className="btn btn-sm btn-dark" onClick={() => handleSubmit(a.assignment_id)}>
-                        Submit
-                      </button>
+                      {requireFile && allowFileUpload ? (
+                        <div className="mb-2">
+                          <label className="form-label small mb-1">Comments (optional)</label>
+                          <textarea
+                            className="form-control form-control-sm"
+                            rows={2}
+                            placeholder="Optional note for your teacher…"
+                            value={drafts[a.assignment_id] || ''}
+                            onChange={(e) =>
+                              setDrafts((prev) => ({ ...prev, [a.assignment_id]: e.target.value }))
+                            }
+                          />
+                        </div>
+                      ) : (
+                        <textarea
+                          className="form-control form-control-sm mb-2"
+                          rows={3}
+                          placeholder="Your written response…"
+                          value={drafts[a.assignment_id] || ''}
+                          onChange={(e) =>
+                            setDrafts((prev) => ({ ...prev, [a.assignment_id]: e.target.value }))
+                          }
+                        />
+                      )}
+
+                      {allowFileUpload ? (
+                        <div className="mb-2">
+                          <label className="form-label small mb-1">
+                            {requireFile ? 'Attach a file (required)' : 'Attach a file (optional)'}, max 10 MB
+                          </label>
+                          {isEditing && existing?.file_path && !files[a.assignment_id] && (
+                            <div className="small mb-1">
+                              Current file: <SubmissionFileLink filePath={existing.file_path} fileName={existing.file_name} />
+                              <span className="text-muted"> — choose a new file below to replace it</span>
+                            </div>
+                          )}
+                          <input
+                            type="file"
+                            className="form-control form-control-sm"
+                            accept={acceptAttrForExtensions(a.allowed_extensions)}
+                            onChange={(e) =>
+                              setFiles((prev) => ({
+                                ...prev,
+                                [a.assignment_id]: e.target.files?.[0] || null,
+                              }))
+                            }
+                          />
+                          <div className="small text-muted mt-1">
+                            {a.allowed_extensions?.length
+                              ? `Allowed: ${a.allowed_extensions.map((ext) => `.${ext}`).join(', ')}`
+                              : 'Any supported classroom file type'}
+                          </div>
+                          {files[a.assignment_id] && (
+                            <div className="small text-muted mt-1">{files[a.assignment_id].name}</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="small text-muted mb-2">This assignment is text-only (no file upload).</div>
+                      )}
+
+                      <div className="d-flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-dark"
+                          disabled={submittingId === a.assignment_id}
+                          onClick={() => handleSubmit(a.assignment_id, existing)}
+                        >
+                          {submittingId === a.assignment_id
+                            ? 'Saving…'
+                            : isEditing
+                              ? 'Save changes'
+                              : 'Submit'}
+                        </button>
+                        {isEditing && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary"
+                            onClick={() => cancelEditSubmission(a.assignment_id)}
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
                     </>
-                  )}
-                </div>
-              )
-            })}
+                  )
+                }
+
+                return (
+                  <div key={a.assignment_id} className="border rounded p-3 mb-3">
+                    <strong>{a.title}</strong>
+                    {a.due_at && <span className="badge bg-light text-dark border ms-2">Due {a.due_at}</span>}
+                    <p className="small text-muted mt-2 mb-2 classroom-submission-body">{a.instructions}</p>
+
+                    {materials.length > 0 && (
+                      <div className="mb-2 small">
+                        <div className="fw-semibold mb-1">Materials from your teacher</div>
+                        {materials.map((m) => (
+                          <SubmissionFileLink key={m.material_id} filePath={m.file_path} fileName={m.file_name} />
+                        ))}
+                      </div>
+                    )}
+
+                    {existing && !isEditing ? (
+                      <div className="small">
+                        <div className="alert alert-success py-2 mb-2">
+                          <div className="d-flex flex-wrap justify-content-between gap-2">
+                            <span>Submitted {new Date(existing.submitted_at).toLocaleString()}</span>
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-dark"
+                              onClick={() => startEditSubmission(a, existing)}
+                            >
+                              Edit submission
+                            </button>
+                          </div>
+                          {existing.body && (
+                            <div className="mt-1 classroom-submission-body">
+                              {requireFile ? <span className="text-muted">Comments: </span> : null}
+                              {existing.body}
+                            </div>
+                          )}
+                          <SubmissionFileLink filePath={existing.file_path} fileName={existing.file_name} />
+                        </div>
+                        {(existing.grade || existing.feedback) && (
+                          <div className="border rounded p-2 bg-white">
+                            <div className="fw-semibold mb-1">Teacher feedback</div>
+                            {existing.grade && (
+                              <div>
+                                Grade: <strong>{existing.grade}</strong>
+                              </div>
+                            )}
+                            {existing.feedback && (
+                              <div className="classroom-submission-body mt-1">{existing.feedback}</div>
+                            )}
+                            {existing.graded_at && (
+                              <div className="text-muted mt-1">
+                                Graded {new Date(existing.graded_at).toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      showForm && renderSubmitFields()
+                    )}
+                  </div>
+                )
+              })
+            )}
           </div>
         </div>
       )}

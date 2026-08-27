@@ -10,6 +10,8 @@ const OurStoryPage = lazy(() => import('./pages/OurStoryPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const HomePage = lazy(() => import('./pages/HomePage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
+const ClassroomDashboardPage = lazy(() => import('./pages/ClassroomDashboardPage'))
+const ClassroomJoinPage = lazy(() => import('./pages/ClassroomJoinPage'))
 const BillsPreview = lazy(() => import('./components/BillsPreview'))
 const BillsStats = lazy(() => import('./components/BillsStats'))
 
@@ -87,6 +89,22 @@ function App({ page }) {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <DashboardPage />
+      </Suspense>
+    )
+  }
+
+  if (page === 'classroom-join') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <ClassroomJoinPage />
+      </Suspense>
+    )
+  }
+
+  if (page === 'classroom-dashboard') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <ClassroomDashboardPage />
       </Suspense>
     )
   }

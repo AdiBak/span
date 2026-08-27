@@ -1,0 +1,65 @@
+.classroom-exec-section .classroom-scroll {
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.classroom-school-block {
+  border-bottom: 1px solid #e9ecef;
+  padding: 0.85rem 1rem 1rem;
+}
+
+.classroom-school-block:last-child {
+  border-bottom: 0;
+}
+
+.classroom-school-head,
+.classroom-teacher-head,
+.classroom-class-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+}
+
+.classroom-school-head {
+  margin-bottom: 0.65rem;
+}
+
+.classroom-teacher-block {
+  margin: 0.5rem 0 0.75rem 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-left: 3px solid #dee2e6;
+  background: #f8f9fa;
+  border-radius: 0 0.35rem 0.35rem 0;
+}
+
+.classroom-teacher-head {
+  margin-bottom: 0.35rem;
+}
+
+.classroom-class-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+}
+
+.classroom-class-item {
+  padding: 0.45rem 0.55rem;
+  margin-top: 0.35rem;
+  background: #fff;
+  border: 1px solid #e9ecef;
+  border-radius: 0.35rem;
+}
+
+.classroom-empty-note {
+  margin: 0.25rem 0 0 0.75rem;
+  font-size: 0.875rem;
+  color: #6c757d;
+}
+
+.classroom-exec-section .alert {
+  max-height: 8rem;
+  overflow: auto;
+}

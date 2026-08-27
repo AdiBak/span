@@ -61,7 +61,9 @@ export default defineConfig(({ mode }) => {
         directory: './directory.html',
         'our-story': './our-story.html',
         login: './login.html',
-        dashboard: './dashboard.html'
+        dashboard: './dashboard.html',
+        'classroom/join': './classroom/join.html',
+        'classroom/dashboard': './classroom/dashboard.html',
       },
       output: {
         manualChunks: {

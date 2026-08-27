@@ -1,0 +1,30 @@
+.classroom-dashboard-page {
+  min-height: 70vh;
+}
+
+.classroom-dashboard-page .classroom-scroll {
+  max-height: min(55vh, 420px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.classroom-dashboard-page .classroom-scroll-tall {
+  max-height: min(65vh, 560px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.classroom-dashboard-page .classroom-scroll table thead th,
+.classroom-dashboard-page .classroom-scroll-tall table thead th {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+.classroom-dashboard-page .classroom-submission-body {
+  max-height: 8rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

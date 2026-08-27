@@ -12,6 +12,7 @@ import {
   enrichBillWithStoredPdf,
 } from '../lib/proposalPdf'
 import { fetchLegiscanBillBySearch, isLegiscanBillNumberShape } from '../lib/legiscan'
+import { getClassroomSessionRole } from '../lib/classroom'
 import { isAllowedApplicationStatusTransition } from './dashboard/applications'
 import AssignBillWorkModal from './dashboard/AssignBillWorkModal'
 import BillAssignmentsExecPanel from './dashboard/BillAssignmentsExecPanel'
@@ -43,6 +44,7 @@ import RemovalNoticeEmailModal from './dashboard/RemovalNoticeEmailModal'
 import PolicyViolationEmailModal from './dashboard/PolicyViolationEmailModal'
 import { strikeLimitForMember, isAtStrikeLimit } from '../lib/memberStrikeRules'
 import IdeasSuggestionsSection from './dashboard/IdeasSuggestionsSection'
+import ClassroomSection from './dashboard/ClassroomSection'
 import LeaveExtensionSection from './dashboard/LeaveExtensionSection'
 import DashboardSectionNav from './dashboard/DashboardSectionNav'
 import { buildDashboardSectionNavItems, DASHBOARD_SECTION_IDS } from './dashboard/dashboardSectionAnchors'
@@ -2180,10 +2182,11 @@ function DashboardPage() {
         execConduct: 8,
         memberManagement: 9,
         schoolsPartners: 10,
-        analytics: 11,
-        mediumBlog: 12,
-        changePassword: 13,
-        resignFromSpan: 14,
+        classroom: 11,
+        analytics: 12,
+        mediumBlog: 13,
+        changePassword: 14,
+        resignFromSpan: 15,
         billSubmission: 99,
       }
     : isTeamLeadOnly
@@ -2194,10 +2197,11 @@ function DashboardPage() {
           billSubmission: 4,
           volunteerHours: 5,
           ideasSuggestions: 6,
-          hrReports: 7,
-          mediumBlog: 8,
-          changePassword: 9,
-          resignFromSpan: 10,
+          classroom: 7,
+          hrReports: 8,
+          mediumBlog: 9,
+          changePassword: 10,
+          resignFromSpan: 11,
           applications: 99,
           memberManagement: 99,
           schoolsPartners: 99,
@@ -2210,10 +2214,11 @@ function DashboardPage() {
           billSubmission: 3,
           volunteerHours: 4,
           ideasSuggestions: 5,
-          hrReports: 6,
-          mediumBlog: 7,
-          changePassword: 8,
-          resignFromSpan: 9,
+          classroom: 6,
+          hrReports: 7,
+          mediumBlog: 8,
+          changePassword: 9,
+          resignFromSpan: 10,
           billManagement: 99,
           applications: 99,
           memberManagement: 99,
@@ -2246,6 +2251,7 @@ function DashboardPage() {
       execConduct: execUser,
       memberManagement: perm('registration'),
       schoolsPartners: execUser,
+      classroom: execUser,
       analytics: execUser,
       mediumBlog: perm('blog'),
       changePassword: true,
@@ -2394,13 +2400,19 @@ function DashboardPage() {
       }
 
       if (!memberData) {
+        console.log('No chapter member record; checking classroom role…')
+        try {
+          const classroomRole = await getClassroomSessionRole()
+          if (classroomRole?.role) {
+            window.location.href = '/classroom/dashboard.html'
+            return
+          }
+        } catch (classroomErr) {
+          console.warn('Classroom role check failed:', classroomErr)
+        }
         console.error('No member data found for user_id:', userId, 'email:', email)
-        console.error('This might mean:')
-        console.error('1. The member record does not exist in the members table')
-        console.error('2. The user_id is not linked to the member record')
-        console.error('3. An RLS policy is blocking the query')
         setLoading(false)
-        setMember(null) // Explicitly set to null to show error message
+        setMember(null)
         return
       }
 
@@ -6353,6 +6365,17 @@ function DashboardPage() {
             }}
             memberGradeFilter={memberGradeFilter}
             setMemberGradeFilter={setMemberGradeFilter}
+          />
+        )}
+
+        {hasPermission('volunteer') &&
+          hasPermission('applications') &&
+          hasPermission('bills') &&
+          hasPermission('registration') &&
+          !viewAsData && (
+          <ClassroomSection
+            sectionId={DASHBOARD_SECTION_IDS.classroom}
+            sectionOrder={dashboardOrder.classroom}
           />
         )}
 

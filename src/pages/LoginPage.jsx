@@ -3,7 +3,19 @@ import { supabase } from '../lib/supabase'
 import jsQR from 'jsqr'
 import './LoginPage.css'
 
+function readLoginIntent() {
+  const params = new URLSearchParams(window.location.search)
+  const next = params.get('next') || ''
+  const modeParam = (params.get('mode') || '').toLowerCase()
+  if (modeParam === 'classroom' || next.includes('/classroom/')) {
+    return { mode: 'classroom', next: next || '/classroom/dashboard.html' }
+  }
+  return { mode: 'members', next: next || '/dashboard.html' }
+}
+
 function LoginPage() {
+  const initialIntent = readLoginIntent()
+  const [loginMode, setLoginMode] = useState(initialIntent.mode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -23,26 +35,39 @@ function LoginPage() {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const canvasRef = useRef(null)
+  const isClassroom = loginMode === 'classroom'
+
+  const resolvePostLoginDestination = useCallback((preferredMode) => {
+    if (preferredMode === 'classroom') {
+      const params = new URLSearchParams(window.location.search)
+      const next = params.get('next') || ''
+      return next.includes('/classroom/') ? next : '/classroom/dashboard.html'
+    }
+    return '/dashboard.html'
+  }, [])
 
   const handleEmailLogin = async (e) => {
     e.preventDefault()
     setError('')
 
     let loginEmail = email.trim()
-    // Auto-append domain if missing
-    if (!loginEmail.includes('@')) {
+    if (!isClassroom && !loginEmail.includes('@')) {
       loginEmail += '@spanationwide.org'
     }
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email: loginEmail,
-        password
+        password,
       })
       if (error) throw error
-      window.location.href = '/dashboard.html'
+      window.location.href = resolvePostLoginDestination(loginMode)
     } catch (err) {
       const msg = err.message || 'Login failed. Please try again.'
+      if (isClassroom) {
+        setError(msg)
+        return
+      }
       const usingPersonal = loginEmail.includes('@') && !loginEmail.toLowerCase().endsWith('@spanationwide.org')
       setError(
         usingPersonal
@@ -52,6 +77,22 @@ function LoginPage() {
     }
   }
 
+  const switchMode = (mode) => {
+    setLoginMode(mode)
+    setError('')
+    setEmail('')
+    setPassword('')
+    const url = new URL(window.location.href)
+    if (mode === 'classroom') {
+      url.searchParams.set('mode', 'classroom')
+      url.searchParams.set('next', '/classroom/dashboard.html')
+    } else {
+      url.searchParams.delete('mode')
+      url.searchParams.delete('next')
+    }
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }
+
   const handleForgotPassword = async (e) => {
     e.preventDefault()
     setForgotPasswordError('')
@@ -59,12 +100,25 @@ function LoginPage() {
     setIsLoading(true)
 
     let recoveryEmail = forgotPasswordEmail.trim()
-    // Auto-append domain if missing
-    if (!recoveryEmail.includes('@')) {
-      recoveryEmail += '@spanationwide.org'
-    }
 
     try {
+      if (isClassroom) {
+        if (!recoveryEmail.includes('@')) {
+          throw new Error('Enter the full email for your classroom account.')
+        }
+        const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
+          redirectTo: `${window.location.origin}/login.html?mode=classroom`,
+        })
+        if (error) throw error
+        setForgotPasswordSuccess(true)
+        setForgotPasswordEmail('')
+        return
+      }
+
+      if (!recoveryEmail.includes('@')) {
+        recoveryEmail += '@spanationwide.org'
+      }
+
       // Deployed on Supabase as "hyper-endpoint" (legacy name); source lives in password-reset/
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
       if (!supabaseUrl) {
@@ -86,7 +140,7 @@ function LoginPage() {
       if (!response.ok) {
         throw new Error(data.error || data.details || 'Failed to send password reset email')
       }
-      
+
       setForgotPasswordSuccess(true)
       setForgotPasswordEmail('')
     } catch (err) {
@@ -124,10 +178,9 @@ function LoginPage() {
       setResetPasswordSuccess(true)
       setNewPassword('')
       setConfirmPassword('')
-      
-      // Redirect to dashboard after a short delay
+
       setTimeout(() => {
-        window.location.href = '/dashboard.html'
+        window.location.href = resolvePostLoginDestination(loginMode)
       }, 2000)
     } catch (err) {
       setResetPasswordError(err.message || 'Failed to reset password. Please try again.')
@@ -232,11 +285,11 @@ function LoginPage() {
         return
       }
       
-      // If user gets authenticated (from hash or other means), redirect to dashboard
+      // If user gets authenticated (from hash or other means), redirect appropriately
       // (but not if it's a password recovery)
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session && type !== 'recovery') {
-        console.log('User authenticated, redirecting to dashboard...')
-        window.location.href = '/dashboard.html'
+        console.log('User authenticated, redirecting…')
+        window.location.href = resolvePostLoginDestination(loginMode)
       }
     })
 
@@ -246,7 +299,7 @@ function LoginPage() {
         // Wait a moment for Supabase to process the hash
         await new Promise(resolve => setTimeout(resolve, 1500))
       }
-      
+
       // If it's a recovery type, check if we have a session (Supabase should have processed the hash)
       if (type === 'recovery') {
         const { data: { session } } = await supabase.auth.getSession()
@@ -254,7 +307,7 @@ function LoginPage() {
           console.log('Recovery session established, showing reset form')
           setShowResetPasswordForm(true)
           // Clear the hash from URL
-          window.history.replaceState(null, '', window.location.pathname)
+          window.history.replaceState(null, '', window.location.pathname + window.location.search)
         } else {
           console.error('Recovery hash detected but no session established')
           setResetPasswordError('Invalid or expired password reset link. Please request a new one.')
@@ -262,22 +315,21 @@ function LoginPage() {
         }
         return
       }
-      
+
       // For non-recovery flows, check if user is already authenticated
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
-        // User is already authenticated, redirect to dashboard
-        window.location.href = '/dashboard.html'
+        window.location.href = resolvePostLoginDestination(loginMode)
       }
     }
-    
+
     checkAuth()
 
     // Cleanup subscription on unmount
     return () => {
       subscription.unsubscribe()
     }
-  }, [])
+  }, [loginMode, resolvePostLoginDestination])
 
   useEffect(() => {
     if (showQRModal) {
@@ -299,27 +351,55 @@ function LoginPage() {
         <div className="container position-relative z-1">
           <h1 className="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Login</h1>
           <p className="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
-            Access your SPAN member dashboard.
+            {isClassroom
+              ? 'Sign in to SPAN Classroom as a teacher or student.'
+              : 'Access your SPAN member dashboard.'}
           </p>
         </div>
       </section>
 
       <main className="position-relative overflow-hidden p-3 p-md-5 m-md-3 bg-light">
         <div className="container d-flex justify-content-center align-items-center" style={{ minHeight: '40vh' }}>
-          <div className="card shadow-sm p-4" style={{ maxWidth: '400px', width: '100%' }} data-aos="fade">
+          <div className="card shadow-sm p-4" style={{ maxWidth: '420px', width: '100%' }} data-aos="fade">
+            <div className="login-mode-switch" role="tablist" aria-label="Login type">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!isClassroom}
+                className={`login-mode-btn${!isClassroom ? ' is-active' : ''}`}
+                onClick={() => switchMode('members')}
+              >
+                SPAN members
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isClassroom}
+                className={`login-mode-btn${isClassroom ? ' is-active' : ''}`}
+                onClick={() => switchMode('classroom')}
+              >
+                Classroom
+              </button>
+            </div>
+
             <form onSubmit={handleEmailLogin}>
               <div className="mb-3">
-                <label htmlFor="email" className="form-label">SPAN email</label>
+                <label htmlFor="email" className="form-label">
+                  {isClassroom ? 'Email' : 'SPAN email'}
+                </label>
                 <input
-                  type="text"
+                  type={isClassroom ? 'email' : 'text'}
                   className="form-control"
                   id="email"
-                  placeholder="name@spanationwide.org"
+                  placeholder={isClassroom ? 'Your school email' : 'name@spanationwide.org'}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="username"
                 />
-                <small className="text-muted">Use your SPAN address, not your personal email</small>
+                {!isClassroom && (
+                  <small className="text-muted">Use your SPAN address, not your personal email</small>
+                )}
               </div>
               <div className="mb-3">
                 <label htmlFor="password" className="form-label">Password</label>
@@ -331,6 +411,7 @@ function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                 />
               </div>
               <button type="submit" className="btn btn-dark w-100 mb-2">Sign In</button>
@@ -351,21 +432,30 @@ function LoginPage() {
               </div>
             </form>
 
-            <div className="d-flex align-items-center my-3">
-              <hr className="flex-grow-1" />
-              <span className="px-2 text-muted">OR</span>
-              <hr className="flex-grow-1" />
-            </div>
+            {isClassroom ? (
+              <p className="text-center small text-muted mb-0 mt-2">
+                New student?{' '}
+                <a href="/classroom/join.html">Join with a class code</a>
+              </p>
+            ) : (
+              <>
+                <div className="d-flex align-items-center my-3">
+                  <hr className="flex-grow-1" />
+                  <span className="px-2 text-muted">OR</span>
+                  <hr className="flex-grow-1" />
+                </div>
 
-            <div className="d-grid">
-              <button
-                className="btn btn-outline-dark btn-lg"
-                onClick={() => setShowQRModal(true)}
-              >
-                <i className="bi bi-qr-code-scan me-2"></i> Scan SPANCard
-              </button>
-              <p className="text-muted mt-2 text-center small">Use your SPANCard QR code to log in</p>
-            </div>
+                <div className="d-grid">
+                  <button
+                    className="btn btn-outline-dark btn-lg"
+                    onClick={() => setShowQRModal(true)}
+                  >
+                    <i className="bi bi-qr-code-scan me-2"></i> Scan SPANCard
+                  </button>
+                  <p className="text-muted mt-2 text-center small mb-0">Use your SPANCard QR code to log in</p>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </main>
@@ -431,7 +521,7 @@ function LoginPage() {
                     <div className="text-center">
                       <div className="alert alert-success mb-3">
                         <i className="bi bi-check-circle me-2"></i>
-                        Password reset successfully! Redirecting to dashboard...
+                        Password reset successfully! Redirecting…
                       </div>
                     </div>
                   ) : (
@@ -534,7 +624,13 @@ function LoginPage() {
                     <div className="text-center">
                       <div className="alert alert-success mb-3">
                         <i className="bi bi-check-circle me-2"></i>
-                        Password reset email sent (usually to your personal inbox). Log in with your <strong>SPAN email</strong> (@spanationwide.org) and the temporary password from the email — not your personal email.
+                        {isClassroom
+                          ? 'Password reset email sent. Open the link in that email to choose a new password, then sign in under Classroom.'
+                          : (
+                            <>
+                              Password reset email sent (usually to your personal inbox). Log in with your <strong>SPAN email</strong> (@spanationwide.org) and the temporary password from the email — not your personal email.
+                            </>
+                          )}
                       </div>
                       <button
                         type="button"
@@ -552,21 +648,27 @@ function LoginPage() {
                   ) : (
                     <form onSubmit={handleForgotPassword}>
                       <p className="text-muted mb-3">
-                        Enter your SPAN or personal email. We'll email a temporary password; you must still log in with your SPAN address (@spanationwide.org).
+                        {isClassroom
+                          ? 'Enter the email for your classroom account. We’ll send a reset link.'
+                          : 'Enter your SPAN or personal email. We\'ll email a temporary password; you must still log in with your SPAN address (@spanationwide.org).'}
                       </p>
                       <div className="mb-3">
-                        <label htmlFor="forgotPasswordEmail" className="form-label">SPAN or personal email</label>
+                        <label htmlFor="forgotPasswordEmail" className="form-label">
+                          {isClassroom ? 'Classroom email' : 'SPAN or personal email'}
+                        </label>
                         <input
-                          type="text"
+                          type={isClassroom ? 'email' : 'text'}
                           className="form-control"
                           id="forgotPasswordEmail"
-                          placeholder="name@spanationwide.org or personal email"
+                          placeholder={isClassroom ? 'Your school email' : 'name@spanationwide.org or personal email'}
                           value={forgotPasswordEmail}
                           onChange={(e) => setForgotPasswordEmail(e.target.value)}
                           required
                           disabled={isLoading}
                         />
-                        <small className="text-muted">You can enter just the username (e.g., "john.doe") or the full email</small>
+                        {!isClassroom && (
+                          <small className="text-muted">You can enter just the username (e.g., "john.doe") or the full email</small>
+                        )}
                       </div>
                       {forgotPasswordError && (
                         <div className="alert alert-danger mb-3">{forgotPasswordError}</div>

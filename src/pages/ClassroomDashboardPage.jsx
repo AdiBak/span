@@ -23,6 +23,8 @@ import {
   upsertSubmission,
   validateSubmissionFile,
 } from '../lib/classroom'
+import ClassroomLegiscanPanel from './ClassroomLegiscanPanel'
+import ClassroomPolicyToolkit from './ClassroomPolicyToolkit'
 import './ClassroomDashboardPage.css'
 
 const EMPTY_ASSIGNMENT_FORM = {
@@ -1161,27 +1163,9 @@ function StudentDashboard({ profile }) {
         </div>
       )}
 
-      <div className="row g-3">
-        {features.legiscan && (
-          <div className="col-md-6">
-            <div className="card shadow-sm h-100">
-              <div className="card-body">
-                <h5 className="card-title">LegiScan</h5>
-                <p className="small text-muted">Bill search will use the same API as SPAN Bill Research (coming next).</p>
-              </div>
-            </div>
-          </div>
-        )}
-        {features.policy_toolkit && (
-          <div className="col-md-6">
-            <div className="card shadow-sm h-100">
-              <div className="card-body">
-                <h5 className="card-title">Policy toolkit</h5>
-                <p className="small text-muted">Curated guides and templates (content coming next).</p>
-              </div>
-            </div>
-          </div>
-        )}
+      <div className="classroom-tools mt-2">
+        {features.legiscan && <ClassroomLegiscanPanel />}
+        {features.policy_toolkit && <ClassroomPolicyToolkit />}
       </div>
     </>
   )

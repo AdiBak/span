@@ -376,6 +376,11 @@ function DirectoryPage() {
           <input
             type="search"
             className="form-control directory-search"
+            aria-label={
+              activeTab === 'leadership'
+                ? 'Search leadership, team leads, or mentors'
+                : 'Search directory by name, school, or location'
+            }
             placeholder={
               activeTab === 'leadership'
                 ? 'Search leadership, team leads, or mentors…'
@@ -445,8 +450,10 @@ function DirectoryPage() {
                     <th>
                       <span>Name</span>
                       <button
+                        type="button"
                         className="btn btn-sm p-0 ms-2 sort-btn"
                         onClick={() => handleSort('name')}
+                        aria-label="Sort by name"
                         style={{ color: sortKey === 'name' ? '#0d6efd' : '#777' }}
                       >
                         {getSortIcon('name')}
@@ -455,8 +462,10 @@ function DirectoryPage() {
                     <th>
                       <span>Location</span>
                       <button
+                        type="button"
                         className="btn btn-sm p-0 ms-2 sort-btn"
                         onClick={() => handleSort('location')}
+                        aria-label="Sort by location"
                         style={{ color: sortKey === 'location' ? '#0d6efd' : '#777' }}
                       >
                         {getSortIcon('location')}
@@ -466,8 +475,10 @@ function DirectoryPage() {
                     <th>
                       <span>Role</span>
                       <button
+                        type="button"
                         className="btn btn-sm p-0 ms-2 sort-btn"
                         onClick={() => handleSort('role')}
+                        aria-label="Sort by role"
                         style={{ color: sortKey === 'role' ? '#0d6efd' : '#777' }}
                       >
                         {getSortIcon('role')}

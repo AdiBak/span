@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import jsQR from 'jsqr'
 import './LoginPage.css'
 
 function readLoginIntent() {
@@ -208,12 +207,15 @@ function LoginPage() {
     }
   }, [])
 
+  const jsQRRef = useRef(null)
+
   const scanLoop = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current) return
+    if (!videoRef.current || !canvasRef.current || !jsQRRef.current) return
 
     const video = videoRef.current
     const canvas = canvasRef.current
     const ctx = canvas.getContext('2d')
+    const jsQR = jsQRRef.current
 
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       canvas.width = video.videoWidth
@@ -244,6 +246,10 @@ function LoginPage() {
   const startQRScan = useCallback(async () => {
     setQrError('')
     try {
+      if (!jsQRRef.current) {
+        const mod = await import('jsqr')
+        jsQRRef.current = mod.default
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: 'environment' } },
         audio: false

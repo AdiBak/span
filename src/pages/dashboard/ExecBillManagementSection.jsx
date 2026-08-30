@@ -1,11 +1,21 @@
 import React, { lazy, Suspense } from 'react'
-import BillOutreachPanel from '../../components/BillOutreachPanel'
 import AiCheckResultPanel from '../../components/AiCheckResultPanel'
 import BillAssignmentsExecPanel from './BillAssignmentsExecPanel'
 import { billStateGroupKey, usStateAbbreviation } from '../../lib/usStateCanonical'
 import { billStatusFilterBtnClass } from '../../lib/billStatusFilterBtn'
 
 const BillResearchPanel = lazy(() => import('../../components/BillResearchPanel'))
+const BillOutreachPanel = lazy(() => import('../../components/BillOutreachPanel'))
+
+function PanelFallback({ label = 'Loading…' }) {
+  return (
+    <div className="text-center py-4">
+      <div className="spinner-border text-primary" role="status">
+        <span className="visually-hidden">{label}</span>
+      </div>
+    </div>
+  )
+}
 
 export default function ExecBillManagementSection({
   sectionOrder,
@@ -125,19 +135,13 @@ export default function ExecBillManagementSection({
       </div>
 
       {execBillSectionTab === 'outreach' && (
-        <BillOutreachPanel bills={execOutreachBills} member={member} onBillsChanged={loadAllBills} />
+        <Suspense fallback={<PanelFallback label="Loading outreach…" />}>
+          <BillOutreachPanel bills={execOutreachBills} member={member} onBillsChanged={loadAllBills} />
+        </Suspense>
       )}
 
       {execBillSectionTab === 'research' && (
-        <Suspense
-          fallback={
-            <div className="text-center py-4">
-              <div className="spinner-border text-primary" role="status">
-                <span className="visually-hidden">Loading research…</span>
-              </div>
-            </div>
-          }
-        >
+        <Suspense fallback={<PanelFallback label="Loading research…" />}>
           <BillResearchPanel
             bills={researchBills}
             loading={researchBillsLoading}

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { generateVolunteerPDF } from '../../lib/generateVolunteerPDF'
 import { fetchLetterStats, fetchApprovedVolunteerEntries } from '../../lib/memberLetterStats'
 import {
   buildHonorableExitEmailHtml,
@@ -106,6 +105,7 @@ export default function HonorableExitEmailModal({ open, onClose, supabase, membe
       let attachB64 = null
       let blobUrl = null
       if (hasApprovedHoursEntries) {
+        const { generateVolunteerPDF } = await import('../../lib/generateVolunteerPDF')
         const { pdfBlob, pdfBase64 } = await generateVolunteerPDF(memberForPdf, selectedApprovedEntries, supabase)
         attachB64 = pdfBase64
         blobUrl = URL.createObjectURL(pdfBlob)

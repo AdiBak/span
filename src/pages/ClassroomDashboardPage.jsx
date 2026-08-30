@@ -355,8 +355,13 @@ function TeacherDashboard({ profile }) {
           <div className="card shadow-sm">
             <div className="card-header bg-white d-flex justify-content-between align-items-center">
               <h5 className="mb-0">My classes</h5>
-              <button type="button" className="btn btn-sm btn-dark" onClick={() => setShowNewClass(true)}>
-                <i className="bi bi-plus-lg" />
+              <button
+                type="button"
+                className="btn btn-sm btn-dark"
+                onClick={() => setShowNewClass(true)}
+                aria-label="Create class"
+              >
+                <i className="bi bi-plus-lg" aria-hidden="true" />
               </button>
             </div>
             <div className="list-group list-group-flush classroom-scroll">

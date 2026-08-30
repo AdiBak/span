@@ -5,9 +5,6 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import Footer from './components/Footer'
 import Navbar from './components/Navbar'
-import SchoolsCarousel from './components/SchoolsCarousel'
-import TeamSection from './components/TeamSection'
-import ImpactMap from './components/ImpactMap'
 import './index.css'
 
 const mountApp = (element, page) => {
@@ -43,9 +40,10 @@ const mountNavbar = (element) => {
   )
 }
 
-const mountComponent = (element, Component) => {
+/** Only load heavy homepage widgets when their mount nodes exist. */
+const mountLazyComponent = async (element, importer) => {
   if (!element) return
-
+  const { default: Component } = await importer()
   ReactDOM.createRoot(element).render(
     <React.StrictMode>
       <Component />
@@ -53,16 +51,9 @@ const mountComponent = (element, Component) => {
   )
 }
 
-// Wait for DOM to be ready before mounting
 function mountComponents() {
   console.log('mountComponents: Starting to mount components')
-  console.log('mountComponents: Document ready state:', document.readyState)
-  console.log('mountComponents: Current URL:', window.location.href)
-  console.log('mountComponents: login-root element:', document.getElementById('login-root'))
-  console.log('mountComponents: All elements with id containing "root":', 
-    Array.from(document.querySelectorAll('[id*="root"]')).map(el => el.id))
-  
-  // Mount React apps on their respective pages
+
   mountApp(document.getElementById('home-root'), 'home')
   mountApp(document.getElementById('bills-root'), 'bills')
   mountApp(document.getElementById('blog-root'), 'blog')
@@ -76,23 +67,16 @@ function mountComponents() {
   mountApp(document.getElementById('bills-preview-root'), 'bills-preview')
   mountApp(document.getElementById('bills-stats-root'), 'bills-stats')
 
-  // Mount Navbar on all pages
   mountNavbar(document.getElementById('navbarContainer'))
-
-  // Mount Footer on all pages
   mountFooter(document.getElementById('footerContainer'))
 
-  // Mount homepage components
-  mountComponent(document.getElementById('schools-carousel-root'), SchoolsCarousel)
-  mountComponent(document.getElementById('team-section-root'), TeamSection)
-  mountComponent(document.getElementById('impact-map-root'), ImpactMap)
+  mountLazyComponent(document.getElementById('schools-carousel-root'), () => import('./components/SchoolsCarousel'))
+  mountLazyComponent(document.getElementById('team-section-root'), () => import('./components/TeamSection'))
+  mountLazyComponent(document.getElementById('impact-map-root'), () => import('./components/ImpactMap'))
 }
 
-// Wait for DOM to be ready before mounting
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', mountComponents)
 } else {
-  // If DOM is already loaded, wait a tiny bit to ensure all elements are available
   setTimeout(mountComponents, 0)
 }
-

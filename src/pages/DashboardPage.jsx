@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import RegistrationForm from '../components/RegistrationForm'
-import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import { memberLegalName, memberSiteDisplayName } from '../lib/memberDisplayName'
 import { resolveMemberGrade, splitMemberGradeForForm } from '../lib/memberGrades'
 import { billStateGroupKey, canonicalUSStateName } from '../lib/usStateCanonical'
@@ -3062,6 +3061,7 @@ function DashboardPage() {
         return
       }
 
+      const { generateVolunteerPDF } = await import('../lib/generateVolunteerPDF')
       const { pdfBlob, pdfBase64 } = await generateVolunteerPDF(fullMember, approvedEntries, supabase)
       const blobUrl = URL.createObjectURL(pdfBlob)
 
@@ -3094,6 +3094,7 @@ function DashboardPage() {
     }
     setVerificationGenerating(true)
     try {
+      const { generateVolunteerPDF } = await import('../lib/generateVolunteerPDF')
       const { pdfBlob, pdfBase64 } = await generateVolunteerPDF(
         verificationMember,
         selectedEntries,
@@ -5956,11 +5957,12 @@ function DashboardPage() {
                 onClick={handleProfilePicClick}
                 disabled={profilePicLoading}
                 title="Change profile picture"
+                aria-label="Change profile picture"
               >
                 {profilePicLoading ? (
                   <span className="spinner-border spinner-border-sm" style={{ width: '14px', height: '14px' }} />
                 ) : (
-                  <i className="bi bi-camera-fill" style={{ fontSize: '0.9rem' }} />
+                  <i className="bi bi-camera-fill" style={{ fontSize: '0.9rem' }} aria-hidden="true" />
                 )}
               </button>
             )}
@@ -6471,24 +6473,28 @@ function DashboardPage() {
                                 <td>
                                   <div className="d-flex gap-1" onMouseDown={(e) => e.stopPropagation()}>
                                     <button
+                                      type="button"
                                       className="btn btn-sm btn-outline-primary"
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         handleEditSchool(school)
                                       }}
                                       title="Edit"
+                                      aria-label={`Edit ${school.school_name || 'school'}`}
                                     >
-                                      <i className="bi bi-pencil"></i>
+                                      <i className="bi bi-pencil" aria-hidden="true"></i>
                                     </button>
                                     <button
+                                      type="button"
                                       className="btn btn-sm btn-outline-danger"
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         handleDeleteSchool(schoolPk)
                                       }}
                                       title="Delete"
+                                      aria-label={`Delete ${school.school_name || 'school'}`}
                                     >
-                                      <i className="bi bi-trash"></i>
+                                      <i className="bi bi-trash" aria-hidden="true"></i>
                                     </button>
                                   </div>
                                 </td>
@@ -6566,24 +6572,28 @@ function DashboardPage() {
                                 <td>
                                   <div className="d-flex gap-1" onMouseDown={(e) => e.stopPropagation()}>
                                     <button
+                                      type="button"
                                       className="btn btn-sm btn-outline-primary"
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         handleEditPartner(partner)
                                       }}
                                       title="Edit"
+                                      aria-label={`Edit ${partner.partner_name || 'partner'}`}
                                     >
-                                      <i className="bi bi-pencil"></i>
+                                      <i className="bi bi-pencil" aria-hidden="true"></i>
                                     </button>
                                     <button
+                                      type="button"
                                       className="btn btn-sm btn-outline-danger"
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         handleDeletePartner(partner.partner_id)
                                       }}
                                       title="Delete"
+                                      aria-label={`Delete ${partner.partner_name || 'partner'}`}
                                     >
-                                      <i className="bi bi-trash"></i>
+                                      <i className="bi bi-trash" aria-hidden="true"></i>
                                     </button>
                                   </div>
                                 </td>
@@ -6668,24 +6678,28 @@ function DashboardPage() {
                                 <td>
                                   <div className="d-flex gap-1" onMouseDown={(e) => e.stopPropagation()}>
                                     <button
+                                      type="button"
                                       className="btn btn-sm btn-outline-primary"
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         handleEditAdvisor(advisor)
                                       }}
                                       title="Edit"
+                                      aria-label={`Edit ${advisor.full_name || 'mentor'}`}
                                     >
-                                      <i className="bi bi-pencil"></i>
+                                      <i className="bi bi-pencil" aria-hidden="true"></i>
                                     </button>
                                     <button
+                                      type="button"
                                       className="btn btn-sm btn-outline-danger"
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         handleDeleteAdvisor(advisor.advisor_id)
                                       }}
                                       title="Delete"
+                                      aria-label={`Delete ${advisor.full_name || 'mentor'}`}
                                     >
-                                      <i className="bi bi-trash"></i>
+                                      <i className="bi bi-trash" aria-hidden="true"></i>
                                     </button>
                                   </div>
                                 </td>

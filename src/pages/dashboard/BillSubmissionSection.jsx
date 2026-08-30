@@ -1,5 +1,4 @@
 import React, { lazy, Suspense, useMemo } from 'react'
-import BillOutreachPanel from '../../components/BillOutreachPanel'
 import { billStateGroupKey, usStateAbbreviation } from '../../lib/usStateCanonical'
 import {
   BillAssignmentsMemberAssignedPanel,
@@ -7,6 +6,17 @@ import {
 } from './BillAssignmentsMemberPanels'
 
 const BillResearchPanel = lazy(() => import('../../components/BillResearchPanel'))
+const BillOutreachPanel = lazy(() => import('../../components/BillOutreachPanel'))
+
+function PanelFallback({ label = 'Loading…' }) {
+  return (
+    <div className="text-center py-4">
+      <div className="spinner-border text-primary" role="status">
+        <span className="visually-hidden">{label}</span>
+      </div>
+    </div>
+  )
+}
 
 export default function BillSubmissionSection({
   sectionOrder,
@@ -152,17 +162,11 @@ export default function BillSubmissionSection({
       )}
 
       {billSubmissionViewTab === 'outreach' ? (
-        <BillOutreachPanel bills={outreachBills} member={member} onBillsChanged={loadAllBills} />
+        <Suspense fallback={<PanelFallback label="Loading outreach…" />}>
+          <BillOutreachPanel bills={outreachBills} member={member} onBillsChanged={loadAllBills} />
+        </Suspense>
       ) : billSubmissionViewTab === 'research' ? (
-        <Suspense
-          fallback={
-            <div className="text-center py-4">
-              <div className="spinner-border text-primary" role="status">
-                <span className="visually-hidden">Loading research…</span>
-              </div>
-            </div>
-          }
-        >
+        <Suspense fallback={<PanelFallback label="Loading research…" />}>
           <BillResearchPanel
             bills={researchBills}
             loading={researchBillsLoading}

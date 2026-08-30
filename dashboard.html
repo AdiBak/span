@@ -32,6 +32,10 @@
 
    <!-- Styles -->
    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+   <style>
+      .skip-link{position:absolute;left:.75rem;top:.75rem;z-index:2000;padding:.5rem 1rem;background:#111;color:#fff;border-radius:.25rem;text-decoration:none;transform:translateY(-150%)}
+      .skip-link:focus,.skip-link:focus-visible{transform:translateY(0);outline:2px solid #fff;outline-offset:2px}
+   </style>
    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
@@ -46,10 +50,11 @@
         </head>
 
 <body>
+  <a class="skip-link" href="#dashboard-root">Skip to main content</a>
   <nav id="navbarContainer" class="navbar navbar-expand-lg navbar-dark sticky-top"></nav>
 
   <!-- React app will mount here -->
-  <div id="dashboard-root"></div>
+  <main id="dashboard-root" tabindex="-1"></main>
 
   <footer id="footerContainer" class="footer text-white py-5"></footer>
 

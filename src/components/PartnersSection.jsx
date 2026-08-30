@@ -8,31 +8,37 @@ const FALLBACK_PARTNERS = [
     id: 'beyond-partisan',
     name: 'Beyond Partisan',
     logo: '/images/misc/beyond-partisan-logo.png',
+    logoWebp: '/images/misc/beyond-partisan-logo.webp',
     url: 'https://beyondpartisan.org/',
   },
   {
     id: 'unite-america',
     name: 'Unite America',
     logo: '/images/misc/unite-america-logo.png',
+    logoWebp: '/images/misc/unite-america-logo.webp',
     url: 'https://www.uniteamerica.org/',
   },
   {
     id: 'stanford-ddl',
     name: 'Stanford Deliberative Democracy Lab',
     logo: '/images/misc/stanford-ddl-logo.png',
+    logoWebp: '/images/misc/stanford-ddl-logo.webp',
     url: 'https://deliberation.stanford.edu/',
   },
 ]
 
-function PartnerLogo({ name, logoSrc, url }) {
+function PartnerLogo({ name, logoSrc, logoWebp, url }) {
   const img = (
-    <img
-      src={logoSrc}
-      alt={name}
-      className="partner-logo"
-      loading="lazy"
-      decoding="async"
-    />
+    <picture>
+      {logoWebp ? <source srcSet={logoWebp} type="image/webp" /> : null}
+      <img
+        src={logoSrc}
+        alt={name}
+        className="partner-logo"
+        loading="lazy"
+        decoding="async"
+      />
+    </picture>
   )
 
   if (!url) return <div className="partner-logo-cell">{img}</div>
@@ -113,6 +119,7 @@ function PartnersSection() {
           id: p.id,
           name: p.name,
           logoSrc: p.logo,
+          logoWebp: p.logoWebp,
           url: p.url,
         }))
 
@@ -126,7 +133,12 @@ function PartnersSection() {
       <div className="partners-grid" role="list">
         {items.map((partner) => (
           <div key={partner.id} role="listitem">
-            <PartnerLogo name={partner.name} logoSrc={partner.logoSrc} url={partner.url} />
+            <PartnerLogo
+              name={partner.name}
+              logoSrc={partner.logoSrc}
+              logoWebp={partner.logoWebp}
+              url={partner.url}
+            />
           </div>
         ))}
       </div>

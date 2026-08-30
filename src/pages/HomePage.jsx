@@ -321,16 +321,19 @@ function HomePage() {
             to transform the healthcare system.
           </p>
           <div>
-            <img
-              onContextMenu={(e) => e.preventDefault()}
-              loading="lazy"
-              className="rounded img-fluid shadow"
-              src="/images/index/capitol.jpg"
-              alt="Texas Capitol building"
-              width="1280"
-              height="720"
-              decoding="async"
-            />
+            <picture>
+              <source srcSet="/images/index/capitol.webp" type="image/webp" />
+              <img
+                onContextMenu={(e) => e.preventDefault()}
+                loading="lazy"
+                className="rounded img-fluid shadow"
+                src="/images/index/capitol.jpg"
+                alt="Texas Capitol building"
+                width="1280"
+                height="720"
+                decoding="async"
+              />
+            </picture>
           </div>
         </div>
 

@@ -1,0 +1,31 @@
+import { lazy } from 'react'
+
+/** Heavy dashboard panes — loaded only when their section mounts. */
+export const ApplicationsSection = lazy(() => import('./ApplicationsSection'))
+export const AnalyticsSection = lazy(() => import('./AnalyticsSection'))
+export const ClassroomSection = lazy(() => import('./ClassroomSection'))
+export const MemberManagementSection = lazy(() => import('./MemberManagementSection'))
+export const ExecConductSection = lazy(() => import('./ExecConductSection'))
+export const ExecBillManagementSection = lazy(() => import('./ExecBillManagementSection'))
+export const BillSubmissionSection = lazy(() => import('./BillSubmissionSection'))
+export const HrReportsSection = lazy(() => import('./HrReportsSection'))
+export const TeamLeadAssignmentsSection = lazy(() => import('./TeamLeadAssignmentsSection'))
+export const IdeasSuggestionsSection = lazy(() => import('./IdeasSuggestionsSection'))
+export const VolunteerHoursSection = lazy(() => import('./VolunteerHoursSection'))
+export const LeaveExtensionSection = lazy(() => import('./LeaveExtensionSection'))
+
+/** Modals — chunked separately; mount only when open. */
+export const AssignBillWorkModal = lazy(() => import('./AssignBillWorkModal'))
+export const BillEditModal = lazy(() => import('./BillEditModal'))
+export const BillUploadModal = lazy(() => import('./BillUploadModal'))
+export const ApplicationViewModal = lazy(() => import('./ApplicationViewModal'))
+export const MemberStrikeModal = lazy(() => import('./MemberStrikeModal'))
+export const MemberRemovalModal = lazy(() => import('./MemberRemovalModal'))
+export const HonorableExitEmailModal = lazy(() => import('./HonorableExitEmailModal'))
+export const RemovalNoticeEmailModal = lazy(() => import('./RemovalNoticeEmailModal'))
+export const PolicyViolationEmailModal = lazy(() => import('./PolicyViolationEmailModal'))
+export const VolunteerVerificationModal = lazy(() => import('./VolunteerVerificationModal'))
+export const MemberFormModal = lazy(() => import('./MemberFormModal'))
+export const PartnerFormModal = lazy(() => import('./PartnerFormModal'))
+export const SchoolFormModal = lazy(() => import('./SchoolFormModal'))
+export const AdvisorFormModal = lazy(() => import('./AdvisorFormModal'))

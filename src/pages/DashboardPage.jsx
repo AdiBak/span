@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
 import RegistrationForm from '../components/RegistrationForm'
 import { memberLegalName, memberSiteDisplayName } from '../lib/memberDisplayName'
@@ -11,7 +11,6 @@ import {
 import { fetchLegiscanBillBySearch, isLegiscanBillNumberShape } from '../lib/legiscan'
 import { getClassroomSessionRole } from '../lib/classroom'
 import { isAllowedApplicationStatusTransition } from './dashboard/applications'
-import AssignBillWorkModal from './dashboard/AssignBillWorkModal'
 import BillAssignmentsExecPanel from './dashboard/BillAssignmentsExecPanel'
 import {
   BillAssignmentsMemberAssignedPanel,
@@ -24,25 +23,11 @@ import {
 } from './dashboard/billAssignments'
 import DeleteBillAssignmentModal from './dashboard/DeleteBillAssignmentModal'
 import DeleteBillModal from './dashboard/DeleteBillModal'
-import BillEditModal from './dashboard/BillEditModal'
-import BillUploadModal from './dashboard/BillUploadModal'
-import ApplicationsSection from './dashboard/ApplicationsSection'
 import VolunteerEntryModal from './dashboard/VolunteerEntryModal'
-import VolunteerHoursSection from './dashboard/VolunteerHoursSection'
 import HrReportSubmitModal from './dashboard/HrReportSubmitModal'
-import HrReportsSection from './dashboard/HrReportsSection'
 import HrReportViewModal from './dashboard/HrReportViewModal'
-import ExecConductSection from './dashboard/ExecConductSection'
 import ResignFromSpanSection from './dashboard/ResignFromSpanSection'
-import MemberStrikeModal from './dashboard/MemberStrikeModal'
-import MemberRemovalModal from './dashboard/MemberRemovalModal'
-import HonorableExitEmailModal from './dashboard/HonorableExitEmailModal'
-import RemovalNoticeEmailModal from './dashboard/RemovalNoticeEmailModal'
-import PolicyViolationEmailModal from './dashboard/PolicyViolationEmailModal'
 import { strikeLimitForMember, isAtStrikeLimit } from '../lib/memberStrikeRules'
-import IdeasSuggestionsSection from './dashboard/IdeasSuggestionsSection'
-import ClassroomSection from './dashboard/ClassroomSection'
-import LeaveExtensionSection from './dashboard/LeaveExtensionSection'
 import DashboardSectionNav from './dashboard/DashboardSectionNav'
 import { buildDashboardSectionNavItems, DASHBOARD_SECTION_IDS } from './dashboard/dashboardSectionAnchors'
 import LeaveRequestQuickReviewModal from './dashboard/LeaveRequestQuickReviewModal'
@@ -51,33 +36,60 @@ import LeaveRequestViewModal from './dashboard/LeaveRequestViewModal'
 import SuggestionViewModal from './dashboard/SuggestionViewModal'
 import BillPdfPreviewModal from './dashboard/BillPdfPreviewModal'
 import DeleteVolunteerEntryModal from './dashboard/DeleteVolunteerEntryModal'
-import MemberFormModal from './dashboard/MemberFormModal'
-import MemberManagementSection from './dashboard/MemberManagementSection'
 import YourInfoSection from './dashboard/YourInfoSection'
 import ExecTeamsSection from './dashboard/ExecTeamsSection'
-import TeamLeadAssignmentsSection from './dashboard/TeamLeadAssignmentsSection'
-import ExecBillManagementSection from './dashboard/ExecBillManagementSection'
-import BillSubmissionSection from './dashboard/BillSubmissionSection'
-import ApplicationViewModal from './dashboard/ApplicationViewModal'
 import ImportApplicationModal from './dashboard/ImportApplicationModal'
 import DeleteApplicationConfirmModal from './dashboard/DeleteApplicationConfirmModal'
 import ApplicationInviteEmailPreviewModal from './dashboard/ApplicationInviteEmailPreviewModal'
 import ApplicationOnboardScheduleEmailPreviewModal from './dashboard/ApplicationOnboardScheduleEmailPreviewModal'
 import ApplicationRejectConfirmModal from './dashboard/ApplicationRejectConfirmModal'
 import ApplicationMetWithDateModal from './dashboard/ApplicationMetWithDateModal'
-import VolunteerVerificationModal from './dashboard/VolunteerVerificationModal'
-import PartnerFormModal from './dashboard/PartnerFormModal'
-import SchoolFormModal from './dashboard/SchoolFormModal'
-import AdvisorFormModal from './dashboard/AdvisorFormModal'
-import AnalyticsSection from './dashboard/AnalyticsSection'
 import SpanCardPasswordModal from './dashboard/SpanCardPasswordModal'
 import VolunteerSupervisorCommentModal from './dashboard/VolunteerSupervisorCommentModal'
+import {
+  ApplicationsSection,
+  AnalyticsSection,
+  ClassroomSection,
+  MemberManagementSection,
+  ExecConductSection,
+  ExecBillManagementSection,
+  BillSubmissionSection,
+  HrReportsSection,
+  TeamLeadAssignmentsSection,
+  IdeasSuggestionsSection,
+  VolunteerHoursSection,
+  LeaveExtensionSection,
+  AssignBillWorkModal,
+  BillEditModal,
+  BillUploadModal,
+  ApplicationViewModal,
+  MemberStrikeModal,
+  MemberRemovalModal,
+  HonorableExitEmailModal,
+  RemovalNoticeEmailModal,
+  PolicyViolationEmailModal,
+  VolunteerVerificationModal,
+  MemberFormModal,
+  PartnerFormModal,
+  SchoolFormModal,
+  AdvisorFormModal,
+} from './dashboard/lazyDashboardPanels'
 import {
   IMAGE_BASE_URL,
   PARTNERS_IMAGES_BASE_URL,
   SCHOOLS_IMAGES_BASE_URL,
   ADVISORS_IMAGES_BASE_URL,
 } from './dashboard/constants'
+
+function DashboardLazyFallback({ label = 'Loading…' }) {
+  return (
+    <div className="text-center py-4">
+      <div className="spinner-border text-primary" role="status">
+        <span className="visually-hidden">{label}</span>
+      </div>
+    </div>
+  )
+}
 import { supabaseInvokeHeaders } from './dashboard/supabaseInvoke'
 import { runAiTextCheck, checkAiFromBill, checkAiFromAssignment } from '../lib/checkAiText'
 import './DashboardPage.css'
@@ -6085,6 +6097,7 @@ function DashboardPage() {
           onMemberInfoUpdated={handleMemberInfoUpdated}
         />
 
+        <Suspense fallback={<DashboardLazyFallback label="Loading dashboard panels…" />}>
         <LeaveExtensionSection
           sectionId={DASHBOARD_SECTION_IDS.leaveExtension}
           sectionOrder={dashboardOrder.leaveExtension}
@@ -6819,6 +6832,8 @@ function DashboardPage() {
             />
           )}
 
+        </Suspense>
+
         {!viewAsData && member && (member.blog === true || member.blog === 'true') && (
           <section
             id={DASHBOARD_SECTION_IDS.mediumBlog}
@@ -7014,6 +7029,7 @@ function DashboardPage() {
         onConfirm={handleDeleteEntry}
       />
 
+      <Suspense fallback={null}>
       <BillUploadModal
         open={showBillModal}
         billModalSourceAssignmentId={billModalSourceAssignmentId}
@@ -7516,6 +7532,7 @@ function DashboardPage() {
         onClose={() => setShowAdvisorModal(false)}
         onSave={handleSaveAdvisor}
       />
+      </Suspense>
 
 
     </div>

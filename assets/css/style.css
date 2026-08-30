@@ -54,6 +54,20 @@ html, body {
    z-index: -1;
 }
 
+@supports (background-image: image-set(url('x.webp') type('image/webp'))) {
+  .parallax-bg {
+    background-image:
+      linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.05)),
+      image-set(
+        url('/assets/images/index/hero.webp') type('image/webp'),
+        url('/assets/images/index/hero.jpg') type('image/jpeg')
+      );
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+  }
+}
+
 .scroll-indicator {
    bottom: 30px;
    opacity: 0.8;
@@ -90,6 +104,20 @@ html, body {
    background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.05)), url('/assets/images/index/hero.jpg') center/cover no-repeat;
    background-attachment: fixed;
    z-index: -1;
+}
+
+@supports (background-image: image-set(url('x.webp') type('image/webp'))) {
+  .subpage-hero .parallax-bg {
+    background-image:
+      linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.05)),
+      image-set(
+        url('/assets/images/index/hero.webp') type('image/webp'),
+        url('/assets/images/index/hero.jpg') type('image/jpeg')
+      );
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+  }
 }
 
 .subpage-hero h1, .subpage-hero p {

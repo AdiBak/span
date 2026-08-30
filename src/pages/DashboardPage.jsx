@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import QRCode from 'qrcode'
 import RegistrationForm from '../components/RegistrationForm'
-import BillResearchPanel from '../components/BillResearchPanel'
 import { generateVolunteerPDF } from '../lib/generateVolunteerPDF'
 import { memberLegalName, memberSiteDisplayName } from '../lib/memberDisplayName'
 import { resolveMemberGrade, splitMemberGradeForForm } from '../lib/memberGrades'
@@ -1310,10 +1308,12 @@ function DashboardPage() {
       }
       const { data, error } = await supabase
         .from('members')
-        .select('member_id, first_name, last_name, email, bills, role')
+        .select('member_id, first_name, last_name, email, bills, role, active')
         .in('member_id', ids)
       if (error) console.error('team roster load', error)
-      if (!cancelled) setTeamRosterMembers(data || [])
+      if (!cancelled) {
+        setTeamRosterMembers((data || []).filter((m) => m.active !== false))
+      }
     }
     loadTeamRoster()
     return () => {
@@ -1891,13 +1891,19 @@ function DashboardPage() {
     }
     try {
       // Direct update avoids ambiguous update_member overloads when only p_active is passed.
+      // DB trigger also clears team rows; these deletes cover envs before that migration runs.
       const { error } = await supabase
         .from('members')
         .update({ active: false })
         .eq('member_id', memberId)
       if (error) throw error
+      await Promise.all([
+        supabase.from('member_policy_teams').delete().eq('member_id', memberId),
+        supabase.from('policy_team_leads').delete().eq('member_id', memberId),
+      ])
       await loadAllMembersForManagement()
       await loadAllMembers()
+      await loadPolicyTeams()
       return true
     } catch (err) {
       alert(err.message || 'Failed to remove member from directory.')
@@ -2882,6 +2888,7 @@ function DashboardPage() {
       timestamp
     })
 
+    const QRCode = (await import('qrcode')).default
     const qrDataUrl = await QRCode.toDataURL(qrPayload, {
       width: qrSize,
       color: { dark: '#000000', light: '#ffffff' },
@@ -6036,13 +6043,25 @@ function DashboardPage() {
           <p className="text-muted">{effectiveMember.role || '-'}</p>
           <div className="mt-2">
             {effectiveMember.linkedin && (
-              <a href={effectiveMember.linkedin} target="_blank" rel="noopener noreferrer" className="text-dark fs-4 me-2">
-                <i className="bi bi-linkedin"></i>
+              <a
+                href={effectiveMember.linkedin}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-dark fs-4 me-2"
+                aria-label="LinkedIn profile"
+              >
+                <i className="bi bi-linkedin" aria-hidden="true"></i>
               </a>
             )}
             {effectiveMember.instagram && (
-              <a href={effectiveMember.instagram} target="_blank" rel="noopener noreferrer" className="text-dark fs-4">
-                <i className="bi bi-instagram"></i>
+              <a
+                href={effectiveMember.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-dark fs-4"
+                aria-label="Instagram profile"
+              >
+                <i className="bi bi-instagram" aria-hidden="true"></i>
               </a>
             )}
           </div>

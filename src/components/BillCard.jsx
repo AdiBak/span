@@ -189,7 +189,7 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
       <div className="impact-card card h-100 shadow-sm position-relative" style={{ overflow: 'visible' }}>
         <div className="card-body position-relative d-flex flex-column">
           <div ref={statusPopoverRef} className="bill-status-info-area">
-            <h5 className="card-title bill-card-title d-flex align-items-center gap-1">
+            <h3 className="h5 card-title bill-card-title d-flex align-items-center gap-1">
               <span className="text-truncate">{bill.state} {bill.name}</span>
               <button
                 type="button"
@@ -200,7 +200,7 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
               >
                 <i className="bi bi-info-circle" aria-hidden="true"></i>
               </button>
-            </h5>
+            </h3>
 
             {showStatusPopover && (
               <div className="bill-status-popover-wrapper">

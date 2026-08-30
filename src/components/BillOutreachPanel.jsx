@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
-import OutreachContactModal from './OutreachContactModal'
 import { chamberTitleFromSponsorRole, legislatorContactSearchUrl } from '../lib/outreachEmail'
 import {
   fetchLegiscanBillBySearch,
@@ -24,6 +23,8 @@ import {
   canonicalUSStateName,
   usStateAbbreviation,
 } from '../lib/usStateCanonical'
+
+const OutreachContactModal = lazy(() => import('./OutreachContactModal'))
 
 const OUTREACH_SOURCE_STATE_OPTIONS = Object.entries(US_STATE_CODE_TO_NAME)
   .map(([code, name]) => ({ code, name }))
@@ -1240,18 +1241,22 @@ export default function BillOutreachPanel({ bills, member, onBillsChanged }) {
         )}
       </div>
 
-      <OutreachContactModal
-        open={contactTarget != null}
-        onClose={() => setContactTarget(null)}
-        bill={selectedBill}
-        target={contactTarget}
-        member={member}
-        onMarkContacted={async () => {
-          if (contactTarget) {
-            await patchTarget(contactTarget.target_id, { status: 'contacted' })
-          }
-        }}
-      />
+      {contactTarget != null && (
+        <Suspense fallback={null}>
+          <OutreachContactModal
+            open
+            onClose={() => setContactTarget(null)}
+            bill={selectedBill}
+            target={contactTarget}
+            member={member}
+            onMarkContacted={async () => {
+              if (contactTarget) {
+                await patchTarget(contactTarget.target_id, { status: 'contacted' })
+              }
+            }}
+          />
+        </Suspense>
+      )}
 
       {osModalOpen && (
         <>

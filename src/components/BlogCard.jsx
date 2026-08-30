@@ -49,7 +49,7 @@ function BlogCard({ post, variant = 'default' }) {
           height="338"
         />
         <div className="card-body d-flex flex-column">
-          <h5 className="card-title">{post.title}</h5>
+          <h3 className="h5 card-title">{post.title}</h3>
           <p className="card-text text-muted mb-2">
             <small>
               {post.formattedDate}

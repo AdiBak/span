@@ -1,10 +1,11 @@
-import React from 'react'
+import React, { lazy, Suspense } from 'react'
 import BillOutreachPanel from '../../components/BillOutreachPanel'
-import BillResearchPanel from '../../components/BillResearchPanel'
 import AiCheckResultPanel from '../../components/AiCheckResultPanel'
 import BillAssignmentsExecPanel from './BillAssignmentsExecPanel'
 import { billStateGroupKey, usStateAbbreviation } from '../../lib/usStateCanonical'
 import { billStatusFilterBtnClass } from '../../lib/billStatusFilterBtn'
+
+const BillResearchPanel = lazy(() => import('../../components/BillResearchPanel'))
 
 export default function ExecBillManagementSection({
   sectionOrder,
@@ -128,24 +129,34 @@ export default function ExecBillManagementSection({
       )}
 
       {execBillSectionTab === 'research' && (
-        <BillResearchPanel
-          bills={researchBills}
-          loading={researchBillsLoading}
-          loadError={researchBillsError}
-          spanSearchState={researchBillSearchState}
-          onSpanSearchStateChange={setResearchBillSearchState}
-          spanSearchBillNumber={researchBillSearchNumber}
-          onSpanSearchBillNumberChange={setResearchBillSearchNumber}
-          spanSearchKeywords={researchBillSearchKeywords}
-          onSpanSearchKeywordsChange={setResearchBillSearchKeywords}
-          statusFilter={researchBillStatusFilter}
-          onStatusFilterChange={setResearchBillStatusFilter}
-          allMembers={allMembers}
-          getBillPdfUrl={getBillPdfUrl}
-          formatDate={formatDate}
-          onRefresh={loadResearchBills}
-          getStateFileName={getStateFileName}
-        />
+        <Suspense
+          fallback={
+            <div className="text-center py-4">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Loading research…</span>
+              </div>
+            </div>
+          }
+        >
+          <BillResearchPanel
+            bills={researchBills}
+            loading={researchBillsLoading}
+            loadError={researchBillsError}
+            spanSearchState={researchBillSearchState}
+            onSpanSearchStateChange={setResearchBillSearchState}
+            spanSearchBillNumber={researchBillSearchNumber}
+            onSpanSearchBillNumberChange={setResearchBillSearchNumber}
+            spanSearchKeywords={researchBillSearchKeywords}
+            onSpanSearchKeywordsChange={setResearchBillSearchKeywords}
+            statusFilter={researchBillStatusFilter}
+            onStatusFilterChange={setResearchBillStatusFilter}
+            allMembers={allMembers}
+            getBillPdfUrl={getBillPdfUrl}
+            formatDate={formatDate}
+            onRefresh={loadResearchBills}
+            getStateFileName={getStateFileName}
+          />
+        </Suspense>
       )}
 
       {execBillSectionTab === 'review_queue' && (

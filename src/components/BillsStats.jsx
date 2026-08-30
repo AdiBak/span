@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { fetchPublicBills } from '../lib/publicData'
 
 const FEDERAL_ALIASES = [
@@ -10,7 +10,7 @@ const FEDERAL_ALIASES = [
   'u.s.',
   'u.s',
   'us',
-  'national'
+  'national',
 ]
 
 const normalizeStateValue = (value = '') =>
@@ -27,40 +27,52 @@ function isFederalBill(state) {
   return FEDERAL_ALIASES.includes(normalized) || /federal/.test(normalized) || /united states/.test(normalized)
 }
 
-function BillsStats() {
+/**
+ * Fetches public bill counts once for the homepage impact cards.
+ * Renders nothing by itself when used as a provider-style hook consumer —
+ * prefer `usePublicBillImpactStats` from the parent.
+ */
+export function usePublicBillImpactStats() {
+  const [stats, setStats] = useState({ proposals: null, states: null })
+
   useEffect(() => {
-    updateStats()
+    let cancelled = false
+    ;(async () => {
+      try {
+        const bills = await fetchPublicBills()
+        if (cancelled) return
+        if (!bills) {
+          setStats({ proposals: 0, states: 0 })
+          return
+        }
+        const stateBills = bills.filter((b) => b.state && !isFederalBill(b.state))
+        const uniqueStates = new Set(stateBills.map((b) => b.state).filter(Boolean))
+        setStats({
+          proposals: bills.length || 0,
+          states: uniqueStates.size || 0,
+        })
+      } catch (error) {
+        console.error('Error updating bills stats:', error)
+        if (!cancelled) setStats({ proposals: 0, states: 0 })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  async function updateStats() {
-    try {
-      const bills = await fetchPublicBills()
+  return stats
+}
 
-      if (!bills) {
-        console.error('Failed to load bills stats: empty result')
-        return
-      }
-
-      const proposalsElem = document.getElementById('proposals')
-      const statesElem = document.getElementById('statesTargeted')
-
-      if (proposalsElem) {
-        proposalsElem.textContent = bills?.length || 0
-      }
-
-      if (statesElem) {
-        // Filter out federal bills and get unique states
-        const stateBills = bills?.filter(b => b.state && !isFederalBill(b.state)) || []
-        const uniqueStates = new Set(stateBills.map(b => b.state).filter(Boolean))
-        statesElem.textContent = uniqueStates.size || 0
-      }
-    } catch (error) {
-      console.error('Error updating bills stats:', error)
-    }
-  }
-
-  return null // This component doesn't render anything, just updates stats
+/** @deprecated Prefer usePublicBillImpactStats — kept for App page='bills-stats' entry */
+function BillsStats() {
+  const stats = usePublicBillImpactStats()
+  if (stats.proposals == null) return null
+  return (
+    <span className="visually-hidden">
+      {stats.proposals} proposals, {stats.states} states targeted
+    </span>
+  )
 }
 
 export default BillsStats
-

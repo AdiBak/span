@@ -83,8 +83,9 @@ export default function PolicyTeamDetailPanel({
     )
   }
 
-  const rosterIds = rosterMemberIds || []
-  const leadDisplayIds = team.lead_member_ids || []
+  // Hide inactive / unknown members (e.g. fired) even if stale team rows remain.
+  const rosterIds = (rosterMemberIds || []).filter((id) => Boolean(getMember?.(id)))
+  const leadDisplayIds = (team.lead_member_ids || []).filter((id) => Boolean(getMember?.(id)))
   const nonLeadRosterIds = rosterIds.filter((id) => !leadIdSet.has(String(id)))
   const rosterListCount = leadDisplayIds.length + nonLeadRosterIds.length
   const leadGroupId = `policy-team-leads-${team.team_id}`

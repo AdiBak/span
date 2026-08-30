@@ -105,7 +105,7 @@ export function DirectoryPeopleGrid({
                     className="btn btn-sm btn-outline-dark advisor-linkedin"
                     aria-label={`LinkedIn profile for ${person.name}`}
                   >
-                    <i className="bi bi-linkedin"></i>
+                    <i className="bi bi-linkedin" aria-hidden="true"></i>
                   </a>
                 )}
               </div>

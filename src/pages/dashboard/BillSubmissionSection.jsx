@@ -1,11 +1,12 @@
-import React, { useMemo } from 'react'
+import React, { lazy, Suspense, useMemo } from 'react'
 import BillOutreachPanel from '../../components/BillOutreachPanel'
-import BillResearchPanel from '../../components/BillResearchPanel'
 import { billStateGroupKey, usStateAbbreviation } from '../../lib/usStateCanonical'
 import {
   BillAssignmentsMemberAssignedPanel,
   BillAssignmentsOpenTasksPanel,
 } from './BillAssignmentsMemberPanels'
+
+const BillResearchPanel = lazy(() => import('../../components/BillResearchPanel'))
 
 export default function BillSubmissionSection({
   sectionOrder,
@@ -153,24 +154,34 @@ export default function BillSubmissionSection({
       {billSubmissionViewTab === 'outreach' ? (
         <BillOutreachPanel bills={outreachBills} member={member} onBillsChanged={loadAllBills} />
       ) : billSubmissionViewTab === 'research' ? (
-        <BillResearchPanel
-          bills={researchBills}
-          loading={researchBillsLoading}
-          loadError={researchBillsError}
-          spanSearchState={researchBillSearchState}
-          onSpanSearchStateChange={setResearchBillSearchState}
-          spanSearchBillNumber={researchBillSearchNumber}
-          onSpanSearchBillNumberChange={setResearchBillSearchNumber}
-          spanSearchKeywords={researchBillSearchKeywords}
-          onSpanSearchKeywordsChange={setResearchBillSearchKeywords}
-          statusFilter={researchBillStatusFilter}
-          onStatusFilterChange={setResearchBillStatusFilter}
-          allMembers={allMembers}
-          getBillPdfUrl={getBillPdfUrl}
-          formatDate={formatDate}
-          onRefresh={loadResearchBills}
-          getStateFileName={getStateFileName}
-        />
+        <Suspense
+          fallback={
+            <div className="text-center py-4">
+              <div className="spinner-border text-primary" role="status">
+                <span className="visually-hidden">Loading research…</span>
+              </div>
+            </div>
+          }
+        >
+          <BillResearchPanel
+            bills={researchBills}
+            loading={researchBillsLoading}
+            loadError={researchBillsError}
+            spanSearchState={researchBillSearchState}
+            onSpanSearchStateChange={setResearchBillSearchState}
+            spanSearchBillNumber={researchBillSearchNumber}
+            onSpanSearchBillNumberChange={setResearchBillSearchNumber}
+            spanSearchKeywords={researchBillSearchKeywords}
+            onSpanSearchKeywordsChange={setResearchBillSearchKeywords}
+            statusFilter={researchBillStatusFilter}
+            onStatusFilterChange={setResearchBillStatusFilter}
+            allMembers={allMembers}
+            getBillPdfUrl={getBillPdfUrl}
+            formatDate={formatDate}
+            onRefresh={loadResearchBills}
+            getStateFileName={getStateFileName}
+          />
+        </Suspense>
       ) : billSubmissionViewTab === 'open_tasks' ? (
         <>
           <p className="text-muted small mb-3">

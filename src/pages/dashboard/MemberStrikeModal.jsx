@@ -60,10 +60,10 @@ export default function MemberStrikeModal({
                 <label className="form-label">Add manual strike (optional notes)</label>
                 <textarea
                   className="form-control"
-                  rows={2}
+                  rows={6}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Brief context (stored with this strike)"
+                  placeholder="Context for this strike (what happened, dates, etc.)"
                 />
                 <button
                   type="button"

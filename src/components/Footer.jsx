@@ -22,45 +22,50 @@ function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-white me-3"
+                aria-label="SPAN on LinkedIn"
               >
-                <i className="bi bi-linkedin" style={{ fontSize: '1.5rem' }}></i>
+                <i className="bi bi-linkedin" style={{ fontSize: '1.5rem' }} aria-hidden="true"></i>
               </a>
               <a
                 href="https://www.instagram.com/spanationwide_/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-white me-3"
+                aria-label="SPAN on Instagram"
               >
-                <i className="bi bi-instagram" style={{ fontSize: '1.5rem' }}></i>
+                <i className="bi bi-instagram" style={{ fontSize: '1.5rem' }} aria-hidden="true"></i>
               </a>
               <a
                 href="https://www.tiktok.com/@spanationwide"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-white me-3"
+                aria-label="SPAN on TikTok"
               >
-                <i className="bi bi-tiktok" style={{ fontSize: '1.5rem' }}></i>
+                <i className="bi bi-tiktok" style={{ fontSize: '1.5rem' }} aria-hidden="true"></i>
               </a>
               <a
                 href="https://x.com/spanationwide"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-white me-3"
+                aria-label="SPAN on X"
               >
-                <i className="bi bi-twitter-x" style={{ fontSize: '1.5rem' }}></i>
+                <i className="bi bi-twitter-x" style={{ fontSize: '1.5rem' }} aria-hidden="true"></i>
               </a>
               <a
                 href="https://www.youtube.com/@spanationwide"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-white"
+                aria-label="SPAN on YouTube"
               >
-                <i className="bi bi-youtube" style={{ fontSize: '1.5rem' }}></i>
+                <i className="bi bi-youtube" style={{ fontSize: '1.5rem' }} aria-hidden="true"></i>
               </a>
             </div>
           </div>
           <div className="col-md-6 mb-4 mb-md-0">
-            <h5>Quick Links</h5>
+            <h2 className="h5">Quick Links</h2>
             <ul className="list-unstyled footer-quick-links mb-0">
               <li><a href="/index.html" className="text-white text-decoration-none">Home</a></li>
               <li><a href="/our-story.html" className="text-white text-decoration-none">Our Story</a></li>

@@ -3,7 +3,9 @@ import { supabase } from '../../lib/supabase'
 import PolicyTeamDetailPanel from './PolicyTeamDetailPanel'
 
 function billsMembers(rows) {
-  return (rows || []).filter((m) => m.bills === true || m.bills === 'true')
+  return (rows || []).filter(
+    (m) => m.active !== false && (m.bills === true || m.bills === 'true')
+  )
 }
 
 function eligibleTeamLeads(rows) {
@@ -54,32 +56,43 @@ export default function PolicyTeamsPanel({
     return eligibleTeamLeads(allMembersForManagement)
   }, [isPolicyKind, staffPool, allMembersForManagement])
 
+  const activeMemberIds = useMemo(() => {
+    const s = new Set()
+    for (const m of allMembersForManagement || []) {
+      if (m.active !== false) s.add(String(m.member_id))
+    }
+    return s
+  }, [allMembersForManagement])
+
   const membersByTeam = useMemo(() => {
     const m = {}
     for (const row of memberPolicyTeams || []) {
+      if (!activeMemberIds.has(String(row.member_id))) continue
       if (!m[row.team_id]) m[row.team_id] = []
       m[row.team_id].push(row.member_id)
     }
     return m
-  }, [memberPolicyTeams])
+  }, [memberPolicyTeams, activeMemberIds])
 
   const memberTeamId = useMemo(() => {
     const o = {}
     for (const row of memberPolicyTeams || []) {
+      if (!activeMemberIds.has(String(row.member_id))) continue
       o[row.member_id] = row.team_id
     }
     return o
-  }, [memberPolicyTeams])
+  }, [memberPolicyTeams, activeMemberIds])
 
   const leadMemberIdToTeamId = useMemo(() => {
     const o = {}
     for (const t of fullTeamList || []) {
       for (const mid of t.lead_member_ids || []) {
+        if (!activeMemberIds.has(String(mid))) continue
         o[String(mid)] = t.team_id
       }
     }
     return o
-  }, [fullTeamList])
+  }, [fullTeamList, activeMemberIds])
 
   const teamNameById = useMemo(() => {
     const o = {}
@@ -91,7 +104,7 @@ export default function PolicyTeamsPanel({
 
   const teamUniqueHeadcount = (team) => {
     const roster = membersByTeam[team.team_id] || []
-    const leads = team.lead_member_ids || []
+    const leads = (team.lead_member_ids || []).filter((id) => activeMemberIds.has(String(id)))
     const s = new Set()
     for (const id of roster) s.add(String(id))
     for (const id of leads) s.add(String(id))
@@ -102,8 +115,8 @@ export default function PolicyTeamsPanel({
     membersPool.find((x) => String(x.member_id) === String(memberId)) || null
 
   const leadsSummaryLine = (team) => {
-    const ids = team?.lead_member_ids
-    if (!Array.isArray(ids) || ids.length === 0) return 'No leads'
+    const ids = (team?.lead_member_ids || []).filter((id) => activeMemberIds.has(String(id)))
+    if (ids.length === 0) return 'No leads'
     const labels = ids.map((id) => {
       const m = getMember(id)
       if (!m) return '—'

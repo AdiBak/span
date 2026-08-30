@@ -1,7 +1,5 @@
-import { extractFullPdfText } from './pdfExtractText'
 import { resolveProposalPdfPublicUrl } from './outreachEmail'
 import { supabaseInvokeHeaders } from '../pages/dashboard/supabaseInvoke'
-import { detectAiTextLocally } from './localAiTextDetector'
 
 const MIN_WORDS = 5
 const MAX_EXTRACT_CHARS = 50_000
@@ -56,6 +54,7 @@ export async function runAiTextCheck(text, accessToken) {
     return await invokeCheckAiText(trimmed, accessToken)
   } catch (serverErr) {
     console.warn('Server AI check failed, trying local TMR:', serverErr)
+    const { detectAiTextLocally } = await import('./localAiTextDetector')
     return detectAiTextLocally(trimmed)
   }
 }
@@ -68,6 +67,7 @@ export async function runAiTextCheck(text, accessToken) {
 export async function checkAiFromPdfUrl(pdfUrl, accessToken) {
   let text
   try {
+    const { extractFullPdfText } = await import('./pdfExtractText')
     text = await extractFullPdfText(pdfUrl)
   } catch {
     throw new Error('Could not read PDF. The file may be unavailable or blocked by CORS.')

@@ -43,6 +43,7 @@ function PartnerLogo({ name, logoSrc, url }) {
       target="_blank"
       rel="noopener noreferrer"
       className="partner-logo-cell text-decoration-none"
+      aria-label={`${name} (opens in a new tab)`}
       title={name}
     >
       {img}
@@ -61,7 +62,7 @@ function PartnersSection() {
       try {
         const { data, error } = await supabase
           .from('partners')
-          .select('*')
+          .select('partner_id, partner_name, partner_logo, website_url, display_order, active')
           .eq('active', true)
           .order('display_order', { ascending: true })
 

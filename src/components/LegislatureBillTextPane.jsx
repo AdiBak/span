@@ -1,6 +1,10 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { fetchLegiscanBillTextDoc } from '../lib/legiscan'
-import { extractFullPdfText } from '../lib/pdfExtractText'
+
+async function extractFullPdfText(url) {
+  const mod = await import('../lib/pdfExtractText')
+  return mod.extractFullPdfText(url)
+}
 
 /** Heuristic: API sometimes mislabels HTML as text/plain */
 function looksLikeBillHtml(s) {

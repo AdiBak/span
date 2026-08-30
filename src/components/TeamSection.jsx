@@ -82,10 +82,12 @@ function TeamSection() {
                 className="rounded-circle object-fit-cover d-block mx-auto mt-4"
                 alt={memberSiteDisplayName(member)}
                 style={{ width: '75%', aspectRatio: '1 / 1' }}
+                loading="lazy"
+                decoding="async"
               />
               <div className="card-body d-flex flex-column justify-content-between">
                 <div>
-                  <h5 className="card-title">{memberSiteDisplayName(member)}</h5>
+                  <h3 className="h5 card-title">{memberSiteDisplayName(member)}</h3>
                   <p className="card-text text-muted">
                     {member.role}<br />{member.city}, {member.state}
                   </p>

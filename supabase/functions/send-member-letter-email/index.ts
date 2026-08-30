@@ -352,6 +352,17 @@ serve(async (req) => {
           console.error("deactivate after removal letter failed", deactErr)
         } else {
           directoryDeactivated = true
+          // Drop team roster/lead links (DB trigger does this too after migration).
+          const { error: mptErr } = await admin
+            .from("member_policy_teams")
+            .delete()
+            .eq("member_id", memberId)
+          if (mptErr) console.error("clear member_policy_teams after deactivate failed", mptErr)
+          const { error: leadErr } = await admin
+            .from("policy_team_leads")
+            .delete()
+            .eq("member_id", memberId)
+          if (leadErr) console.error("clear policy_team_leads after deactivate failed", leadErr)
         }
       }
 

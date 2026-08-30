@@ -7,7 +7,6 @@ import {
   outreachPlainWhenAttachingViaEmail,
   resolveProposalPdfPublicUrl,
 } from '../lib/outreachEmail'
-import { generatePersonalizedOutreachPdf } from '../lib/generateOutreachLetterPDF'
 import { sendOutreachEmailViaResend, sendOutreachReferenceCopy } from '../lib/outreachSend'
 import { supabase } from '../lib/supabase'
 
@@ -102,6 +101,7 @@ export default function OutreachContactModal({
       setBodyPlain(body)
       setTab('edit')
 
+      const { generatePersonalizedOutreachPdf } = await import('../lib/generateOutreachLetterPDF')
       const built = await generatePersonalizedOutreachPdf({
         bill,
         target,

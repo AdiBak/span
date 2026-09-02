@@ -19,7 +19,7 @@ export default function IdeasSuggestionsSection({
   formatDateLong,
   onViewSuggestion,
 }) {
-  const showStatusColumn = suggestionFilter === 'all'
+  const showStatusColumn = !isExec || suggestionFilter === 'all'
   return (
     <section id={sectionId} className="mt-5 dashboard-section-anchor" style={{ order: sectionOrder }}>
       <h3 className="mb-4">Ideas & Suggestions</h3>
@@ -155,6 +155,7 @@ export default function IdeasSuggestionsSection({
                 <th>Title</th>
                 {showStatusColumn && <th>Status</th>}
                 <th>Submitted</th>
+                {!isExec && <th>Response</th>}
                 <th>Actions</th>
               </tr>
             </thead>
@@ -215,6 +216,17 @@ export default function IdeasSuggestionsSection({
                     </td>
                   )}
                   <td>{formatDateLong(s.created_at)}</td>
+                  {!isExec && (
+                    <td>
+                      {s.review_notes ? (
+                        <span className="badge bg-primary">Comment</span>
+                      ) : s.status !== 'pending' ? (
+                        <span className="text-muted small">—</span>
+                      ) : (
+                        <span className="text-muted small">Pending</span>
+                      )}
+                    </td>
+                  )}
                   <td>
                     <button
                       type="button"

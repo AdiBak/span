@@ -1344,7 +1344,23 @@ function DashboardPage() {
       setMySuggestions([])
       return
     }
-    setMySuggestions(data || [])
+    const rows = data || []
+    const reviewerIds = [...new Set(rows.map((s) => s.reviewed_by).filter(Boolean))]
+    if (reviewerIds.length > 0) {
+      const { data: reviewersData } = await supabase
+        .from('members')
+        .select('member_id, first_name, last_name, email')
+        .in('member_id', reviewerIds)
+      const reviewersMap = {}
+      if (reviewersData) reviewersData.forEach((m) => { reviewersMap[m.member_id] = m })
+      rows.forEach((s) => {
+        s._source = 'member'
+        s.reviewed_by_member = s.reviewed_by ? reviewersMap[s.reviewed_by] : null
+      })
+    } else {
+      rows.forEach((s) => { s._source = 'member' })
+    }
+    setMySuggestions(rows)
   }
 
   const loadAllSuggestions = async () => {
@@ -2113,10 +2129,82 @@ function DashboardPage() {
     }
   }
 
-  const openSuggestionViewModal = (suggestion) => {
-    setSelectedSuggestionForView(suggestion)
-    setSuggestionReviewNotes(suggestion?.review_notes || '')
+  const enrichSuggestionForView = async (suggestion) => {
+    if (!suggestion) return suggestion
+    if (suggestion._source === 'public_bill') {
+      const { data, error } = await supabase
+        .from('public_bill_recommendations')
+        .select('*')
+        .eq('recommendation_id', suggestion.recommendation_id)
+        .single()
+      if (error || !data) return suggestion
+      const fresh = { ...data, _source: 'public_bill', suggestion_id: data.recommendation_id, type: 'public_bill_website' }
+      if (data.reviewed_by) {
+        const { data: reviewer } = await supabase
+          .from('members')
+          .select('member_id, first_name, last_name, email')
+          .eq('member_id', data.reviewed_by)
+          .single()
+        fresh.reviewed_by_member = reviewer || null
+      }
+      return fresh
+    }
+
+    const { data, error } = await supabase
+      .from('member_suggestions')
+      .select('*')
+      .eq('suggestion_id', suggestion.suggestion_id)
+      .single()
+    if (error || !data) return suggestion
+
+    const fresh = { ...data, _source: 'member' }
+    if (suggestion.member) fresh.member = suggestion.member
+    if (data.reviewed_by) {
+      const { data: reviewer } = await supabase
+        .from('members')
+        .select('member_id, first_name, last_name, email')
+        .eq('member_id', data.reviewed_by)
+        .single()
+      fresh.reviewed_by_member = reviewer || null
+    }
+    return fresh
+  }
+
+  const openSuggestionViewModal = async (suggestion) => {
+    const fresh = await enrichSuggestionForView(suggestion)
+    setSelectedSuggestionForView(fresh)
+    setSuggestionReviewNotes(fresh?.review_notes || '')
     setShowSuggestionViewModal(true)
+  }
+
+  const handleSuggestionCommentSave = async () => {
+    if (!selectedSuggestionForView || !member?.member_id) return
+    try {
+      const notes = suggestionReviewNotes.trim() || null
+      const payload = { review_notes: notes }
+      if (notes) {
+        payload.reviewed_by = member.member_id
+        payload.reviewed_at = new Date().toISOString()
+      }
+      const isPublic = selectedSuggestionForView._source === 'public_bill'
+      const { error } = isPublic
+        ? await supabase
+            .from('public_bill_recommendations')
+            .update(payload)
+            .eq('recommendation_id', selectedSuggestionForView.recommendation_id)
+        : await supabase
+            .from('member_suggestions')
+            .update(payload)
+            .eq('suggestion_id', selectedSuggestionForView.suggestion_id)
+      if (error) throw error
+      const updated = await enrichSuggestionForView(selectedSuggestionForView)
+      setSelectedSuggestionForView(updated)
+      setSuggestionReviewNotes(updated?.review_notes || '')
+      await loadMySuggestions()
+      await loadAllSuggestions()
+    } catch (err) {
+      alert(err.message || 'Failed to save comment.')
+    }
   }
 
   const handleSuggestionStatusChangeFromView = async (newStatus) => {
@@ -7012,6 +7100,7 @@ function DashboardPage() {
         showExecReview={!viewAsData && isExec}
         suggestionReviewNotes={suggestionReviewNotes}
         setSuggestionReviewNotes={setSuggestionReviewNotes}
+        onSaveComment={handleSuggestionCommentSave}
         onStatusChange={handleSuggestionStatusChangeFromView}
       />
 

@@ -9,6 +9,7 @@ export default function SuggestionViewModal({
   showExecReview,
   suggestionReviewNotes,
   setSuggestionReviewNotes,
+  onSaveComment,
   onStatusChange,
 }) {
   if (!open || !suggestion) return null
@@ -129,18 +130,22 @@ export default function SuggestionViewModal({
                   </p>
                 </div>
               )}
-              {suggestion.review_notes && (
+              {(suggestion.review_notes || (!showExecReview && suggestion.status !== 'pending')) && (
                 <div className="mb-3">
-                  <strong>Review notes:</strong>
-                  <p className="mb-0 mt-1" style={{ whiteSpace: 'pre-wrap' }}>
-                    {suggestion.review_notes}
-                  </p>
+                  <strong>{showExecReview ? 'Review notes:' : 'Response from SPAN:'}</strong>
+                  {suggestion.review_notes ? (
+                    <p className="mb-0 mt-1" style={{ whiteSpace: 'pre-wrap' }}>
+                      {suggestion.review_notes}
+                    </p>
+                  ) : (
+                    <p className="mb-0 mt-1 text-muted">No comment yet.</p>
+                  )}
                 </div>
               )}
 
               {showExecReview && (
                 <div className="mt-4 pt-3 border-top">
-                  <label className="form-label">Review notes (optional)</label>
+                  <label className="form-label">Review notes (visible to the member)</label>
                   <textarea
                     className="form-control mb-3"
                     rows="3"
@@ -148,6 +153,11 @@ export default function SuggestionViewModal({
                     onChange={(e) => setSuggestionReviewNotes(e.target.value)}
                     placeholder="Leave a comment for the member..."
                   />
+                  <div className="d-flex flex-wrap gap-2 mb-3">
+                    <button type="button" className="btn btn-sm btn-dark" onClick={() => onSaveComment()}>
+                      Save comment
+                    </button>
+                  </div>
                   <p className="small text-muted mb-2">Change status:</p>
                   <div className="d-flex flex-wrap gap-2">
                     <button

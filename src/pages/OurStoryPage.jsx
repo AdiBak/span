@@ -107,7 +107,7 @@ function OurStoryPage() {
               Our members work on healthcare bills at the local, state, and federal
               levels — tracked publicly on our{' '}
               <a href="/bills.html">bills page</a> — and publish policy writing on the{' '}
-              <a href="/blog.html">SPAN blog</a>.
+              <a href="/policy-briefs.html">SPAN policy briefs</a>.
             </p>
             <ul className="lead mb-5">
               <li className="mb-2">
@@ -150,7 +150,7 @@ function OurStoryPage() {
               <li className="mb-2">
                 Apply on our <a href="/index.html#join">Join</a> form or explore open
                 work on the <a href="/bills.html">bills</a> and{' '}
-                <a href="/blog.html">blog</a> pages
+                <a href="/policy-briefs.html">policy briefs</a> pages
               </li>
             </ul>
             <p className="lead text-end">&mdash; Vishank, Shayan, Joel, &amp; Ben</p>

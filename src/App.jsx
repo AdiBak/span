@@ -43,7 +43,7 @@ function App({ page }) {
     )
   }
 
-  if (page === 'blog') {
+  if (page === 'policy-briefs') {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <BlogPage />
@@ -51,7 +51,7 @@ function App({ page }) {
     )
   }
 
-  if (page === 'blog-post') {
+  if (page === 'policy-brief') {
     // Get post ID from URL query parameter
     const urlParams = new URLSearchParams(window.location.search)
     const postId = urlParams.get('id')

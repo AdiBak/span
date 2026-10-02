@@ -31,7 +31,7 @@ function Navbar() {
       { label: 'Our Story', href: '/our-story.html' },
       { label: 'Bills', href: '/bills.html' },
       { label: 'Members', href: '/directory.html' },
-      { label: 'Blog', href: '/blog.html' },
+      { label: 'Policy Briefs', href: '/policy-briefs.html' },
     ],
     []
   )

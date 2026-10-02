@@ -200,7 +200,7 @@ function normalizePost(item, memberLookup) {
     id: postId,
     title: item.title,
     link: item.link, // Keep original Medium link
-    internalLink: `/blog-post.html?id=${encodeURIComponent(postId)}`, // Internal link
+    internalLink: `/policy-brief.html?id=${encodeURIComponent(postId)}`, // Internal link
     image,
     formattedDate,
     pubYear: year,
@@ -223,10 +223,10 @@ function BlogPage() {
 
   useEffect(() => {
     setPageSeo({
-      title: 'Blog | SPAN - Students for Patient Advocacy Nationwide',
+      title: 'Policy Briefs | SPAN - Students for Patient Advocacy Nationwide',
       description:
-        'SPAN blog: student-written insights on healthcare policy, advocacy, and patient-centered reform. Mirrored from our Medium publication onto spanationwide.org.',
-      canonicalPath: '/blog.html',
+        'SPAN policy briefs: student-written insights on healthcare policy, advocacy, and patient-centered reform. Mirrored from our Medium publication onto spanationwide.org.',
+      canonicalPath: '/policy-briefs.html',
       image: '/images/index/preview.jpg',
       type: 'website',
     })
@@ -257,7 +257,7 @@ function BlogPage() {
       } catch (err) {
         if (!isMounted) return
         console.error('Failed to fetch RSS feed:', err)
-        setError('Blog posts coming soon!')
+        setError('Policy briefs coming soon!')
         setRawPosts([])
         setMembers([])
       } finally {
@@ -360,7 +360,7 @@ function BlogPage() {
       return (
         <div className="text-center py-5">
           <div className="spinner-border text-secondary" role="status" style={{ width: '3rem', height: '3rem' }}>
-            <span className="visually-hidden">Loading blog posts…</span>
+            <span className="visually-hidden">Loading policy briefs…</span>
           </div>
         </div>
       )
@@ -374,8 +374,8 @@ function BlogPage() {
       return (
         <p className="text-center text-muted mt-4">
           {filtersActive
-            ? 'No blog posts match these filters.'
-            : 'No blog posts available at this time.'}
+            ? 'No policy briefs match these filters.'
+            : 'No policy briefs available at this time.'}
         </p>
       )
     }
@@ -409,7 +409,7 @@ function BlogPage() {
       <section className="subpage-hero d-flex align-items-center text-white text-center position-relative">
         <div className="parallax-bg" aria-hidden="true"></div>
         <div className="container position-relative z-1">
-          <h1 className="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Blog</h1>
+          <h1 className="display-3 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">Policy Briefs</h1>
           <p className="lead" data-aos="fade-up" data-aos-duration="1000" data-aos-delay="200">
             Latest insights about SPAN and healthcare.
           </p>
@@ -418,7 +418,7 @@ function BlogPage() {
 
       <main className="p-3 p-md-5 m-md-3 bg-light">
         <div className="container py-5">
-          <h2 className="text-center display-5 fw-bold">Latest Posts</h2>
+          <h2 className="text-center display-5 fw-bold">Latest Briefs</h2>
 
           {!loading && !error && normalizedPosts.length > 0 && (
             <div className="blog-filters mt-4 d-flex flex-wrap align-items-end gap-2 justify-content-between">
@@ -494,7 +494,7 @@ function BlogPage() {
                   placeholder="Search by keyword…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  aria-label="Search blog posts"
+                  aria-label="Search policy briefs"
                 />
               </div>
             </div>

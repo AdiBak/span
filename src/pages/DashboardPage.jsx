@@ -6233,7 +6233,7 @@ function DashboardPage() {
           {preferredNameEditOpen && !viewAsData ? (
             <div className="mx-auto mt-1" style={{ maxWidth: '420px', width: '100%' }}>
               <label className="form-label small text-muted mb-1" htmlFor="dashboard-preferred-name-input">
-                Preferred public name (directory and blog)
+                Preferred public name (directory and policy briefs)
               </label>
               <input
                 id="dashboard-preferred-name-input"
@@ -7164,7 +7164,7 @@ function DashboardPage() {
             className="mt-5 dashboard-section-anchor"
             style={{ order: dashboardOrder.mediumBlog }}
           >
-            <h3>Medium (blog) login</h3>
+            <h3>Medium (policy briefs) login</h3>
             <div className="card mt-3 shadow-sm">
               <div className="card-body">
                 <p className="text-muted mb-3">

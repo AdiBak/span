@@ -2,55 +2,85 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://spanationwide.org/</loc>
-    <lastmod>2026-08-24</lastmod>
+    <lastmod>2026-10-02</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://spanationwide.org/bills.html</loc>
-    <lastmod>2026-08-24</lastmod>
+    <lastmod>2026-10-02</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://spanationwide.org/blog.html</loc>
-    <lastmod>2026-08-24</lastmod>
+    <loc>https://spanationwide.org/policy-briefs.html</loc>
+    <lastmod>2026-10-02</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://spanationwide.org/directory.html</loc>
-    <lastmod>2026-08-24</lastmod>
+    <lastmod>2026-10-02</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://spanationwide.org/our-story.html</loc>
-    <lastmod>2026-08-24</lastmod>
+    <lastmod>2026-10-02</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://spanationwide.org/blog-post.html?id=https%3A%2F%2Fmedium.com%2Fp%2F1bcb49fc29a3</loc>
+    <loc>https://spanationwide.org/policy-brief.html?id=https%3A%2F%2Fmedium.com%2Fp%2F1bcb49fc29a3</loc>
     <lastmod>2025-08-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://spanationwide.org/blog-post.html?id=https%3A%2F%2Fmedium.com%2Fp%2Ff6e2c6166500</loc>
+    <loc>https://spanationwide.org/policy-brief.html?id=https%3A%2F%2Fmedium.com%2Fp%2Ff6e2c6166500</loc>
     <lastmod>2025-10-27</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://spanationwide.org/blog-post.html?id=https%3A%2F%2Fmedium.com%2Fp%2F632d8175edec</loc>
+    <loc>https://spanationwide.org/policy-brief.html?id=https%3A%2F%2Fmedium.com%2Fp%2F632d8175edec</loc>
     <lastmod>2026-01-23</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://spanationwide.org/blog-post.html?id=https%3A%2F%2Fmedium.com%2Fp%2Fbb09aee4f78b</loc>
+    <loc>https://spanationwide.org/policy-brief.html?id=https%3A%2F%2Fmedium.com%2Fp%2Fbb09aee4f78b</loc>
     <lastmod>2026-02-15</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://spanationwide.org/policy-brief.html?id=https%3A%2F%2Fmedium.com%2Fp%2F3c20a3bb27cc</loc>
+    <lastmod>2026-03-25</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://spanationwide.org/policy-brief.html?id=https%3A%2F%2Fmedium.com%2Fp%2F78434b17ddc5</loc>
+    <lastmod>2026-03-31</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://spanationwide.org/policy-brief.html?id=https%3A%2F%2Fmedium.com%2Fp%2Fdf98268e8eec</loc>
+    <lastmod>2026-04-23</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://spanationwide.org/policy-brief.html?id=https%3A%2F%2Fmedium.com%2Fp%2F37d1812d0b34</loc>
+    <lastmod>2026-05-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://spanationwide.org/policy-brief.html?id=https%3A%2F%2Fmedium.com%2Fp%2Fa1cdc9e857da</loc>
+    <lastmod>2026-06-06</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>

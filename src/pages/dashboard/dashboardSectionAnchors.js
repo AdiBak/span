@@ -32,7 +32,7 @@ export const DASHBOARD_SECTION_LABELS = {
   schoolsPartners: 'Schools, Partners & Mentors',
   analytics: 'Analytics',
   classroom: 'Classroom',
-  mediumBlog: 'Medium (Blog)',
+  mediumBlog: 'Medium (Policy Briefs)',
   changePassword: 'Change Password',
   resignFromSpan: 'Resign from SPAN',
 }

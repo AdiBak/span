@@ -10,8 +10,8 @@ import {
 } from '../lib/documentSeo'
 import '../pages/BlogPage.css'
 
-const DEFAULT_BLOG_TITLE = 'Blog Post | SPAN - Students for Patient Advocacy Nationwide'
-const DEFAULT_BLOG_DESCRIPTION = 'Read our latest blog post about SPAN and healthcare advocacy.'
+const DEFAULT_BLOG_TITLE = 'Policy Brief | SPAN - Students for Patient Advocacy Nationwide'
+const DEFAULT_BLOG_DESCRIPTION = 'Read our latest policy brief about SPAN and healthcare advocacy.'
 
 const MEMBER_IMAGE_BASE_URL = 'https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/members-images'
 
@@ -244,7 +244,7 @@ function BlogPostPage({ postId }) {
   useEffect(() => {
     if (!post || !postId) return undefined
 
-    const canonicalPath = `/blog-post.html?id=${encodeURIComponent(postId)}`
+    const canonicalPath = `/policy-brief.html?id=${encodeURIComponent(postId)}`
     const description =
       descriptionFromHtml(post.descriptionHtml || post.content, 160) || DEFAULT_BLOG_DESCRIPTION
     const title = `${post.title} | SPAN`
@@ -295,7 +295,7 @@ function BlogPostPage({ postId }) {
       setPageSeo({
         title: DEFAULT_BLOG_TITLE,
         description: DEFAULT_BLOG_DESCRIPTION,
-        canonicalPath: '/blog-post.html',
+        canonicalPath: '/policy-brief.html',
         image: '/images/index/preview.jpg',
         type: 'article',
         jsonLdId: 'span-blog-post-jsonld',
@@ -328,9 +328,9 @@ function BlogPostPage({ postId }) {
         <div className="container py-5">
           <div className="text-center">
             <h2>Post Not Found</h2>
-            <p className="text-muted">{error || 'The requested blog post could not be found.'}</p>
-            <a href="/blog.html" className="btn btn-dark mt-3">
-              Back to Blog
+            <p className="text-muted">{error || 'The requested policy brief could not be found.'}</p>
+            <a href="/policy-briefs.html" className="btn btn-dark mt-3">
+              Back to Policy Briefs
             </a>
           </div>
         </div>
@@ -343,8 +343,8 @@ function BlogPostPage({ postId }) {
       <section className="subpage-hero d-flex align-items-center text-white text-center position-relative">
         <div className="parallax-bg" aria-hidden="true"></div>
         <div className="container position-relative z-1">
-          <a href="/blog.html" className="text-white text-decoration-none mb-3 d-inline-block">
-            <i className="bi bi-arrow-left me-2"></i>Back to Blog
+          <a href="/policy-briefs.html" className="text-white text-decoration-none mb-3 d-inline-block">
+            <i className="bi bi-arrow-left me-2"></i>Back to Policy Briefs
           </a>
           <h1 className="display-4 fw-bold mb-2" data-aos="fade-up" data-aos-duration="1000">{post.title}</h1>
         </div>

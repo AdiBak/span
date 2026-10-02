@@ -56,6 +56,8 @@ export default defineConfig(({ mode }) => {
       input: {
         main: './index.html',
         bills: './bills.html',
+        'policy-briefs': './policy-briefs.html',
+        'policy-brief': './policy-brief.html',
         blog: './blog.html',
         'blog-post': './blog-post.html',
         directory: './directory.html',

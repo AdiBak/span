@@ -4,7 +4,7 @@
  * Medium’s RSS feed only returns the ~10 newest stories, so older live posts
  * must be kept in `src/data/mediumBlogArchive.json` (same item shape as rss2json).
  * When new posts push older ones out of RSS, add them to the archive or they
- * disappear from spanationwide.org/blog.
+ * disappear from spanationwide.org/policy-briefs.
  */
 import archiveItems from '../data/mediumBlogArchive.json'
 

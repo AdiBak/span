@@ -15,7 +15,7 @@ const today = new Date().toISOString().slice(0, 10)
 const staticPages = [
   { path: '/', priority: '1.0', changefreq: 'weekly' },
   { path: '/bills.html', priority: '0.9', changefreq: 'weekly' },
-  { path: '/blog.html', priority: '0.8', changefreq: 'weekly' },
+  { path: '/policy-briefs.html', priority: '0.8', changefreq: 'weekly' },
   { path: '/directory.html', priority: '0.7', changefreq: 'weekly' },
   { path: '/our-story.html', priority: '0.9', changefreq: 'monthly' },
 ]
@@ -43,7 +43,7 @@ const blogUrls = (Array.isArray(archive) ? archive : []).map((item) => {
   const id = item.guid || item.link
   const pub = String(item.pubDate || '').slice(0, 10) || today
   return urlEntry({
-    loc: `${SITE}/blog-post.html?id=${encodeURIComponent(id)}`,
+    loc: `${SITE}/policy-brief.html?id=${encodeURIComponent(id)}`,
     lastmod: pub,
     changefreq: 'monthly',
     priority: '0.7',

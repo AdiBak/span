@@ -56,8 +56,8 @@ function mountComponents() {
 
   mountApp(document.getElementById('home-root'), 'home')
   mountApp(document.getElementById('bills-root'), 'bills')
-  mountApp(document.getElementById('blog-root'), 'blog')
-  mountApp(document.getElementById('blog-post-root'), 'blog-post')
+  mountApp(document.getElementById('policy-briefs-root'), 'policy-briefs')
+  mountApp(document.getElementById('policy-brief-root'), 'policy-brief')
   mountApp(document.getElementById('directory-root'), 'directory')
   mountApp(document.getElementById('our-story-root'), 'our-story')
   mountApp(document.getElementById('login-root'), 'login')

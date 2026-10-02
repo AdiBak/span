@@ -4,7 +4,7 @@ import PolicyTeamsPanel from './PolicyTeamsPanel'
 const TEAM_KINDS = [
   { key: 'policy', label: 'Policy (bill)' },
   { key: 'marketing', label: 'Marketing' },
-  { key: 'blog', label: 'Blog' },
+  { key: 'blog', label: 'Policy Briefs' },
   { key: 'general', label: 'General' },
 ]
 
@@ -47,7 +47,7 @@ export default function ExecTeamsSection({
           <i className={`bi ${showTeamsSection ? 'bi-chevron-up' : 'bi-chevron-down'}`}></i>
         </div>
         <p className="small text-muted mb-3 mb-md-2">
-          Policy teams are for bill analysts; Marketing, Blog, and General can include any member and use{' '}
+          Policy teams are for bill analysts; Marketing, Policy Briefs, and General can include any member and use{' '}
           <strong>Assigned work</strong> (Google Doc deliverables) like policy teams.
         </p>
         {showTeamsSection && (

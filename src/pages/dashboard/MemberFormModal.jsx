@@ -91,7 +91,7 @@ export default function MemberFormModal({
                     className="form-control"
                     value={memberForm.preferredName}
                     onChange={(e) => setMemberForm({ ...memberForm, preferredName: e.target.value })}
-                    placeholder="Shown on directory & blog; leave blank to use first (middle) last"
+                    placeholder="Shown on directory & policy briefs; leave blank to use first (middle) last"
                   />
                   <small className="text-muted">
                     Members can also edit this from their dashboard. Does not change SPAN email (first.last only).
@@ -377,7 +377,7 @@ export default function MemberFormModal({
                             id="memberBlog"
                           />
                           <label className="form-check-label" htmlFor="memberBlog">
-                            Blog OTP Access
+                            Policy Briefs OTP Access
                           </label>
                           <small className="text-muted d-block">
                             Can arm OTP forwarding for the shared Medium account.

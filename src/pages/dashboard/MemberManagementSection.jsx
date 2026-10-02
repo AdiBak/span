@@ -255,7 +255,7 @@ export default function MemberManagementSection({
                                   <span className="badge bg-warning text-dark">Registration</span>
                                 )}
                                 {(memberItem.blog === true || memberItem.blog === 'true') && (
-                                  <span className="badge bg-secondary">Blog</span>
+                                  <span className="badge bg-secondary">Policy Briefs</span>
                                 )}
                                 {!memberItem.volunteer &&
                                   !memberItem.applications &&
@@ -506,7 +506,7 @@ export default function MemberManagementSection({
                                   <span className="badge bg-warning text-dark">Registration</span>
                                 )}
                                 {(memberItem.blog === true || memberItem.blog === 'true') && (
-                                  <span className="badge bg-secondary">Blog</span>
+                                  <span className="badge bg-secondary">Policy Briefs</span>
                                 )}
                                 {!memberItem.volunteer &&
                                   !memberItem.applications &&

@@ -1,0 +1,3 @@
+# Database webhook (pg_net) calls this with the service role JWT.
+# Keep gateway JWT check off so webhook delivery is not blocked by verify quirks.
+verify_jwt = false

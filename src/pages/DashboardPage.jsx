@@ -4946,7 +4946,8 @@ function DashboardPage() {
       return
     }
     const from = selectedApplication.status
-    if (!isAllowedApplicationStatusTransition(from, 'onboard')) {
+    const alreadyOnboarded = from === 'onboard' || from === 'accepted'
+    if (!alreadyOnboarded && !isAllowedApplicationStatusTransition(from, 'onboard')) {
       alert('This application can no longer be moved to Onboard from its current stage.')
       setShowOnboardScheduleEmailModal(false)
       return
@@ -4984,39 +4985,48 @@ function DashboardPage() {
         )
       }
 
-      const nowIso = new Date().toISOString()
-      const { error } = await supabase
-        .from('applications')
-        .update({
-          status: 'onboard',
-          reviewed_by: member.member_id,
-          reviewed_at: nowIso,
-          notes: applicationNotes.trim() || null,
-        })
-        .eq('application_id', selectedApplication.application_id)
+      // Resend path: already onboard/accepted — email only, leave status alone.
+      if (!alreadyOnboarded) {
+        const nowIso = new Date().toISOString()
+        const { error } = await supabase
+          .from('applications')
+          .update({
+            status: 'onboard',
+            reviewed_by: member.member_id,
+            reviewed_at: nowIso,
+            notes: applicationNotes.trim() || null,
+          })
+          .eq('application_id', selectedApplication.application_id)
 
-      if (error) {
-        console.error('Error marking onboard after email:', error)
-        alert(
-          'The email was sent, but updating the application status failed: ' +
-            error.message +
-            '\n\nPlease set the status to Onboard manually if needed.'
-        )
-        setShowOnboardScheduleEmailModal(false)
-        setOnboardScheduleEmailPreview(null)
-        await loadApplications()
-        return
+        if (error) {
+          console.error('Error marking onboard after email:', error)
+          alert(
+            'The email was sent, but updating the application status failed: ' +
+              error.message +
+              '\n\nPlease set the status to Onboard manually if needed.'
+          )
+          setShowOnboardScheduleEmailModal(false)
+          setOnboardScheduleEmailPreview(null)
+          await loadApplications()
+          return
+        }
       }
 
       await loadApplications()
       setShowOnboardScheduleEmailModal(false)
       setOnboardScheduleEmailPreview(null)
-      closeApplicationModal()
+      if (!alreadyOnboarded) {
+        closeApplicationModal()
+      } else {
+        alert('Onboarding schedule email sent.')
+      }
     } catch (err) {
       console.error('Send onboarding schedule email error:', err)
       alert(
         err.message ||
-          'Failed to send onboarding scheduling email. The application was not marked as Onboard.'
+          (alreadyOnboarded
+            ? 'Failed to send onboarding scheduling email.'
+            : 'Failed to send onboarding scheduling email. The application was not marked as Onboard.')
       )
     } finally {
       setOnboardScheduleEmailSending(false)

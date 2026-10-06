@@ -286,6 +286,11 @@ export default function ApplicationViewModal({
                         <i className="bi bi-envelope me-1"></i>Mark Onboard (email)
                       </button>
                     )}
+                    {application.status === 'onboard' && (
+                      <button type="button" className="btn btn-outline-secondary" onClick={onOpenOnboardEmail}>
+                        <i className="bi bi-envelope me-1"></i>Resend onboarding email
+                      </button>
+                    )}
                     {isAllowedApplicationStatusTransition(application.status, 'accepted') && (
                       <button type="button" className="btn btn-success" onClick={onAccept}>
                         <i className="bi bi-check-circle me-1"></i>Accept & Add Member
@@ -300,6 +305,11 @@ export default function ApplicationViewModal({
                 )}
                 {(application.status === 'accepted' || application.status === 'rejected') && (
                   <>
+                    {application.status === 'accepted' && (
+                      <button type="button" className="btn btn-outline-secondary" onClick={onOpenOnboardEmail}>
+                        <i className="bi bi-envelope me-1"></i>Resend onboarding email
+                      </button>
+                    )}
                     <button type="button" className="btn btn-outline-primary" onClick={onResetToPending}>
                       Reset to Pending
                     </button>

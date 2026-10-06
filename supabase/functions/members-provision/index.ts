@@ -20,19 +20,60 @@ const INVITE_REDIRECT_URL =
   Deno.env.get("ONBOARDING_REDIRECT_URL") ?? "https://spanationwide.org/login.html"
 const PRODUCTION_URL = Deno.env.get("PRODUCTION_URL") ?? "https://spanationwide.org"
 
-if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
-  throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables")
-}
-
-const adminClient = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-})
-
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? ""
 const FROM_ADDRESS = "SPAN <contact@spanationwide.org>"
+
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  })
+}
+
+function getAdminClient() {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+    throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY")
+  }
+  return createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
+}
+
+/** Paginate Auth users — listUsers alone only returns one page and misses most accounts. */
+async function findAuthUserByEmail(
+  adminClient: ReturnType<typeof createClient>,
+  email: string,
+): Promise<{ id: string; email?: string | null } | null> {
+  const target = email.toLowerCase().trim()
+  let page = 1
+  const perPage = 1000
+  while (page <= 20) {
+    const { data: userList, error: listError } = await adminClient.auth.admin.listUsers({
+      page,
+      perPage,
+    })
+    if (listError) {
+      console.error("Failed to list users:", listError)
+      throw listError
+    }
+    const found = userList.users.find((u) => (u.email ?? "").toLowerCase() === target)
+    if (found) return found
+    if (!userList.users.length || userList.users.length < perPage) break
+    page++
+  }
+  return null
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+}
 
 const CLOUDFLARE_API_BASE = "https://api.cloudflare.com/client/v4"
 const CLOUDFLARE_ZONE_ID = "d8283cfe50b0e9188183602f6361be34"
@@ -272,13 +313,18 @@ async function sendEmailViaResend({
   console.log("Sending onboarding email via Resend to:", toEmail, "type:", inviteType,
     "password masked:", tempPassword ? "***" + tempPassword.slice(-4) : "none")
 
+  const safeName = escapeHtml(toName)
+  const safeSpanEmail = escapeHtml(spanEmail)
+  const safeTempPassword = tempPassword ? escapeHtml(tempPassword) : ""
+  const safeActionLink = escapeHtml(actionLink)
+
   const tempPasswordBlock = tempPassword ? `
             <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:16px; margin:24px 0; border-radius:4px;">
               <p style="color:#1e2746; font-size:15px; line-height:1.6; margin:0 0 12px;">
                 <strong>Your Temporary Password:</strong>
               </p>
               <p style="color:#1e2746; font-size:18px; font-family:'Courier New', monospace; background:#ffffff; padding:12px; border-radius:4px; margin:0; word-break:break-all; text-align:center; font-weight:600; letter-spacing:1px;">
-                ${tempPassword}
+                ${safeTempPassword}
               </p>
               <p style="color:#856404; font-size:13px; margin:12px 0 0; line-height:1.5;">
                 <strong>Important:</strong> Please save this password. You'll use it to log in for the first time. After completing registration, you can change your password in the dashboard.
@@ -303,14 +349,14 @@ async function sendEmailViaResend({
           <td style="padding:40px 48px 24px;">
             <img src="https://spanationwide.org/images/index/logo-wide-dark.png" alt="SPAN Logo" width="150" height="auto" style="display:block; margin-bottom:24px; max-width:100%; height:auto; border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic;">
 
-            <p style="color:#1e2746; font-size:16px; margin:0 0 16px; line-height:1.5;">Hi ${toName},</p>
+            <p style="color:#1e2746; font-size:16px; margin:0 0 16px; line-height:1.5;">Hi ${safeName},</p>
 
             <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 24px;">
               Welcome to <strong>SPAN (Students for Patient Advocacy Nationwide)</strong>! We're thrilled to have you join our community and can't wait to see the impact you'll make.
             </p>
 
             <p style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 24px;">
-              Here's how to get started with your new SPAN login (<strong>${spanEmail}</strong>):
+              Here's how to get started with your new SPAN login (<strong>${safeSpanEmail}</strong>):
             </p>
 
             ${tempPasswordBlock}
@@ -318,7 +364,7 @@ async function sendEmailViaResend({
             <ol style="color:#1e2746; font-size:16px; line-height:1.6; margin:0 0 24px; padding-left:20px;">
               <li style="margin-bottom:16px;">
                 <strong>Log in to your account:</strong><br>
-                Click the button below to go to the login page. Enter your SPAN email (<strong>${spanEmail}</strong>) and the temporary password shown above. Alternatively, you can click the link in this email which will automatically log you in.
+                Click the button below to go to the login page. Enter your SPAN email (<strong>${safeSpanEmail}</strong>) and the temporary password shown above. Alternatively, you can click the link in this email which will automatically log you in.
               </li>
               <li style="margin-bottom:16px;">
                 <strong>Complete your registration:</strong><br>
@@ -343,7 +389,7 @@ async function sendEmailViaResend({
             </ol>
 
             <div style="text-align:center; margin-bottom:32px;">
-              <a href="${actionLink}" style="background:#0b6ef9; color:#ffffff; padding:14px 28px; border-radius:999px; text-decoration:none; font-weight:600; display:inline-block;">
+              <a href="${safeActionLink}" style="background:#0b6ef9; color:#ffffff; padding:14px 28px; border-radius:999px; text-decoration:none; font-weight:600; display:inline-block;">
                 Go to Login Page
               </a>
             </div>
@@ -377,7 +423,7 @@ async function sendEmailViaResend({
         </tr>
         <tr>
           <td style="background:#0b6ef9; color:#ffffff; text-align:center; padding:16px; font-size:13px;">
-            &copy; ${spanEmail} &middot; ${inviteType.toUpperCase()}
+            &copy; ${safeSpanEmail} &middot; ${inviteType.toUpperCase()}
           </td>
         </tr>
       </table>
@@ -413,9 +459,9 @@ async function sendEmailViaResend({
   return { ok: true }
 }
 
-function generateRandomPassword(length = 24) {
-  const charset =
-    "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*()-_=+[]{}"
+// Alphanumeric only — special chars break when pasted from HTML email clients.
+function generateRandomPassword(length = 16) {
+  const charset = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
   const array = new Uint32Array(length)
   crypto.getRandomValues(array)
   let password = ""
@@ -425,29 +471,27 @@ function generateRandomPassword(length = 24) {
   return password
 }
 
-serve(
-  async (req) => {
+serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders })
   }
 
   try {
+    if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+      return jsonResponse({ error: "Server misconfigured" }, 500)
+    }
+
+    const adminClient = getAdminClient()
     const payload = (await req.json()) as WebhookPayload
     const member = payload?.record ?? null
 
     if (!member) {
-      return new Response(JSON.stringify({ status: "ignored", reason: "No record in payload" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      })
+      return jsonResponse({ status: "ignored", reason: "No record in payload" })
     }
 
     const emailRaw = (member.email as string | null) ?? null
     if (!emailRaw) {
-      return new Response(JSON.stringify({ status: "ignored", reason: "Member missing email" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      })
+      return jsonResponse({ status: "ignored", reason: "Member missing email" })
     }
 
     const email = emailRaw.trim().toLowerCase()
@@ -466,7 +510,6 @@ serve(
     const memberId = member.member_id as string | undefined
     const userIdInRow = member.user_id as string | null
 
-    // Provision auth user, handling duplicates gracefully
     let userId: string | null = null
     let inviteType: "invite" | "recovery" = "invite"
     let createdNewUser = false
@@ -479,37 +522,21 @@ serve(
       .filter(Boolean)
       .join(" ")
 
-    // First, check if user already exists to avoid unnecessary createUser call
-    const normalizedEmail = email.toLowerCase()
-    const { data: listData, error: listError } = await adminClient.auth.admin.listUsers({
-      perPage: 200,
-    })
-    
-    let existingUser: { id: string; email?: string | null } | null = null
-    if (!listError && listData?.users) {
-      existingUser = listData.users.find(
-        (user) => (user.email ?? "").toLowerCase() === normalizedEmail,
-      ) || null
-    }
+    const existingUser = await findAuthUserByEmail(adminClient, email)
 
-    // Generate invite link BEFORE creating user (for new users)
-    // This avoids the "email_exists" error when generating invite links
     let linkData:
       | Awaited<ReturnType<typeof adminClient.auth.admin.generateLink>>["data"]
       | null = null
 
     if (existingUser) {
-      // User already exists - use their existing user_id
       console.log("User already exists in auth", existingUser.id, "for", email)
       userId = existingUser.id
       inviteType = "recovery"
       createdNewUser = false
-      // Only send email if user_id wasn't already linked to this member
       if (userIdInRow && userIdInRow === userId) {
         console.log("User already linked to member, skipping email send")
         shouldSendEmail = false
       } else {
-        // Generate recovery link for existing user
         const { data: recoveryData, error: recoveryError } = await adminClient.auth.admin.generateLink({
           type: "recovery",
           email,
@@ -520,23 +547,17 @@ serve(
 
         if (recoveryError) {
           console.error("Failed to generate recovery link", recoveryError)
-          return new Response("Failed to generate recovery link", {
-            status: 500,
-            headers: corsHeaders,
-          })
+          return jsonResponse({ error: "Failed to generate recovery link" }, 500)
         }
 
         linkData = recoveryData
-        console.log("Recovery link generated", inviteType, recoveryData)
+        console.log("Recovery link generated", inviteType)
       }
     } else {
-      // User doesn't exist - create user FIRST, then generate invite link
-      // Note: We create the user first because generateLink with type "invite" may create the user automatically
       console.log("User doesn't exist, creating user first")
       const { data: createdUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
         password,
-        // Set email_confirm to true so new members can log in immediately with the temporary password
         email_confirm: true,
         user_metadata: {
           display_name: displayName,
@@ -550,37 +571,19 @@ serve(
         const code = (createError as { code?: string }).code
         console.log("createUser error code", code, "message", (createError as { message?: string }).message)
         console.error("createUser error detail", createError)
-        
-        // If email_exists error occurs (shouldn't happen after our check, but handle it anyway)
+
         if (code === "email_exists") {
           inviteType = "recovery"
-          // Try to find the user again
-          const { data: retryListData, error: retryListError } = await adminClient.auth.admin.listUsers({
-            perPage: 200,
-          })
-          if (retryListError) {
-            console.error("Failed to list users after email_exists", retryListError)
-            return new Response("Failed to list existing users", {
-              status: 500,
-              headers: corsHeaders,
-            })
-          }
-          const existing = retryListData?.users?.find(
-            (user) => (user.email ?? "").toLowerCase() === normalizedEmail,
-          )
+          const existing = await findAuthUserByEmail(adminClient, email)
           if (!existing) {
-            console.error("email_exists but user not found in listUsers", JSON.stringify(retryListData))
-            return new Response("Failed to locate existing user", {
-              status: 500,
-              headers: corsHeaders,
-            })
+            console.error("email_exists but user not found after paginated lookup")
+            return jsonResponse({ error: "Failed to locate existing user" }, 500)
           }
           console.log("Found existing auth user", existing.id, "for", email)
           userId = existing.id
           if (userIdInRow && userIdInRow === userId) {
             shouldSendEmail = false
           }
-          // Generate recovery link for existing user
           const { data: recoveryData, error: recoveryError } = await adminClient.auth.admin.generateLink({
             type: "recovery",
             email,
@@ -590,40 +593,30 @@ serve(
           })
           if (recoveryError) {
             console.error("Failed to generate recovery link", recoveryError)
-            return new Response("Failed to generate recovery link", {
-              status: 500,
-              headers: corsHeaders,
-            })
+            return jsonResponse({ error: "Failed to generate recovery link" }, 500)
           }
           linkData = recoveryData
         } else {
           console.error("Failed to create auth user", createError)
-          return new Response("Failed to create auth user", { status: 500, headers: corsHeaders })
+          return jsonResponse({ error: "Failed to create auth user", details: createError.message }, 500)
         }
       } else {
-        // User created successfully - create action link manually since user can log in with temp password
         userId = createdUser?.user?.id ?? null
         createdNewUser = true
         inviteType = "invite"
-        
+
         console.log("User created successfully, creating action link for login page")
-        // Since email_confirm is true, user can log in directly with temp password
-        // Create a simple action link pointing to login page
         linkData = {
           properties: {
             action_link: INVITE_REDIRECT_URL,
             email_otp: "",
           },
         } as typeof linkData
-        console.log("Action link created for new user", linkData)
       }
     }
 
     if (!userId) {
-      return new Response("User ID missing after provisioning", {
-        status: 500,
-        headers: corsHeaders,
-      })
+      return jsonResponse({ error: "User ID missing after provisioning" }, 500)
     }
 
     if (memberId && userId !== userIdInRow) {
@@ -634,59 +627,63 @@ serve(
 
       if (updateError) {
         console.error("Failed to update members.user_id", updateError)
-        return new Response("Failed to update members.user_id", {
-          status: 500,
-          headers: corsHeaders,
-        })
+        return jsonResponse({ error: "Failed to update members.user_id", details: updateError.message }, 500)
       }
     }
 
-    // Link has already been generated above (before user creation for new users, or for existing users)
-    // Now we just need to send the email if needed
-
-    // Set up Cloudflare email routing (non-blocking - if it fails, member provisioning still succeeds)
+    // Cloudflare routing is best-effort; do not fail provisioning if it errors.
     if (deliveryEmail && deliveryEmail !== email) {
-      const cloudflareResult = await setupCloudflareEmailRouting({
-        spanEmail: email,
-        destinationEmail: deliveryEmail,
-      })
-      console.log("Cloudflare email routing setup result", cloudflareResult)
+      try {
+        const cloudflareResult = await setupCloudflareEmailRouting({
+          spanEmail: email,
+          destinationEmail: deliveryEmail,
+        })
+        console.log("Cloudflare email routing setup result", cloudflareResult)
+      } catch (cfErr) {
+        console.error("Cloudflare routing threw (continuing)", cfErr)
+      }
     }
 
-    // Only send email if we should and have a valid link
+    let emailSent = false
     if (shouldSendEmail && linkData?.properties?.action_link) {
-      // Replace any localhost URLs in the action link with production URL
       let actionLink = linkData.properties.action_link
-      // Replace localhost:3000, localhost:5173 (Vite default), or any localhost with production URL
-      actionLink = actionLink.replace(
-        /https?:\/\/localhost(:\d+)?/g,
-        PRODUCTION_URL
-      )
-      // Also replace 127.0.0.1 if present
-      actionLink = actionLink.replace(
-        /https?:\/\/127\.0\.0\.1(:\d+)?/g,
-        PRODUCTION_URL
-      )
-      
-      // Only send temp password for new invites, not recovery
+      actionLink = actionLink.replace(/https?:\/\/localhost(:\d+)?/g, PRODUCTION_URL)
+      actionLink = actionLink.replace(/https?:\/\/127\.0\.0\.1(:\d+)?/g, PRODUCTION_URL)
+
       const passwordToSend = inviteType === "invite" && createdNewUser ? password : undefined
-      
-      console.log("Sending email with temp password:", passwordToSend ? "***" + passwordToSend.slice(-4) : "none (recovery)")
-      
+
+      console.log(
+        "Sending email with temp password:",
+        passwordToSend ? "***" + passwordToSend.slice(-4) : "none (recovery)",
+      )
+
       const sendResult = await sendEmailViaResend({
         toEmail: deliveryEmail,
         toName: displayName || email,
         spanEmail: email,
-        actionLink: actionLink,
+        actionLink,
         otp: linkData.properties.email_otp,
-        tempPassword: passwordToSend, // Send the actual password used to create the user (only for new invites)
+        tempPassword: passwordToSend,
         inviteType,
       })
       console.log("Resend send result", sendResult)
+      if (!sendResult.ok) {
+        // Surface failure so pg_net / webhook retries can pick it up.
+        return jsonResponse(
+          {
+            error: "Failed to send welcome email",
+            details: sendResult,
+            user_id: userId,
+          },
+          500,
+        )
+      }
+      emailSent = true
     } else if (!shouldSendEmail) {
       console.log("Skipping email send - user already linked to member")
     } else {
       console.warn("No action link returned for", email, "skipping email send")
+      return jsonResponse({ error: "No action link for welcome email", email }, 500)
     }
 
     console.log(
@@ -694,15 +691,24 @@ serve(
         status: "ok",
         user_id: userId,
         invite_type: inviteType,
-        member,
+        email_sent: emailSent,
+        member_id: memberId ?? null,
+        email,
+        delivery_email: deliveryEmail,
       }),
     )
 
-    return new Response("ok", { status: 200, headers: corsHeaders })
+    return jsonResponse({
+      status: "ok",
+      user_id: userId,
+      invite_type: inviteType,
+      email_sent: emailSent,
+    })
   } catch (err) {
     console.error("Unhandled error in members-provision function", err)
-    return new Response("Internal Server Error", { status: 500, headers: corsHeaders })
+    return jsonResponse(
+      { error: "Internal Server Error", details: err instanceof Error ? err.message : String(err) },
+      500,
+    )
   }
-  },
-  { verifyJwt: false },
-)
+})

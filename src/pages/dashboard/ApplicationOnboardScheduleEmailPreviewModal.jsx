@@ -52,7 +52,10 @@ export default function ApplicationOnboardScheduleEmailPreviewModal({
                 Letterhead-style email with congratulations and scheduling instructions. Optionally add a{' '}
                 <strong>when2meet</strong> (or other) <strong>https</strong> link and a short deadline line; leave blank to
                 ask them to reply with availability only. Click <strong>Refresh preview</strong> after editing. Sending
-                uses Resend and sets the application to <strong>Onboard</strong>.
+                uses Resend
+                {application.status === 'onboard' || application.status === 'accepted'
+                  ? ' (status stays as-is — this is a resend).'
+                  : ' and sets the application to Onboard.'}
               </p>
               <div className="row g-2 mb-3">
                 <div className="col-12">
@@ -148,7 +151,9 @@ export default function ApplicationOnboardScheduleEmailPreviewModal({
                 ) : (
                   <>
                     <i className="bi bi-send me-1"></i>
-                    Send email &amp; mark Onboard
+                    {application.status === 'onboard' || application.status === 'accepted'
+                      ? 'Resend onboarding email'
+                      : 'Send email & mark Onboard'}
                   </>
                 )}
               </button>

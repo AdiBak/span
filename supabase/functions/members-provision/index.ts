@@ -2,11 +2,25 @@ import { serve } from "https://deno.land/std@0.203.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 type WebhookPayload = {
-  type: string
-  table: string
-  schema: string
-  record: Record<string, unknown> | null
-  old_record: Record<string, unknown> | null
+  type?: string
+  table?: string
+  schema?: string
+  record?: Record<string, unknown> | null
+  old_record?: Record<string, unknown> | null
+  /** Manual exec re-provision from the dashboard */
+  member_id?: string
+  /** When true, always send Welcome email (even if already linked). */
+  force_email?: boolean
+}
+
+function canProvisionMembers(member: Record<string, unknown> | null): boolean {
+  if (!member) return false
+  const v = (x: unknown) => x === true || x === "true"
+  // Registration permission can add members; full exec also allowed.
+  return (
+    v(member.registration) ||
+    (v(member.volunteer) && v(member.applications) && v(member.bills) && v(member.registration))
+  )
 }
 
 const corsHeaders = {
@@ -16,6 +30,7 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? ""
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? ""
 const INVITE_REDIRECT_URL =
   Deno.env.get("ONBOARDING_REDIRECT_URL") ?? "https://spanationwide.org/login.html"
 const PRODUCTION_URL = Deno.env.get("PRODUCTION_URL") ?? "https://spanationwide.org"
@@ -483,7 +498,45 @@ serve(async (req) => {
 
     const adminClient = getAdminClient()
     const payload = (await req.json()) as WebhookPayload
-    const member = payload?.record ?? null
+    const forceEmail = payload?.force_email === true
+
+    let member: Record<string, unknown> | null = payload?.record ?? null
+
+    // Dashboard manual provision: { member_id, force_email? } with exec JWT
+    if (!member && payload?.member_id) {
+      const authHeader = req.headers.get("Authorization")
+      if (!authHeader?.startsWith("Bearer ") || !SUPABASE_ANON_KEY) {
+        return jsonResponse({ error: "Unauthorized" }, 401)
+      }
+      const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        global: { headers: { Authorization: authHeader } },
+      })
+      const token = authHeader.replace("Bearer ", "")
+      const {
+        data: { user },
+        error: userError,
+      } = await userClient.auth.getUser(token)
+      if (userError || !user) {
+        return jsonResponse({ error: "Invalid token" }, 401)
+      }
+      const { data: callerMember } = await adminClient
+        .from("members")
+        .select("*")
+        .eq("user_id", user.id)
+        .maybeSingle()
+      if (!canProvisionMembers(callerMember as Record<string, unknown> | null)) {
+        return jsonResponse({ error: "Registration permission required to re-provision members" }, 403)
+      }
+      const { data: loaded, error: loadErr } = await adminClient
+        .from("members")
+        .select("*")
+        .eq("member_id", payload.member_id)
+        .maybeSingle()
+      if (loadErr || !loaded) {
+        return jsonResponse({ error: "Member not found" }, 404)
+      }
+      member = loaded as Record<string, unknown>
+    }
 
     if (!member) {
       return jsonResponse({ status: "ignored", reason: "No record in payload" })
@@ -506,6 +559,8 @@ serve(async (req) => {
       member.member_id,
       "delivery_email",
       deliveryEmail,
+      "force_email",
+      forceEmail,
     )
     const memberId = member.member_id as string | undefined
     const userIdInRow = member.user_id as string | null
@@ -533,9 +588,28 @@ serve(async (req) => {
       userId = existingUser.id
       inviteType = "recovery"
       createdNewUser = false
-      if (userIdInRow && userIdInRow === userId) {
+      if (userIdInRow && userIdInRow === userId && !forceEmail) {
         console.log("User already linked to member, skipping email send")
         shouldSendEmail = false
+      } else if (forceEmail) {
+        // Manual resend: rotate temp password and send Welcome-style email with it
+        const { error: updPwErr } = await adminClient.auth.admin.updateUserById(userId, {
+          password,
+          email_confirm: true,
+        })
+        if (updPwErr) {
+          console.error("Failed to reset password for resend", updPwErr)
+          return jsonResponse({ error: "Failed to reset password for welcome email" }, 500)
+        }
+        inviteType = "invite"
+        createdNewUser = true
+        linkData = {
+          properties: {
+            action_link: INVITE_REDIRECT_URL,
+            email_otp: "",
+          },
+        } as typeof linkData
+        shouldSendEmail = true
       } else {
         const { data: recoveryData, error: recoveryError } = await adminClient.auth.admin.generateLink({
           type: "recovery",
@@ -581,21 +655,39 @@ serve(async (req) => {
           }
           console.log("Found existing auth user", existing.id, "for", email)
           userId = existing.id
-          if (userIdInRow && userIdInRow === userId) {
+          if (forceEmail) {
+            const { error: updPwErr } = await adminClient.auth.admin.updateUserById(userId, {
+              password,
+              email_confirm: true,
+            })
+            if (updPwErr) {
+              return jsonResponse({ error: "Failed to reset password for welcome email" }, 500)
+            }
+            inviteType = "invite"
+            createdNewUser = true
+            linkData = {
+              properties: {
+                action_link: INVITE_REDIRECT_URL,
+                email_otp: "",
+              },
+            } as typeof linkData
+            shouldSendEmail = true
+          } else if (userIdInRow && userIdInRow === userId) {
             shouldSendEmail = false
+          } else {
+            const { data: recoveryData, error: recoveryError } = await adminClient.auth.admin.generateLink({
+              type: "recovery",
+              email,
+              options: {
+                redirectTo: INVITE_REDIRECT_URL,
+              },
+            })
+            if (recoveryError) {
+              console.error("Failed to generate recovery link", recoveryError)
+              return jsonResponse({ error: "Failed to generate recovery link" }, 500)
+            }
+            linkData = recoveryData
           }
-          const { data: recoveryData, error: recoveryError } = await adminClient.auth.admin.generateLink({
-            type: "recovery",
-            email,
-            options: {
-              redirectTo: INVITE_REDIRECT_URL,
-            },
-          })
-          if (recoveryError) {
-            console.error("Failed to generate recovery link", recoveryError)
-            return jsonResponse({ error: "Failed to generate recovery link" }, 500)
-          }
-          linkData = recoveryData
         } else {
           console.error("Failed to create auth user", createError)
           return jsonResponse({ error: "Failed to create auth user", details: createError.message }, 500)

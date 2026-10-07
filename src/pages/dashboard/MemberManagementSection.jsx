@@ -20,6 +20,8 @@ export default function MemberManagementSection({
   showViewAsDashboardLink,
   onChangeProfilePhoto,
   onEditMember,
+  onProvisionWelcome,
+  provisionWelcomeMemberId,
   execStrikeUi,
   strikeCountByMember,
   strikeLimitForMemberRow,
@@ -131,6 +133,9 @@ export default function MemberManagementSection({
                               <div className="d-flex align-items-center gap-2 flex-wrap">
                                 <span className="fw-bold">{memberSiteDisplayName(memberItem)}</span>
                                 <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
+                                {!memberItem.user_id && (
+                                  <span className="badge bg-warning text-dark">No login</span>
+                                )}
                                 {execStrikeUi && strikeCountByMember && strikeLimitForMemberRow && (
                                   <span
                                     className={`badge ${
@@ -311,6 +316,33 @@ export default function MemberManagementSection({
                                 >
                                   <i className="bi bi-pencil me-1"></i>Edit
                                 </button>
+                                {onProvisionWelcome && (
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm ${
+                                      memberItem.user_id ? 'btn-outline-secondary' : 'btn-warning'
+                                    }`}
+                                    disabled={provisionWelcomeMemberId === memberItem.member_id}
+                                    onClick={() => onProvisionWelcome(memberItem)}
+                                    title={
+                                      memberItem.user_id
+                                        ? 'Resend Welcome to SPAN email with a new temporary password'
+                                        : 'Create Auth login and send Welcome to SPAN email'
+                                    }
+                                  >
+                                    {provisionWelcomeMemberId === memberItem.member_id ? (
+                                      <>
+                                        <span className="spinner-border spinner-border-sm me-1" role="status" />
+                                        Sending…
+                                      </>
+                                    ) : (
+                                      <>
+                                        <i className="bi bi-key me-1"></i>
+                                        {memberItem.user_id ? 'Resend welcome' : 'Create login & welcome'}
+                                      </>
+                                    )}
+                                  </button>
+                                )}
                                 <a
                                   href={`mailto:${memberItem.email}`}
                                   className="btn btn-sm btn-outline-secondary"
@@ -382,6 +414,9 @@ export default function MemberManagementSection({
                               <div className="d-flex align-items-center gap-2 flex-wrap">
                                 <span className="fw-bold">{memberSiteDisplayName(memberItem)}</span>
                                 <span className="badge bg-secondary">{memberItem.role || 'No Role'}</span>
+                                {!memberItem.user_id && (
+                                  <span className="badge bg-warning text-dark">No login</span>
+                                )}
                                 {execStrikeUi && strikeCountByMember && strikeLimitForMemberRow && (
                                   <span
                                     className={`badge ${
@@ -550,6 +585,33 @@ export default function MemberManagementSection({
                                 >
                                   <i className="bi bi-pencil me-1"></i>Edit
                                 </button>
+                                {onProvisionWelcome && (
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm ${
+                                      memberItem.user_id ? 'btn-outline-secondary' : 'btn-warning'
+                                    }`}
+                                    disabled={provisionWelcomeMemberId === memberItem.member_id}
+                                    onClick={() => onProvisionWelcome(memberItem)}
+                                    title={
+                                      memberItem.user_id
+                                        ? 'Resend Welcome to SPAN email with a new temporary password'
+                                        : 'Create Auth login and send Welcome to SPAN email'
+                                    }
+                                  >
+                                    {provisionWelcomeMemberId === memberItem.member_id ? (
+                                      <>
+                                        <span className="spinner-border spinner-border-sm me-1" role="status" />
+                                        Sending…
+                                      </>
+                                    ) : (
+                                      <>
+                                        <i className="bi bi-key me-1"></i>
+                                        {memberItem.user_id ? 'Resend welcome' : 'Create login & welcome'}
+                                      </>
+                                    )}
+                                  </button>
+                                )}
                                 <a
                                   href={`mailto:${memberItem.email}`}
                                   className="btn btn-sm btn-outline-secondary"

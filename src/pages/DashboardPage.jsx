@@ -306,6 +306,8 @@ function DashboardPage() {
   /** Optional per-send fields for onboarding schedule email (Edge Function). */
   const [onboardScheduleWhen2meetUrl, setOnboardScheduleWhen2meetUrl] = useState('')
   const [onboardScheduleDeadlineNote, setOnboardScheduleDeadlineNote] = useState('')
+  /** Create Auth + send / resend Welcome to SPAN via members-provision */
+  const [provisionWelcomeMemberId, setProvisionWelcomeMemberId] = useState(null)
   const [hrReports, setHrReports] = useState([])
   const [hrReportFilter, setHrReportFilter] = useState('pending') // exec HR Reports default to Pending; 'all', 'pending', 'reviewed', 'resolved', 'dismissed'
   const [showHrReportModal, setShowHrReportModal] = useState(false)
@@ -4296,6 +4298,60 @@ function DashboardPage() {
     rejectionEmailReason,
   ])
 
+  const handleProvisionMemberWelcome = async (memberRow) => {
+    if (!memberRow?.member_id) return
+    const label = memberLegalName(memberRow) || memberRow.email || 'this member'
+    const hasLogin = !!memberRow.user_id
+    const ok = window.confirm(
+      hasLogin
+        ? `Resend the Welcome to SPAN email to ${label}?\n\nThis resets their temporary password and emails the new one to their personal/original email.`
+        : `Create a login for ${label} and send the Welcome to SPAN email?\n\nThey have a members row but no Auth account yet.`,
+    )
+    if (!ok) return
+
+    setProvisionWelcomeMemberId(memberRow.member_id)
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.access_token) {
+        alert('You must be signed in.')
+        return
+      }
+      const base = import.meta.env.VITE_SUPABASE_URL
+      const resp = await fetch(`${base}/functions/v1/members-provision`, {
+        method: 'POST',
+        headers: supabaseInvokeHeaders(session.access_token),
+        body: JSON.stringify({
+          member_id: memberRow.member_id,
+          force_email: true,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(
+          typeof data.error === 'string'
+            ? data.error
+            : data.details
+              ? String(data.details)
+              : 'Failed to provision / send welcome email',
+        )
+      }
+      alert(
+        hasLogin
+          ? 'Welcome email resent. They should check inbox/spam for “Welcome to SPAN!”.'
+          : 'Login created and Welcome to SPAN email sent. They should check inbox/spam.',
+      )
+      await loadAllMembersForManagement()
+      await loadAllMembers()
+    } catch (err) {
+      console.error('Provision welcome failed:', err)
+      alert(err.message || 'Failed to create login / send welcome email.')
+    } finally {
+      setProvisionWelcomeMemberId(null)
+    }
+  }
+
   const handleEditMember = (memberToEdit) => {
     setEditingMemberId(memberToEdit.member_id)
     const { grade, gradeOther } = splitMemberGradeForForm(memberToEdit.grade)
@@ -6637,6 +6693,12 @@ function DashboardPage() {
             }
             onChangeProfilePhoto={handleExecChangeMemberPhoto}
             onEditMember={handleEditMember}
+            onProvisionWelcome={
+              !viewAsData && hasPermission('registration')
+                ? handleProvisionMemberWelcome
+                : undefined
+            }
+            provisionWelcomeMemberId={provisionWelcomeMemberId}
             execStrikeUi={
               !viewAsData &&
               hasPermission('volunteer') &&

@@ -1903,16 +1903,30 @@ function DashboardPage() {
   }
 
   const handleUpdateResignationStatus = async (resignationId, status) => {
-    const { error } = await supabase
+    const { data: resignRow, error } = await supabase
       .from('member_resignations')
       .update({
         status,
         updated_at: new Date().toISOString(),
       })
       .eq('resignation_id', resignationId)
+      .select('member_id')
+      .maybeSingle()
     if (error) {
       alert(error.message)
       return
+    }
+    // Letter sent / membership ended: drop team roster + leads (same as firing deactivate path).
+    if (status === 'honorable_letter_sent' && resignRow?.member_id) {
+      const mid = resignRow.member_id
+      await Promise.all([
+        supabase.from('members').update({ active: false }).eq('member_id', mid),
+        supabase.from('member_policy_teams').delete().eq('member_id', mid),
+        supabase.from('policy_team_leads').delete().eq('member_id', mid),
+      ])
+      await loadAllMembersForManagement()
+      await loadAllMembers()
+      await loadPolicyTeams()
     }
     await loadExecConductData()
   }
@@ -7689,6 +7703,12 @@ function DashboardPage() {
         onClose={() => setShowHonorableExitEmailModal(false)}
         supabase={supabase}
         membersList={allMembersForManagement}
+        onSent={async () => {
+          await loadExecConductData()
+          await loadAllMembersForManagement()
+          await loadAllMembers()
+          await loadPolicyTeams()
+        }}
       />
 
       <RemovalNoticeEmailModal
@@ -7700,6 +7720,7 @@ function DashboardPage() {
           await loadExecConductData()
           await loadAllMembersForManagement()
           await loadAllMembers()
+          await loadPolicyTeams()
         }}
       />
 

@@ -34,6 +34,7 @@ export default function PolicyTeamDetailPanel({
 }) {
   const [selectedAddIds, setSelectedAddIds] = useState(() => new Set())
   const [nameInput, setNameInput] = useState('')
+  const [roleFilter, setRoleFilter] = useState('')
 
   const rosterSet = useMemo(() => new Set((rosterMemberIds || []).map((id) => String(id))), [rosterMemberIds])
 
@@ -53,9 +54,43 @@ export default function PolicyTeamDetailPanel({
     })
   }, [membersPool, rosterSet, leadIdSet, leadMemberIdToTeamId, team?.team_id])
 
+  const roleOptions = useMemo(() => {
+    const set = new Set()
+    for (const m of eligibleToAdd) {
+      const r = String(m.role || '').trim()
+      if (r) set.add(r)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+  }, [eligibleToAdd])
+
+  const filteredEligibleToAdd = useMemo(() => {
+    if (!roleFilter) return eligibleToAdd
+    return eligibleToAdd.filter((m) => String(m.role || '').trim() === roleFilter)
+  }, [eligibleToAdd, roleFilter])
+
   useEffect(() => {
-    if (team?.team_id) setSelectedAddIds(new Set())
+    if (team?.team_id) {
+      setSelectedAddIds(new Set())
+      setRoleFilter('')
+    }
   }, [team?.team_id])
+
+  useEffect(() => {
+    if (roleFilter && !roleOptions.includes(roleFilter)) setRoleFilter('')
+  }, [roleFilter, roleOptions])
+
+  useEffect(() => {
+    const allowed = new Set(filteredEligibleToAdd.map((m) => String(m.member_id)))
+    setSelectedAddIds((prev) => {
+      let changed = false
+      const next = new Set()
+      for (const id of prev) {
+        if (allowed.has(id)) next.add(id)
+        else changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [filteredEligibleToAdd])
 
   useEffect(() => {
     if (team?.name != null) setNameInput(String(team.name))
@@ -110,7 +145,7 @@ export default function PolicyTeamDetailPanel({
   }
 
   const selectAllEligible = () => {
-    setSelectedAddIds(new Set(eligibleToAdd.map((m) => String(m.member_id))))
+    setSelectedAddIds(new Set(filteredEligibleToAdd.map((m) => String(m.member_id))))
   }
 
   const clearSelection = () => setSelectedAddIds(new Set())
@@ -311,10 +346,10 @@ export default function PolicyTeamDetailPanel({
             <button
               type="button"
               className="btn btn-link btn-sm p-0"
-              disabled={saving || eligibleToAdd.length === 0}
+              disabled={saving || filteredEligibleToAdd.length === 0}
               onClick={selectAllEligible}
             >
-              Select all
+              Select all{roleFilter ? ' (filtered)' : ''}
             </button>
             <button
               type="button"
@@ -334,38 +369,64 @@ export default function PolicyTeamDetailPanel({
           </p>
         ) : (
           <>
-            <div
-              className="border rounded bg-white px-2 py-2"
-              style={{ maxHeight: '200px', overflowY: 'auto' }}
-              role="group"
-              aria-labelledby={addGroupId}
-            >
-              {eligibleToAdd.map((m) => {
-                const id = String(m.member_id)
-                const checked = selectedAddIds.has(id)
-                const moveNote =
-                  memberTeamId[m.member_id] && memberTeamId[m.member_id] !== team.team_id
-                    ? ' (moves from another team)'
-                    : ''
-                return (
-                  <div key={id} className="form-check py-1">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id={`add-${team.team_id}-${id}`}
-                      checked={checked}
-                      onChange={() => toggleAddId(id)}
-                      disabled={saving}
-                    />
-                    <label className="form-check-label small" htmlFor={`add-${team.team_id}-${id}`}>
-                      {m.first_name} {m.last_name}
-                      <span className="text-muted"> · {roleLabel(m)}</span>
-                      {moveNote && <span className="text-warning">{moveNote}</span>}
-                    </label>
-                  </div>
-                )
-              })}
+            <div className="mb-2">
+              <label className="form-label small mb-1" htmlFor={`add-role-filter-${team.team_id}`}>
+                Filter by role
+              </label>
+              <select
+                id={`add-role-filter-${team.team_id}`}
+                className="form-select form-select-sm"
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                disabled={saving}
+              >
+                <option value="">All roles ({eligibleToAdd.length})</option>
+                {roleOptions.map((r) => {
+                  const count = eligibleToAdd.filter((m) => String(m.role || '').trim() === r).length
+                  return (
+                    <option key={r} value={r}>
+                      {r} ({count})
+                    </option>
+                  )
+                })}
+              </select>
             </div>
+            {filteredEligibleToAdd.length === 0 ? (
+              <p className="small text-muted mb-0">No eligible members match this role.</p>
+            ) : (
+              <div
+                className="border rounded bg-white px-2 py-2"
+                style={{ maxHeight: '200px', overflowY: 'auto' }}
+                role="group"
+                aria-labelledby={addGroupId}
+              >
+                {filteredEligibleToAdd.map((m) => {
+                  const id = String(m.member_id)
+                  const checked = selectedAddIds.has(id)
+                  const moveNote =
+                    memberTeamId[m.member_id] && memberTeamId[m.member_id] !== team.team_id
+                      ? ' (moves from another team)'
+                      : ''
+                  return (
+                    <div key={id} className="form-check py-1">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id={`add-${team.team_id}-${id}`}
+                        checked={checked}
+                        onChange={() => toggleAddId(id)}
+                        disabled={saving}
+                      />
+                      <label className="form-check-label small" htmlFor={`add-${team.team_id}-${id}`}>
+                        {m.first_name} {m.last_name}
+                        <span className="text-muted"> · {roleLabel(m)}</span>
+                        {moveNote && <span className="text-warning">{moveNote}</span>}
+                      </label>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
             <div className="d-flex flex-wrap gap-2 align-items-center mt-3">
               <button
                 type="button"

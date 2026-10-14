@@ -21,7 +21,7 @@ function formatJoinDate(startDate) {
   }
 }
 
-export default function HonorableExitEmailModal({ open, onClose, supabase, membersList }) {
+export default function HonorableExitEmailModal({ open, onClose, supabase, membersList, onSent }) {
   const [memberId, setMemberId] = useState('')
   const [meetingNote, setMeetingNote] = useState('')
   const [manualWorkNotes, setManualWorkNotes] = useState('')
@@ -190,10 +190,14 @@ export default function HonorableExitEmailModal({ open, onClose, supabase, membe
         return
       }
       const bits = [`Email sent to ${data.to || 'member'}.`]
+      if (data.directory_deactivated) {
+        bits.push('Removed from the public directory and all teams.')
+      }
       if (data.slack_deactivate_reminded) {
         bits.push('Execs were emailed to deactivate them in Slack (manual — Free plan).')
       }
       alert(bits.join(' '))
+      if (typeof onSent === 'function') await onSent()
       onClose()
     } catch (err) {
       alert(err.message || 'Send failed.')

@@ -132,12 +132,14 @@ export default function ResignationViewModal({
                 <div className="alert alert-secondary mt-3 mb-0">
                   <div className="fw-semibold mb-1">Directory</div>
                   {memberActive === false ? (
-                    <p className="small mb-0 text-muted">Already removed from directory.</p>
+                    <p className="small mb-0 text-muted">
+                      Already removed from the directory and cleared from team rosters.
+                    </p>
                   ) : typeof onDeactivateFromDirectory === 'function' ? (
                     <>
                       <p className="small mb-2">
-                        Honorable letter is sent. Confirm to hide this member from the public directory.
-                        Prior credited work stays on the site.
+                        Honorable letter is sent. Confirm to hide this member from the public directory
+                        and remove them from all teams. Prior credited work stays on the site.
                       </p>
                       <button
                         type="button"

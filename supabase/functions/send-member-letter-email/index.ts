@@ -164,7 +164,10 @@ serve(async (req) => {
       mark_honorable_letter_sent?: boolean
       /** After firing/removal notice: mark proposal + optionally deactivate directory listing. */
       mark_removal_letter_sent?: boolean
-      /** Default true when mark_removal_letter_sent — set members.active = false. */
+      /**
+       * Default true when honorable or removal letter is marked sent —
+       * set members.active = false and clear team roster/lead links.
+       */
       deactivate_directory?: boolean
       /** When true, CC Executive Directors (role). */
       cc_execs?: boolean
@@ -179,7 +182,7 @@ serve(async (req) => {
     const markRemovalLetterSent = body.mark_removal_letter_sent === true
     const deactivateDirectory =
       body.deactivate_directory === undefined
-        ? markRemovalLetterSent
+        ? markRemovalLetterSent || markHonorableLetterSent
         : body.deactivate_directory === true
     const ccExecs = body.cc_execs === true
     const extraCc = Array.isArray(body.cc)
@@ -338,33 +341,34 @@ serve(async (req) => {
     }
 
     let directoryDeactivated = false
+    // Resignation or firing letter: hide from directory and drop team roster/lead links.
+    if (deactivateDirectory && (markHonorableLetterSent || markRemovalLetterSent)) {
+      const { error: deactErr } = await admin
+        .from("members")
+        .update({ active: false })
+        .eq("member_id", memberId)
+      if (deactErr) {
+        console.error("deactivate after exit letter failed", deactErr)
+      } else {
+        directoryDeactivated = true
+        // DB trigger also clears these after migration; explicit deletes cover older envs.
+        const { error: mptErr } = await admin
+          .from("member_policy_teams")
+          .delete()
+          .eq("member_id", memberId)
+        if (mptErr) console.error("clear member_policy_teams after deactivate failed", mptErr)
+        const { error: leadErr } = await admin
+          .from("policy_team_leads")
+          .delete()
+          .eq("member_id", memberId)
+        if (leadErr) console.error("clear policy_team_leads after deactivate failed", leadErr)
+      }
+    }
+
     let removalProposalUpdated = false
     if (markRemovalLetterSent) {
       const nowIso = new Date().toISOString()
       const senderId = String((callerMember as { member_id?: string })?.member_id || "").trim() || null
-
-      if (deactivateDirectory) {
-        const { error: deactErr } = await admin
-          .from("members")
-          .update({ active: false })
-          .eq("member_id", memberId)
-        if (deactErr) {
-          console.error("deactivate after removal letter failed", deactErr)
-        } else {
-          directoryDeactivated = true
-          // Drop team roster/lead links (DB trigger does this too after migration).
-          const { error: mptErr } = await admin
-            .from("member_policy_teams")
-            .delete()
-            .eq("member_id", memberId)
-          if (mptErr) console.error("clear member_policy_teams after deactivate failed", mptErr)
-          const { error: leadErr } = await admin
-            .from("policy_team_leads")
-            .delete()
-            .eq("member_id", memberId)
-          if (leadErr) console.error("clear policy_team_leads after deactivate failed", leadErr)
-        }
-      }
 
       const { data: updatedProposals, error: propErr } = await admin
         .from("member_removal_proposals")

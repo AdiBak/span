@@ -17,7 +17,7 @@ No separate Node server — the browser talks to Supabase directly using the Sup
 
 SPAN is **multi-page**, not a single-page app with client-side routing.
 
-- There is **no React Router**. Each “page” is a **separate HTML file** in the project root: `index.html` (home), `bills.html`, `blog.html`, `login.html`, `dashboard.html`, `directory.html`, `our-story.html`, etc.  
+- There is **no React Router**. Each “page” is a **separate HTML file**: `index.html` (home), `bills.html`, `policy-briefs.html`, `policy-brief.html`, `login.html`, `dashboard.html`, `directory.html`, `our-story.html`, `classroom/join.html`, `classroom/dashboard.html`, `mentor-join.html`. `blog.html` / `blog-post.html` redirect to the policy-briefs URLs.
 - Each HTML file includes the same script: `/src/main.jsx`. The HTML has a single **root div** with an id like `home-root`, `bills-root`, or `dashboard-root`.  
 - **`main.jsx`** runs on every page. It looks for whichever root div exists on that page and mounts **`App`** with a **`page`** prop (e.g. `'home'`, `'login'`, `'dashboard'`). So one HTML page \= one root \= one page name.  
 - **`App.jsx`** is a big switch on `page`: it lazy-loads and renders the right page component (`HomePage`, `LoginPage`, `DashboardPage`, etc.). Heavy pages are loaded on demand via `lazy()`.  
@@ -65,7 +65,7 @@ span/
 
 - **Pages** \= one big component per screen; they often hold a lot of state and call Supabase.  
 - **Components** \= reusable pieces used by pages (or by other components). Things like forms, cards, modals live here.  
-- **lib** \= single Supabase client and helpers. No duplicate Supabase clients; always import from `src/lib/supabase.js`.  
+- **lib** \= shared Supabase client (`src/lib/supabase.js`) and helpers. The public application form uses a second client with `persistSession: false` so an exec testing the form does not submit under their JWT. 
 - **supabase/migrations** \= source of truth for schema and RLS. **supabase/functions** \= serverless endpoints (invoked by the app or by Supabase triggers).
 
 ---
@@ -89,7 +89,7 @@ span/
 - **Auth:** `supabase.auth.getSession()`, `signInWithPassword()`, `signOut()`. Session is a JWT; the app sends it with every request.  
 - **Admin actions:** When the app needs to do something that RLS would block (e.g. create/update another member), it calls **RPCs** defined in migrations (e.g. `create_member`, `update_member`). Those run with elevated privileges.  
 - **Files:** Upload to a Storage bucket (e.g. `members-images`), then save the **filename** (or path) in the relevant table. Download or display via `supabase.storage.from('bucket').getPublicUrl(filename)` or similar.  
-- **Permissions in UI:** Load the current user’s `members` row; check `member.volunteer`, `member.applications`, etc. “Executive director” \= all four true. Show or hide sections and buttons based on that.
+- **Permissions in UI:** Load the current user’s `members` row; check `member.volunteer`, `member.applications`, etc. “Executive director” \= volunteer, applications, bills, and registration all true. `blog` is a fifth flag. Mentors are not members; they use `mentor_accounts`.
 
 ---
 
@@ -99,13 +99,21 @@ All live under **`supabase/functions/`**. Each is a separate function deployed t
 
 | Function | Purpose |
 | :---- | :---- |
-| **members-provision** | Runs after a new member (and Auth user) is created; sends welcome email with temporary password. |
-| **password-reset** | Forgot Password flow: resolves member by SPAN or personal email, sets alphanumeric temp password on the SPAN Auth user, emails via Resend (usually to `original_email`). **Deployed in production as `hyper-endpoint`** (login page calls that URL). |
-| **dashboard-view** | Deployed as `view-member-dashboard`. GET with `member_id`; returns that member’s dashboard data. Only callable by execs (all 4 permissions). |
-| **send-rejection-email** | Sends application rejection email (Resend) |
-| **send-volunteer-verification** | Sends volunteer verification PDF to member’s email. Exec-only. |
+| **members-provision** | After `create_member` insert: Auth user, Cloudflare forward, welcome email. |
+| **password-reset** | Forgot Password. **Deployed as `hyper-endpoint`**. |
+| **dashboard-view** | **Deployed as `view-member-dashboard`**. Exec view-as. |
+| **send-invitation-email** / **send-onboarding-schedule-email** / **send-rejection-email** | Application pipeline mail (Resend; invite/onboard support `dry_run` preview). |
+| **send-volunteer-verification** | Volunteer hours PDF to member email. Exec-only. |
+| **send-member-letter-email** | Honorable-exit, removal notice, policy-violation letters. |
+| **notify-new-application** / **notify-hr-report** / **notify-resignation-request** | Internal alerts. |
+| **check-ai-text** | ScreenComply / RoBERTa advisory screening. |
+| **medium-otp-arm** | Medium OTP forwarding for blog editors. |
+| **fetch-legiscan-person-contact** / **outreach-send-email** / **openstates-proxy** | Outreach and legislator lookup. |
+| **classroom-provision-teacher** / **classroom-join-student** | Classroom teacher login and student join. |
+| **mentors-provision** / **mentors-invite** / **mentors-join** | Mentor accounts and invite self-registration. |
+| **web-analytics-summary** | Exec analytics. |
 
-The frontend calls them via `supabase.functions.invoke('function-name', { body: { ... } })` or (for dashboard-view) a GET with the session JWT. Feature subtabs will call out when a given feature uses an Edge Function.
+The frontend calls them via `supabase.functions.invoke('function-name', { body: { ... } })` or (for dashboard-view) a GET with the session JWT. Deploy aliases and JWT flags: [DEPLOYMENT.md](./DEPLOYMENT.md), [MENTOR_LOGIN.md](./MENTOR_LOGIN.md).
 
 ---
 
@@ -115,14 +123,19 @@ The frontend calls them via `supabase.functions.invoke('function-name', { body: 
 | :---- | :---- | :---- | :---- |
 | Home | index.html | home-root | HomePage |
 | Bills | bills.html | bills-root | BillsPage |
-| Blog (list) | blog.html | blog-root | BlogPage |
-| Blog post | blog-post.html | blog-post-root | BlogPostPage |
+| Policy briefs (list) | policy-briefs.html | policy-briefs-root | BlogPage |
+| Policy brief (post) | policy-brief.html | policy-brief-root | BlogPostPage |
 | Directory | directory.html | directory-root | DirectoryPage |
 | Our Story | our-story.html | our-story-root | OurStoryPage |
 | Login | login.html | login-root | LoginPage |
 | Dashboard | dashboard.html | dashboard-root | DashboardPage |
+| Classroom join | classroom/join.html | classroom-join-root | ClassroomJoinPage |
+| Classroom dashboard | classroom/dashboard.html | classroom-dashboard-root | ClassroomDashboardPage |
+| Mentor join | mentor-join.html | mentor-join-root | MentorJoinPage |
 | Bills preview (embedded) | (other) | bills-preview-root | BillsPreview |
 | Bills stats (embedded) | (other) | bills-stats-root | BillsStats |
+
+`blog.html` and `blog-post.html` are redirects to the policy-briefs URLs.
 
 ---
 
@@ -144,21 +157,18 @@ These pages are visible to everyone (no login required). A short overview of eac
 
 ### Bills (`bills.html` → BillsPage)
 
-- **What visitors see:** List of legislation (bills) with filters (position, state), search, and for each bill, a **card** showing name, description, position, date, optional PDF viewer, optional LegiScan status, collaborator avatars.  
+- **What visitors see:** List of legislation with filters (position, state), search, and for each bill a **card** (name, description, position, date, optional PDF viewer, optional LegiScan timeline, collaborator avatars). Public **Suggest a bill or issue** form (`?suggest=1`) writes `public_bill_recommendations`, not `bills`.  
 - **Data:**   
-  - **Bills** from `bills` table — only rows with `status = 'approved'` or `'modified'` (so the public never sees under\_review or rejected bills).   
+  - **Bills** from `bills` — only `status = 'approved'` or `'modified'` and not hidden.   
   - **Collaborator avatars** from `members`.   
-  - **PDFs** from the `proposals` storage bucket (by state and bill name).  
-- **Where:** `src/pages/BillsPage.jsx`.   
-  - Components: `BillCard`, `PDFViewer`, `CollaboratorAvatars`, `Pagination` in `src/components/`.   
-  - Optional LegiScan helper in `src/lib/legiscan.js`.
+  - **PDFs** from the `proposals` storage bucket.  
+- **Where:** `src/pages/BillsPage.jsx`, `PublicBillRecommendationForm`, `BillCard`, `PDFViewer`, `CollaboratorAvatars`, `Pagination`, `src/lib/legiscan.js`.
 
-### Blog (`blog.html` → BlogPage)
+### Policy briefs (`policy-briefs.html` → BlogPage)
 
-- **What visitors see:** Blog posts in a list (featured post first, then paginated). Each post has a title, excerpt, author, link to full post.  
-- **Data:** Posts come from **Medium via RSS** (using rss2json.com), not from our database.   
-  - Author names are optionally matched to **members** (using the same display-name rules as the directory) so they can link to the Directory profile.  
-- **Where:** `src/pages/BlogPage.jsx` (fetches RSS, optionally loads members for directory links). Individual post view: `BlogPostPage.jsx` (same RSS/post data, single post). `BlogCard` in `src/components/`.
+- **What visitors see:** Medium policy briefs in a list (featured post first, then paginated). Each post has a title, excerpt, author, link to full post.  
+- **Data:** Posts come from **Medium via RSS**, not from our database. Author names are optionally matched to **members** so they can link to the Directory profile.  
+- **Where:** `src/pages/BlogPage.jsx`, `BlogPostPage.jsx`, `BlogCard`. Nav label is Policy Briefs. `blog.html` redirects here.
 
 ### Our Story (`our-story.html` → OurStoryPage)
 
@@ -168,11 +178,14 @@ These pages are visible to everyone (no login required). A short overview of eac
 
 ### Directory (`directory.html` → DirectoryPage)
 
-- **What visitors see:** List of **active** SPAN members with photo, **display name** (preferred name when set, otherwise legal name), role, and optional links (e.g. email, LinkedIn). Often filterable or searchable.  
-- **Data:**   
-  - **Members** from `members` table (typically `active = true` only for public directory).   
-  - Profile photos from `members-images` storage bucket.  
-- **Where:** `src/pages/DirectoryPage.jsx`.
+- **What visitors see:** Tabs for **Leadership** (execs, division / team leads, Board of Mentors from `advisors`) and the full **member directory**. Search, sort, pagination. Emailing someone goes through a Cloudflare Turnstile gate before `mailto:`.  
+- **Data:** Active `members`; `advisors` / mentor people; team-lead rows. Photos from `members-images` (and advisor photos as configured).  
+- **Where:** `src/pages/DirectoryPage.jsx`, `DirectoryEmailGateModal`, `AdvisorsBoard`.
+
+### Classroom and mentor join
+
+- **Classroom join / dashboard** (`classroom/join.html`, `classroom/dashboard.html`): teachers and students; class codes; assignments. Exec admin is a dashboard section, not these pages.  
+- **Mentor join** (`mentor-join.html`): token-gated self-registration. See [MENTOR_LOGIN.md](./MENTOR_LOGIN.md).
 
 ---
 

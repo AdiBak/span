@@ -5,12 +5,20 @@ Dates use the **commit author date** (local calendar day) from `git log` for eac
 
 ---
 
+## 2026-10-15
+
+- **Docs vs current product** — `DASHBOARD_FUNCTIONS.md` (exec/member/team-lead/mentor section order; Classroom, Analytics, Executive Conduct, Medium, Resign, Mentors, view-as, letters). `CODEBASE_ARCHITECTURE.md` (policy-briefs URLs, classroom/mentor-join, full Edge Function table, directory tabs). `DATABASE_ARCHITECTURE.md` (assignments/outreach, policy teams, mentors, classroom, conduct, public bill recommendations; dropped `SUGGESTIONS.md` link). `COPILOT_CONTEXT.md` (no React Router; tables and functions aligned). `DEPLOYMENT.md` function inventory. `leave-and-extension-requests.md` as live behavior, not a design checklist. `BILLS_EXEC_SUITE_SPEC.md` status: assignments, research, and outreach shipped. Indexes: `docs/README.md`, root `README.md`, `README-REACT.md`. `WORK_SUMMARY.md` §0 remains the feature snapshot.
+
+## 2026-10-14
+
+- **WORK_SUMMARY.md** — Moved work summary from `.txt` to Markdown (headings, contents links, code fence for folder sketch). Opening first-person narrative of how the platform work unfolded (constraints, join pipeline, permissions, legislative research); §0 refreshed with production scale (members, applications, bills, volunteer hours, teams, outreach, classroom).
+
 ## 2026-09-07
 
 - **Password reset / login identity** — `FIRST_LOGIN_AND_REGISTRATION.md` (§1b Forgot Password), `CODEBASE_ARCHITECTURE.md`, `COPILOT_CONTEXT.md`, `DEPLOYMENT.md` (deploy `password-reset` as **`hyper-endpoint`**), `email-templates/PASSWORD_RESET_EMAIL_TEMPLATE.html` + README, `README-REACT.md`, `ADDING_A_NEW_MEMBER.md`, `APPLYING_AND_APPLICATION_REVIEW.md` (AI screening), `DASHBOARD_FUNCTIONS.md` / `leave-and-extension-requests.md` (calendar), `DOCS_CHANGELOG.md`.
   - Lookup via `members.email` / `original_email`; Auth preferred by SPAN email; alphanumeric temp passwords; email states SPAN login address.
   - Support notes: temp password fails when logging in with personal email; frontend must call `hyper-endpoint`.
-- **WORK_SUMMARY.txt §0** — Auth/password-reset detail; applications AI screening; leave calendar / dashboard UX; Classroom; HR lifecycle; security/perf; edge-function deploy aliases.
+- **WORK_SUMMARY.md §0** — Auth/password-reset detail; applications AI screening; leave calendar / dashboard UX; Classroom; HR lifecycle; security/perf; edge-function deploy aliases.
 
 ---
 
@@ -26,12 +34,12 @@ Dates use the **commit author date** (local calendar day) from `git log` for eac
 
 ## 2026-03-30
 
-- **README-REACT.md** — Brought in line with current app: § *Current feature surface* (aligned with `WORK_SUMMARY.txt` §0), removed stale vanilla-login / EmailJS / wrong application statuses; folder sketch; Resend + Edge Functions note.
+- **README-REACT.md** — Brought in line with current app: § *Current feature surface* (aligned with `WORK_SUMMARY.md` §0), removed stale vanilla-login / EmailJS / wrong application statuses; folder sketch; Resend + Edge Functions note.
 - **Reference reframing** — Root **README**, **docs/README.md**, **SETUP.md**, **DEVELOPMENT.md**, **DEPLOYMENT.md**: informational tone; placeholders instead of production secrets/URLs in git.
 - **README-ENV** — Discourages relying on hardcoded env fallbacks.
-- **Pruned docs** — Removed `volunteer-hours-pdf-email.md`, `email-services-comparison.md`, `IMPLEMENTATION_SUMMARY.md` (superseded or redundant with `WORK_SUMMARY.txt` §0).
+- **Pruned docs** — Removed `volunteer-hours-pdf-email.md`, `email-services-comparison.md`, `IMPLEMENTATION_SUMMARY.md` (superseded or redundant with `WORK_SUMMARY.md` §0).
 - **Removed** — `LEGISCAN_TIMELINE_SPEC.md`, `auth-provisioning.md` (replaced by code + SETUP / ADDING_A_NEW_MEMBER / FIRST_LOGIN).
-- **WORK_SUMMARY.txt** — §0 *Current product overview (2026)*; org name fix; doc index updates.
+- **WORK_SUMMARY.md** — §0 *Current product overview (2026)*; org name fix; doc index updates.
 - **Layout** — `README-REACT`, `README-ENV`, `DEPLOYMENT`, email HTML → under `docs/` / `docs/email-templates/`; new **docs/README.md** index.
 - **Cross-links** — `COPILOT_CONTEXT`, `DASHBOARD_FUNCTIONS`, `APPLYING_AND_APPLICATION_REVIEW`, `ADDING_A_NEW_MEMBER`, `CODEBASE_ARCHITECTURE`, etc.
 

@@ -48,6 +48,8 @@ with the **service role** bearer token as required by your setup.
 
 **New applications:** deploy `notify-new-application` and run migration `applications_notify_sent_at.sql`. The homepage form invokes this after each successful insert; optionally add a webhook on `applications` INSERT to the same function (idempotent via `notify_sent_at`).
 
+**Functions in repo (`supabase/functions/`):** members-provision; password-reset (deploy **hyper-endpoint**); dashboard-view (deploy **view-member-dashboard**); send-invitation-email, send-onboarding-schedule-email, send-rejection-email, send-volunteer-verification, send-member-letter-email; notify-new-application, notify-hr-report, notify-resignation-request; check-ai-text; medium-otp-arm; fetch-legiscan-person-contact, outreach-send-email, openstates-proxy; classroom-provision-teacher, classroom-join-student; mentors-provision, mentors-invite, mentors-join (mentor join functions typically `--no-verify-jwt` — [MENTOR_LOGIN.md](./MENTOR_LOGIN.md)); web-analytics-summary.
+
 ---
 
 ## 3. Frontend (Vite → static hosting)

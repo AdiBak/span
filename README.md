@@ -1,6 +1,6 @@
 # span
 
-SPAN (Students for Patient Advocacy Nationwide) — **React**, **Vite**, **Supabase**. This repo is mostly **reference**: how the app is built, how major features behave, and where code lives. 
+SPAN (Students for Patient Advocacy Nationwide) — **React**, **Vite**, **Supabase**. This repo is mostly **reference**: how the app is built, how major features behave, and where code lives.
 
 | | |
 | :-- | :-- |
@@ -8,4 +8,4 @@ SPAN (Students for Patient Advocacy Nationwide) — **React**, **Vite**, **Supab
 | **Env / local run** | [docs/SETUP.md](./docs/SETUP.md), [docs/README-ENV.md](./docs/README-ENV.md) |
 | **Deploy outline** | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) |
 | **All doc files** | [docs/README.md](./docs/README.md) |
-| **Shipped features (narrative)** | [WORK_SUMMARY.txt](./WORK_SUMMARY.txt) — §0 *Current product overview* |
+| **Shipped features** | [WORK_SUMMARY.md](./WORK_SUMMARY.md) — §0 *Current product overview* |

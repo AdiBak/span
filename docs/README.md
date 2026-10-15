@@ -4,7 +4,7 @@ These files describe **how SPAN is structured and how features work**. They are 
 
 | Doc | Purpose |
 | --- | --- |
-| [README-REACT.md](./README-REACT.md) | Vite/React scripts, stack overview, historical feature notes |
+| [README-REACT.md](./README-REACT.md) | Vite/React scripts, stack overview, current feature surface |
 | [README-ENV.md](./README-ENV.md) | `VITE_*` variables and how the client reads them |
 | [SETUP.md](./SETUP.md) | What `.env.local` must contain (placeholders only) |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Static site + Edge Functions outline (placeholders) |
@@ -18,12 +18,13 @@ These files describe **how SPAN is structured and how features work**. They are 
 | [ADDING_A_NEW_MEMBER.md](./ADDING_A_NEW_MEMBER.md) | Member creation flow |
 | [FIRST_LOGIN_AND_REGISTRATION.md](./FIRST_LOGIN_AND_REGISTRATION.md) | First login, registration, and Forgot Password |
 | [BILLS_EXEC_SUITE_SPEC.md](./BILLS_EXEC_SUITE_SPEC.md) | Bills exec suite (assignments, research, outreach) |
+| [MIGRATION_POLICY_TEAMS.md](./MIGRATION_POLICY_TEAMS.md) | Policy teams and team-lead scope |
+| [MENTOR_LOGIN.md](./MENTOR_LOGIN.md) | Mentor invite, join, and login |
 | [leave-and-extension-requests.md](./leave-and-extension-requests.md) | Leave / extension requests |
+| [VOLORA_INTEGRATION.md](./VOLORA_INTEGRATION.md) | Volora design note only (not implemented) |
 
 **Volunteer verification email:** `send-volunteer-verification` Edge Function + dashboard flow — see **COPILOT_CONTEXT.md** and `supabase/functions/send-volunteer-verification/`.
 
 **Email HTML (scratch / design only):** [email-templates/](./email-templates/) — production bodies are in Edge Functions.
 
-**Optional notes:** [MEMBER_MANAGEMENT_REFACTOR.md](./MEMBER_MANAGEMENT_REFACTOR.md) if present.
-
-**Shipped-features narrative (repo root):** [../WORK_SUMMARY.txt](../WORK_SUMMARY.txt) — §0 *Current product overview (2026)*.
+**Shipped features (repo root):** [../WORK_SUMMARY.md](../WORK_SUMMARY.md) §0 *Current product overview (2026)* (historical build notes below that).

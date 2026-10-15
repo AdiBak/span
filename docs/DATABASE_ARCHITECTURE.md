@@ -48,7 +48,8 @@ When someone is accepted, we **create a member** from that application (via the 
 | :---- | :---- |
 | **`bills`** | One row per bill: state, name, position (Support / Oppose / Support If Amended / Propose), description, date, LegiScan link, **google_doc_link** (optional link to proposal doc, e.g. Google Doc), collaborators. **hidden** (boolean): when true, bill is approved but not shown on the public Bills page; still visible in Bill Management and to the submitter. `status`: under\_review → approved / modified / rejected. `submitted_by` and `reviewed_by` are member IDs. Only approved/modified bills with **hidden = false** show on the public Bills page. Either a proposal PDF (in storage) or **google_doc_link** is required on submit; collaborators are required. |
 | **`get_bills_research()`** | RPC (`SECURITY DEFINER`, `authenticated` only): returns a **non-internal** projection of all **`bills`** rows for users with **`members.bills`**. Includes bill\_id, state, name, position, description, bill\_date, legiscan\_link, google\_doc\_link, bill\_collaborators, status, hidden, submitted\_by, submitted\_at. **Excludes** review\_notes, reviewed\_by, reviewed\_at so bill members can research the full SPAN corpus without internal review data. Dashboard **Research** tab. Migration: `supabase/migrations/bills_research_get_bills_research_rpc.sql`. |
-| **`bill_assignments`** | **Exec-assigned work** (research / drafting tasks), separate from formal **`bills`** submission. Fields: **title**, **goal**, **additional_info**, **assignee_member_id**, **assigned_by_member_id**, optional **due_date**, **status** (`not_started` → `in_progress` → `completed` → `in_review` → `approved`), **deliverable_doc_link**, **deliverable_pdf_url**. RLS: **execs** (all four member permissions) full access including **DELETE**; **assignee** can SELECT and UPDATE own rows. The dashboard **assignee picker** only lists members with **`bills`** permission. Dashboard: Bill Management → **Assigned work**; Bill Submission → **Assigned to me** (non-exec bill members). |
+| **`bill_assignments`** | **Exec-assigned work** (research / drafting tasks), separate from formal **`bills`** submission. Fields: **title**, **goal**, **additional_info**, **assignee_member_id**, **assigned_by_member_id**, optional **due_date**, **status** (`not_started` → `in_progress` → `completed` → `in_review` → `approved`), **deliverable_doc_link**, **deliverable_pdf_url**. RLS: **execs** (all four member permissions) full access including **DELETE**; **assignee** can SELECT and UPDATE own rows. Multi-assignee via **`bill_assignment_assignees`**. Dashboard: Bill Management → **Assigned work**; Bill Submission → **Assigned to me**. Policy-team leads are scoped to their roster. |
+| **`bill_outreach_targets`** | Per-person outreach on **approved** bills (LegiScan sponsors). Status + notes. Exec outreach tab; `outreach-send-email`. |
 | ~~**`Bill_proposals (obsolete)`**~~ | ~~(Obsolete.) Used for proposal text / AI review. Bills that appear on the site are in `bills`.~~ |
 
 Bill **PDFs** are in the **Storage** bucket `proposals`, not in the DB. Also note this is not to be confused with the permission “bills”.
@@ -57,15 +58,34 @@ Bill **PDFs** are in the **Storage** bucket `proposals`, not in the DB. Also not
 
 | Table | Purpose |
 | :---- | :---- |
-| **`volunteers`** | One row per volunteer hour entry: `member_id`, start/end time, job title, description. `approved`: waiting → approved/denied. `supervisor_comment`. Members add and see their own; members with **volunteer** permission see all and can approve/deny. |
+| **`volunteers`** | One row per volunteer hour entry: `member_id`, start/end time, job title, description. `approved`: waiting → approved/denied. `supervisor_comment`, `reviewed_by`, `reviewed_at`. Members add and see their own; members with **volunteer** permission see all and can approve/deny (not self). Execs can email a verification PDF. |
 
 ### HR, leave/extension, and suggestions tables
 
 | Table | Purpose |
 | :---- | :---- |
-| **`hr_reports`** | HR complaints: who submitted, who it’s about (`regarding_member_id`), nature, date, details. `status`: pending → reviewed → resolved/dismissed. Only **execs** can update status. |
+| **`hr_reports`** | HR complaints: who submitted, who it’s about (`regarding_member_id`), nature, date, details. `status`: pending → reviewed → resolved/dismissed. **Execs** update status and see all rows **except** reports about themselves. |
 | **`member_requests`** | Leave/break or project extension requests. `member_id`, type (leave / extension), reason, optional dates or project name. `status`: pending → approved/declined. **Execs** approve or decline; the app sets `reviewed_by`, `reviewed_at`, `review_notes`. Dashboard and view-member-dashboard enrich with `reviewed_by_member` (reviewer name) for display in the Request View modal. |
-| **`member_suggestions`** | Ideas and suggestions: bill ideas, general interests, web/feature suggestions. `member_id`, `type` (bill_idea / general_interest / web_dev_feature), `title`, `description`. `status`: pending → under_review / approved / declined. **Execs** view all, set status, and leave `review_notes`. See `docs/SUGGESTIONS.md`. |
+| **`member_suggestions`** | Ideas and suggestions: bill ideas, general interests, web/feature suggestions. `member_id`, `type` (bill_idea / general_interest / web_dev_feature), `title`, `description`. `status`: pending → under_review / approved / declined. **Execs** view all, set status, and leave `review_notes`. Dashboard: [DASHBOARD_FUNCTIONS.md](./DASHBOARD_FUNCTIONS.md). |
+| **`public_bill_recommendations`** | Public “suggest a bill” form on `bills.html`. Exec Ideas queue (source = public). |
+| **`member_strikes`** / **`member_removal_proposals`** / **`member_resignations`** | Executive Conduct: strikes, removal proposals, member-initiated resignations. |
+| **`dashboard_calendar_events`** | Unified leave-section calendar (SPAN events, deadlines, etc.). |
+
+### Policy teams
+
+| Table | Purpose |
+| :---- | :---- |
+| **`policy_teams`** | Named teams; `team_kind` (`policy` \| `marketing` \| `blog` \| `general`). |
+| **`member_policy_teams`** | Roster. |
+| **`policy_team_leads`** | Co-leads; RLS scopes leave and assignment ops. [MIGRATION_POLICY_TEAMS.md](./MIGRATION_POLICY_TEAMS.md). |
+
+### Mentors and classroom
+
+| Table | Purpose |
+| :---- | :---- |
+| **`advisors`** | Board of Mentors profiles (public Leadership tab). Not `members`. |
+| **`mentor_accounts`** / **`mentor_invites`** | Mentor login and invite tokens. [MENTOR_LOGIN.md](./MENTOR_LOGIN.md). |
+| **`classroom_schools`**, **`classroom_teachers`**, **`classroom_classes`**, **`classroom_students`**, **`classroom_enrollments`**, **`classroom_assignments`**, **`classroom_assignment_materials`**, **`classroom_submissions`** | SPAN Classroom (pilot). Separate from homepage `schools`. |
 
 ### Public-facing content (no per-member ownership) tables
 
@@ -122,14 +142,23 @@ If you forget what a table is for, use this list.
 | **members** | People in SPAN; link to Auth; permissions and profile. |
 | **applications** | Pre-login applications to join; reviewed then accepted/rejected. |
 | **bills** | Legislation we track; status workflow for public display. |
+| **bill_assignments** | Assigned research/draft work; not a public bill. |
+| **bill_outreach_targets** | Outreach people on approved bills. |
 | **bill\_proposals** | (Obsolete.) Proposal text / AI review. |
 | **volunteers** | Volunteer hour entries; member-owned; approval workflow. |
-| **hr\_reports** | HR complaints; execs manage status. |
+| **hr\_reports** | HR complaints; execs manage status (except regarding themselves). |
 | **member\_requests** | Leave/extension requests; members submit, execs approve/decline. |
+| **member_suggestions** | Internal ideas; execs review. |
+| **public_bill_recommendations** | Public bill suggestions. |
+| **policy_teams** / **member_policy_teams** / **policy_team_leads** | Teams and co-leads. |
+| **advisors** / **mentor_accounts** | Board of Mentors + login. |
+| **classroom_*** | Classroom pilot. |
+| **member_strikes** / **member_resignations** / **member_removal_proposals** | Executive Conduct. |
 | **schools** | School partners for homepage; display order, active flag. |
 | **partners** | Partner orgs for homepage; same idea. |
+| **dashboard_calendar_events** | Leave-section calendar events. |
 
-**Other tables:** You may see more tables in Supabase (e.g. `projects`, `legislators`, `tasks`, `contact_log`, `timeline_phases`, `project_members`, `legislator_recommendations`). They’re not covered here and aren’t needed for the main workflows above. No need to worry about them for now.
+**Unused / legacy:** You may still see `projects`, `legislators`, `tasks`, `contact_log`, `timeline_phases`, `project_members`, `legislator_recommendations` in older snapshots. They are not the current bills/outreach/classroom model.
 
 ---
 

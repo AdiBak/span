@@ -2,7 +2,7 @@
 
 The public site is a **multi-page** setup: each route is an HTML file in the repo root that mounts a React page via **`src/main.jsx`** / **`App.jsx`** (see **CODEBASE_ARCHITECTURE.md**). **Vite** builds the bundle; output goes to **`dist/`** for static hosting.
 
-**Canonical shipped behavior:** **[../WORK_SUMMARY.txt](../WORK_SUMMARY.txt)** §0. This file adds **React/Vite-oriented** context; the **§ Current feature surface** section below tracks the app today, then **Historical notes** keep migration-era detail without duplicating the whole codebase.
+**Canonical shipped behavior:** **[../WORK_SUMMARY.md](../WORK_SUMMARY.md)** §0. This file adds **React/Vite-oriented** context; the **§ Current feature surface** section below tracks the app today, then **Historical notes** keep migration-era detail without duplicating the whole codebase.
 
 ## Build commands
 
@@ -19,13 +19,13 @@ Local credentials: **[SETUP.md](./SETUP.md)** and **[README-ENV.md](./README-ENV
 
 ## Current feature surface (summary)
 
-Authoritative detail: **[../WORK_SUMMARY.txt](../WORK_SUMMARY.txt)** §0 and **[DASHBOARD_FUNCTIONS.md](./DASHBOARD_FUNCTIONS.md)**. At a glance:
+Authoritative detail: **[../WORK_SUMMARY.md](../WORK_SUMMARY.md)** §0 and **[DASHBOARD_FUNCTIONS.md](./DASHBOARD_FUNCTIONS.md)**. At a glance:
 
-- **Permissions:** `volunteer`, `applications`, `bills`, `registration`, `blog` on `members`; execs have all five.
-- **Public:** Home, Bills (PDF/Doc links, LegiScan, optional status timeline), Blog + post page, Directory (incl. advisory board where configured), Our Story, Application form.
-- **Auth:** **`LoginPage.jsx`** — SPAN email login; Forgot Password → **`hyper-endpoint`** (source `password-reset/`). See **FIRST_LOGIN_AND_REGISTRATION.md**.
-- **Dashboard (`DashboardPage.jsx`):** profile, leave/extension + **unified calendar** (birthdays/events/deadlines), dark mode, bills (submit + exec management), **assigned work / open pool**, **research** (SPAN + LegiScan + compare), **outreach**, applications (pipeline + Resend emails + **AI screening**), volunteer hours, ideas/suggestions, HR/conduct lifecycle, member management, schools/partners, **Classroom** (where enabled), Medium OTP (**blog** perm), password change, exec **view-as**.
-- **Transactional email:** Mostly **Resend** via Edge Functions (invite, onboard scheduling, rejection, volunteer verification, password reset, etc.); see **`supabase/functions/`** and **COPILOT_CONTEXT.md**.
+- **Permissions:** `volunteer`, `applications`, `bills`, `registration`, `blog` on `members`. Exec = the original four; `blog` is a fifth flag. Mentors are not members (`mentor_accounts`).
+- **Public:** Home (join form, impact map, partners, schools, team), Bills (PDF/Doc, LegiScan timeline, public suggestion form), Policy Briefs (`policy-briefs.html`; `blog.html` redirects), Directory (leadership / mentors / members, Turnstile email gate), Our Story, Login (member + mentor mode, SPANCard QR), Classroom join/dashboard, mentor join.
+- **Auth:** **`LoginPage.jsx`** — SPAN email login; mentor mode; Forgot Password → **`hyper-endpoint`** (source `password-reset/`). See **FIRST_LOGIN_AND_REGISTRATION.md**, **MENTOR_LOGIN.md**.
+- **Dashboard (`DashboardPage.jsx`):** see **DASHBOARD_FUNCTIONS.md** — profile, leave/extension + calendar, dark mode, bills (submit, assignments, research, outreach), applications, volunteer hours, ideas/suggestions, HR, Executive Conduct, member management, policy teams, schools/partners/mentors, Classroom admin, Analytics, Medium OTP, password change, resign, exec **view-as**.
+- **Transactional email:** **Resend** via Edge Functions (invite, onboard, rejection, volunteer verification, password reset, member letters, mentor welcome, etc.); see **`supabase/functions/`** and **DEPLOYMENT.md**.
 
 ---
 
@@ -35,9 +35,9 @@ Authoritative detail: **[../WORK_SUMMARY.txt](../WORK_SUMMARY.txt)** §0 and **[
 
 - PDF viewer, keyword extraction, collaborator search, pagination — still accurate at a high level; see also hidden bills, Google Doc links, and LegiScan timeline on cards.
 
-### Blog
+### Policy briefs
 
-- Medium RSS, featured + pagination, author links, shared pagination.
+- Medium RSS, featured + pagination, author links. Public URLs are `policy-briefs.html` / `policy-brief.html`.
 
 ### Applications
 
@@ -50,7 +50,7 @@ Authoritative detail: **[../WORK_SUMMARY.txt](../WORK_SUMMARY.txt)** §0 and **[
 
 ## React pages and major UI
 
-**Pages (`src/pages/`):** `HomePage`, `BillsPage`, `BlogPage`, `BlogPostPage`, `DirectoryPage`, `OurStoryPage`, `LoginPage`, `DashboardPage`, and others as added.
+**Pages (`src/pages/`):** `HomePage`, `BillsPage`, `BlogPage`, `BlogPostPage`, `DirectoryPage`, `OurStoryPage`, `LoginPage`, `DashboardPage`, `ClassroomJoinPage`, `ClassroomDashboardPage`, `MentorJoinPage`.
 
 **Large dashboard concerns** live mainly in **`DashboardPage.jsx`** plus panels such as **`BillResearchPanel`**, **`BillOutreachPanel`**, bill assignment UI, etc. (**`src/components/`**).
 

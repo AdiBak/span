@@ -3,11 +3,11 @@
 **You can tell Copilot to reference the Copilot Context file in the codebase; this is just  here in case.**
 
 Project Overview  
-**SPAN (Students for Patient Advocacy Nationwide)** is a React-based website for managing members, bills, applications, volunteer hours, and HR reports. The site uses **Supabase** (PostgreSQL \+ Auth \+ Storage) as the backend, deployed on **GitHub Pages**.
+**SPAN (Students for Patient Advocacy Nationwide)** is a React-based website for managing members, bills, applications, volunteer hours, HR, classroom, and mentors. The site uses **Supabase** (PostgreSQL \+ Auth \+ Storage) as the backend, deployed on **GitHub Pages**.
 
 **Tech Stack:**
 
-- **Frontend:** React 18 \+ Vite, React Router, Bootstrap 5, Bootstrap Icons  
+- **Frontend:** React 18 \+ Vite 5, Bootstrap 5, Bootstrap Icons. **No React Router** — one HTML file per URL (`src/main.jsx` / `App.jsx` `page` prop).
 - **Backend:** Supabase (PostgreSQL, Auth, Storage, Edge Functions)  
 - **Deployment:** GitHub Pages (static build)  
 - **Build Tool:** Vite 5
@@ -34,13 +34,17 @@ Project Overview
     
 - **`member_requests`** \- Leave/break and project extension requests. Fields: `request_id`, `member_id`, `type` ('leave' | 'extension'), `reason`, `leave_start`, `leave_end`, `project_name`, `requested_by_date`, `status` ('pending', 'approved', 'declined'), `reviewed_by`, `reviewed_at`, `review_notes`, `created_at`. Members submit; execs approve or decline.  
     
-- **`member_suggestions`** \- Ideas and suggestions (bill ideas, general interests, web/feature suggestions). Fields: `suggestion_id`, `member_id`, `type` ('bill_idea' | 'general_interest' | 'web_dev_feature'), `title`, `description`, `status` ('pending' | 'under_review' | 'approved' | 'declined'), `reviewed_by`, `reviewed_at`, `review_notes`, `created_at`. Members submit; execs view all, set status, and leave comments. See `docs/SUGGESTIONS.md`.  
+- **`member_suggestions`** \- Ideas and suggestions (bill ideas, general interests, web/feature suggestions). Members submit; execs view all, set status, and leave comments. Public bill form uses **`public_bill_recommendations`**. Dashboard: `docs/DASHBOARD_FUNCTIONS.md`.
     
-- **`schools`** \- School partners. Fields: `school_id`, `school_name`, `school_image` (filename), `display_order`, `active`.  
-    
-- **`partners`** \- Partner organizations. Fields: `partner_id`, `partner_name`, `partner_logo` (filename), `website_url`, `display_order`, `active`.
+- **`schools`** / **`partners`** \- Homepage carousels (`active` only).
+- **`advisors`** / **`mentor_accounts`** / **`mentor_invites`** \- Board of Mentors + mentor login. Not `members`. `docs/MENTOR_LOGIN.md`.
+- **`policy_teams`** / **`member_policy_teams`** / **`policy_team_leads`** \- Teams and co-leads. `docs/MIGRATION_POLICY_TEAMS.md`.
+- **`bill_outreach_targets`** \- Outreach on approved bills.
+- **`member_strikes`**, **`member_removal_proposals`**, **`member_resignations`** \- Executive Conduct.
+- **`classroom_*`** \- SPAN Classroom (pilot). Separate from homepage `schools`.
+- **`dashboard_calendar_events`** \- Leave-section calendar.
 
-**Other tables:** The database may contain additional tables (e.g. `projects`, `legislators`, `tasks`, `contact_log`, `timeline_phases`, `project_members`, `legislator_recommendations`). They are not used by the main app workflows documented here; ignore them for day-to-day work unless you're told otherwise.
+**Legacy tables** (e.g. `projects`, `legislators`, `tasks`, `contact_log`) are not the current bills/outreach/classroom model.
 
 **Storage Buckets:**
 
@@ -64,20 +68,20 @@ Project Overview
 
 **Frontend (`src/`):**
 
-- `pages/` \- Page components (DashboardPage, BillsPage, BlogPage, DirectoryPage, LoginPage, HomePage, OurStoryPage)  
-- `components/` \- Reusable components (BillCard, BlogCard, Navbar, Footer, ApplicationForm, RegistrationForm, CollaboratorAvatars, PDFViewer, Pagination, etc.)  
-- `lib/` \- Utilities (`supabase.js` \- Supabase client setup, `legiscan.js` \- LegiScan API helper)
+- `pages/` \- Page components (DashboardPage, BillsPage, BlogPage / policy briefs, DirectoryPage, LoginPage, HomePage, OurStoryPage, Classroom*, MentorJoinPage)  
+- `components/` \- Reusable UI (BillCard, Navbar, ApplicationForm, BillResearchPanel, BillOutreachPanel, etc.)  
+- `lib/` \- `supabase.js`, `legiscan.js`, `generateVolunteerPDF.js`, `memberDisplayName.js`, classroom helpers
 
 **Backend (`supabase/`):**
 
-- `migrations/` \- SQL migration files (run in order, all RLS policies and functions are here)  
-- `functions/` \- Edge Functions (Deno/TypeScript): `members-provision/` (member onboarding), `password-reset/` (**deployed as `hyper-endpoint`**; Forgot Password + temp password via Resend), `dashboard-view/` (deployed as `view-member-dashboard`), `notify-new-application/` (Resend alert when a public application is submitted), `notify-hr-report/`, `notify-resignation-request/`, `send-rejection-email/`, `send-invitation-email/` (interview invite; Resend, `dry_run` preview), `send-onboarding-schedule-email/` (onboarding call scheduling; Resend, `dry_run` preview), `send-volunteer-verification/`, `medium-otp-arm/` (Medium OTP forwarding for blog editors), plus LegiScan contact fetch where used
+- `migrations/` \- SQL (run in order)  
+- `functions/` \- Edge Functions (Deno/TypeScript). Full list: `docs/DEPLOYMENT.md` and `WORK_SUMMARY.md` §0. Includes members-provision, password-reset (**hyper-endpoint**), dashboard-view (**view-member-dashboard**), application/HR/resignation notify and send-* mail, check-ai-text, medium-otp-arm, outreach-send-email, fetch-legiscan-person-contact, classroom-*, mentors-*, web-analytics-summary.
 
 **Exec (executive director):**
 
 - Exactly **all 4 permissions**: `volunteer`, `applications`, `bills`, `registration`. Used for bill approval, member management, and the “View dashboard” action.  
 - **View-member-dashboard API:** `GET /functions/v1/view-member-dashboard?member_id=<uuid>` with `Authorization: Bearer <session JWT>`. Returns `{ member, volunteer_entries, leave_requests, bills, applications }` for that member. Caller must be an exec (all 4 perms); otherwise 403\.
-- **Dashboard section order:** Sections use a flex container and CSS `order` in `DashboardPage.jsx` (`dashboardOrder` from `isExec`). Members: Your Info → Leave & Extension Requests → Bill Submission → Volunteer Hours → Ideas & Suggestions → HR Reports → Change Password. Execs: same start, then Bill Management → New Member Applications → … → Member Management → Schools & Partners → Change Password. Non-applicable sections use `order: 99`. Full list: `docs/DASHBOARD_FUNCTIONS.md`.
+- **Dashboard section order:** CSS `order` in `DashboardPage.jsx`. Full current order (members, team leads, execs, mentors): `docs/DASHBOARD_FUNCTIONS.md`.
 
 **Email service (Resend):**
 
@@ -205,7 +209,7 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 1. **Submission** \- Any member can submit from the dashboard: **Type** (Bill idea | General interest | Web / feature suggestion), **Title** (required), **Description** (optional) → stored in `member_suggestions` with `status = 'pending'`.
 2. **Viewing** \- Members see their own suggestions; **execs** see all with filters (All, Pending, Under review, Approved, Declined). The list **defaults to Pending**. Section sits after Leave & extension, before Volunteer hours.
 3. **Suggestion View modal** \- View button opens modal with full details. **Execs** can set status (Pending, Under review, Approved, Declined) and optional **Review notes** (comments for the member). Updates set or clear `reviewed_by`, `reviewed_at`, `review_notes`.  
-4. **Table:** `member_suggestions`. Migration: `supabase/migrations/create_member_suggestions_table.sql`. See `docs/SUGGESTIONS.md`.
+4. **Table:** `member_suggestions` (internal) and `public_bill_recommendations` (Bills page form). Migration: `supabase/migrations/create_member_suggestions_table.sql`. Dashboard: `docs/DASHBOARD_FUNCTIONS.md`.
 
 ### Profile Picture Management
 
@@ -223,17 +227,23 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 - **Active/Inactive** \- Members with `active = false` are hidden from directory and moved to "Inactive Members" section in dashboard  
 - **Import from application** \- When creating member, can import data from accepted application
 
-### Schools & Partners Management
+### Schools, Partners & Mentors
 
-- **Schools** \- Execs manage school partners (name, logo, display order, active status) → displayed on homepage carousel (only `active = true`)  
-- **Partners** \- Execs manage partner organizations (name, logo, website, display order, active status) → displayed on homepage (only `active = true`)  
-- **Storage** \- Logos stored in `schools-images` and `partners-images` buckets
+- **Schools / partners** \- Execs manage homepage carousels (`schools-images`, `partners-images`).  
+- **Mentors** \- `advisors` + `mentor_accounts`. Invite link or Add Mentor. Login `login.html?mode=mentor`. `docs/MENTOR_LOGIN.md`.
 
-### Blog Integration
+### Policy briefs (Medium)
 
-- Fetches posts from Medium via RSS → JSON API  
-- Featured article on page 1, paginated (5 posts/page)  
-- Author names automatically linked to SPAN directory profiles if match found
+- Public pages: `policy-briefs.html` / `policy-brief.html` (Medium RSS). `blog.html` redirects.  
+- Dashboard Medium OTP for members with **blog** permission.
+
+### Classroom (pilot)
+
+- Exec dashboard **Classroom** section provisions schools/teachers. Teachers/students use `classroom/join.html` and `classroom/dashboard.html`. Tables `classroom_*`. Functions `classroom-provision-teacher`, `classroom-join-student`.
+
+### Executive Conduct / resign
+
+- Strikes, removal proposals, resignation queue. Letters: `send-member-letter-email`. Members can **Resign from SPAN**.
 
 ### Bills Page Features
 
@@ -266,10 +276,13 @@ const { data } = supabase.storage.from('members-images').getPublicUrl(filename)
 - **Member onboarding / provisioning (high level):** `docs/ADDING_A_NEW_MEMBER.md`, `docs/FIRST_LOGIN_AND_REGISTRATION.md`, Edge Function `supabase/functions/members-provision/`; secrets and CLI in `docs/SETUP.md`  
 - **Ideas & suggestions:** `docs/DASHBOARD_FUNCTIONS.md`  
 - **LegiScan bill status timeline (UI):** `src/components/BillStatusTimeline.jsx` and timeline fields from `src/lib/legiscan.js` (used on public bill cards)
-- **Bills exec suite (phased):** `docs/BILLS_EXEC_SUITE_SPEC.md` — **Assigned work**, **Research** (SPAN + LegiScan + Compare), and **Outreach** (exec tab + `bill_outreach_targets`) are implemented; see spec for nuances.  
-- **Docs changelog:** `docs/DOCS_CHANGELOG.md` — updates to the guide and docs  
+- **Bills exec suite:** `docs/BILLS_EXEC_SUITE_SPEC.md` — assignments, research, outreach implemented.  
+- **Mentors:** `docs/MENTOR_LOGIN.md`  
+- **Policy teams:** `docs/MIGRATION_POLICY_TEAMS.md`  
+- **Shipped features:** `WORK_SUMMARY.md` §0  
+- **Docs changelog:** `docs/DOCS_CHANGELOG.md`  
 - **Supabase client:** `src/lib/supabase.js`  
-- **Main app router:** `src/App.jsx`  
+- **Page switch (not React Router):** `src/App.jsx`  
 - **Entry point:** `src/main.jsx`
 
 ---

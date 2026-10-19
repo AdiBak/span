@@ -41,6 +41,7 @@ export default function ExecConductSection({
   onDeleteResignation,
   onDeleteStrike,
   onDeactivateMemberFromDirectory,
+  onMarkRemovalReinstated,
   onOpenHonorableExitEmailModal,
   onOpenRemovalNoticeEmailModal,
 }) {
@@ -299,22 +300,49 @@ export default function ExecConductSection({
                     const mem = membersById[p.member_id]
                     const name = mem ? `${mem.first_name} ${mem.last_name}` : p.member_id
                     const stillActive = mem ? mem.active !== false : true
+                    const reinstated = Boolean(p.reinstated_at)
                     const when = p.letter_sent_at ? formatDateLong(p.letter_sent_at) : '—'
                     return (
                       <tr key={p.proposal_id}>
                         <td className="fw-semibold">{name}</td>
                         <td className="small text-nowrap">{when}</td>
                         <td>
-                          {stillActive && typeof onDeactivateMemberFromDirectory === 'function' ? (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-danger"
-                              onClick={() => onDeactivateMemberFromDirectory(p.member_id)}
-                            >
-                              Still listed — remove
-                            </button>
+                          {reinstated ? (
+                            <span className="badge text-bg-success">Reinstated</span>
+                          ) : stillActive && typeof onDeactivateMemberFromDirectory === 'function' ? (
+                            <div className="d-flex flex-wrap gap-1 align-items-center">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => onDeactivateMemberFromDirectory(p.member_id)}
+                              >
+                                Still listed — remove
+                              </button>
+                              {typeof onMarkRemovalReinstated === 'function' && (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-success"
+                                  title="Keep letter on record; mark directory status as reinstated"
+                                  onClick={() => onMarkRemovalReinstated(p)}
+                                >
+                                  Mark reinstated
+                                </button>
+                              )}
+                            </div>
                           ) : (
-                            <span className="badge bg-secondary">Off directory</span>
+                            <div className="d-flex flex-wrap gap-1 align-items-center">
+                              <span className="badge bg-secondary">Off directory</span>
+                              {typeof onMarkRemovalReinstated === 'function' && (
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-success"
+                                  title="Restore to directory and mark as reinstated"
+                                  onClick={() => onMarkRemovalReinstated(p)}
+                                >
+                                  Mark reinstated
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>

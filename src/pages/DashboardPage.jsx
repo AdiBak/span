@@ -1838,6 +1838,45 @@ function DashboardPage() {
     await loadExecConductData()
   }
 
+  /** Keep removal letter on record; restore directory listing and show Reinstated. */
+  const handleMarkRemovalReinstated = async (proposal) => {
+    if (!proposal?.proposal_id || !proposal?.member_id) return
+    const row = (allMembersForManagement || []).find(
+      (m) => String(m.member_id) === String(proposal.member_id),
+    )
+    const name = row
+      ? `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'this member'
+      : 'this member'
+    if (
+      !window.confirm(
+        `Mark ${name} as reinstated?\n\nThey stay on the Removal / firing letters list for history. Directory status becomes Reinstated and they are listed on the public site again.`,
+      )
+    ) {
+      return
+    }
+    try {
+      const nowIso = new Date().toISOString()
+      const { error: propErr } = await supabase
+        .from('member_removal_proposals')
+        .update({
+          reinstated_at: nowIso,
+          updated_at: nowIso,
+        })
+        .eq('proposal_id', proposal.proposal_id)
+      if (propErr) throw propErr
+      const { error: memErr } = await supabase
+        .from('members')
+        .update({ active: true })
+        .eq('member_id', proposal.member_id)
+      if (memErr) throw memErr
+      await loadExecConductData()
+      await loadAllMembersForManagement()
+      await loadAllMembers()
+    } catch (err) {
+      alert(err.message || 'Failed to mark reinstated.')
+    }
+  }
+
   const handleSubmitResignationRequest = async (message) => {
     if (!member?.member_id) return
     setResignSubmitLoading(true)
@@ -7237,6 +7276,7 @@ function DashboardPage() {
               onDeleteResignation={handleDeleteResignation}
               onDeleteStrike={handleDeleteStrike}
               onDeactivateMemberFromDirectory={handleDeactivateMemberFromDirectory}
+              onMarkRemovalReinstated={handleMarkRemovalReinstated}
               onOpenHonorableExitEmailModal={() => setShowHonorableExitEmailModal(true)}
               onOpenRemovalNoticeEmailModal={() => setShowRemovalNoticeEmailModal(true)}
             />

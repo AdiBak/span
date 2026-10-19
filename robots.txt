@@ -1,0 +1,151 @@
+# SPAN — Students for Patient Advocacy Nationwide
+# Public pages are open for search, AI grounding, and training.
+# Member emails / auth surfaces stay closed to all crawlers.
+#
+# Content Signals (Agent Readiness):
+#   search=yes   — indexing and classic search results
+#   ai-input=yes — live retrieval / grounding in ChatGPT, Claude, Gemini, etc.
+#   ai-train=yes — public SPAN content may be used for model training
+#
+# Path Disallow below is the PII fence. Enforce directory blocks in Cloudflare
+# AI Crawl Control / WAF if a crawler ignores robots.txt.
+
+User-agent: *
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+# Named AI bots (search, assistants, and training) — same public allow + PII fence
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: GPTBot
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: Claude-SearchBot
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: Claude-User
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: Perplexity-User
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: Applebot
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: Googlebot
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: bingbot
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+# Bulk scrapers with little citation value — still keep off PII; optional CF block
+User-agent: CCBot
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+User-agent: Bytespider
+Allow: /
+Disallow: /directory.html
+Disallow: /dashboard.html
+Disallow: /login.html
+Disallow: /mentor-join.html
+Disallow: /classroom/
+Content-Signal: search=yes, ai-input=yes, ai-train=yes
+
+Sitemap: https://spanationwide.org/sitemap.xml

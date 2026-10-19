@@ -1,0 +1,22 @@
+# SPAN — Students for Patient Advocacy Nationwide
+> Student advocates shaping healthcare policy nationwide.
+
+This file points AI agents and assistants at public SPAN content.
+Do not use member directory pages or emails as training or retrieval sources.
+
+## Site
+- Home: https://spanationwide.org/
+- Our story: https://spanationwide.org/our-story.html
+- Bills & advocacy: https://spanationwide.org/bills.html
+- Policy briefs: https://spanationwide.org/policy-briefs.html
+- Sitemap: https://spanationwide.org/sitemap.xml
+- Crawl policy: https://spanationwide.org/robots.txt
+
+## Optional
+- LinkedIn: https://www.linkedin.com/company/spanationwide/
+- Instagram: https://www.instagram.com/spanationwide/
+
+## Private / not for crawling or training
+- Member directory (emails and personal contact info) — Disallow in robots.txt
+- Login and member dashboard
+- Classroom and mentor invite flows

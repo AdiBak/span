@@ -12,11 +12,11 @@ const root = join(__dirname, '..')
 const SITE = 'https://spanationwide.org'
 const today = new Date().toISOString().slice(0, 10)
 
+// Public discovery pages only — directory (member emails/PII) is noindex + robots Disallow.
 const staticPages = [
   { path: '/', priority: '1.0', changefreq: 'weekly' },
   { path: '/bills.html', priority: '0.9', changefreq: 'weekly' },
   { path: '/policy-briefs.html', priority: '0.8', changefreq: 'weekly' },
-  { path: '/directory.html', priority: '0.7', changefreq: 'weekly' },
   { path: '/our-story.html', priority: '0.9', changefreq: 'monthly' },
 ]
 

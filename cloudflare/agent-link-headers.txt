@@ -1,0 +1,24 @@
+# Cloudflare Response Header Transform Rule — Agent Readiness Link headers
+# GitHub Pages cannot set HTTP Link headers; Cloudflare (in front of the zone) can.
+#
+# Dashboard: Rules → Transform Rules → Modify Response Header → Create rule
+# Rule name: Agent discovery Link headers
+#
+# When incoming requests match — Custom filter expression:
+#   (http.host eq "spanationwide.org" or http.host eq "www.spanationwide.org")
+#   and (
+#     http.request.uri.path eq "/"
+#     or http.request.uri.path eq "/index.html"
+#     or http.request.uri.path eq "/our-story.html"
+#     or http.request.uri.path eq "/bills.html"
+#     or http.request.uri.path eq "/policy-briefs.html"
+#   )
+#
+# Then — Add static (preferred over Set static so other Link headers are kept):
+#   Header name: Link
+#   Value:
+# </llms.txt>; rel="describedby"; type="text/plain", </sitemap.xml>; rel="sitemap"; type="application/xml"
+#
+# Verify:
+#   curl -sI https://spanationwide.org/ | grep -i '^link:'
+# Then Rescan Agent Readiness → Diagnostics (Link Headers should pass).

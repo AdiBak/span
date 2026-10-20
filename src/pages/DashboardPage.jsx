@@ -3128,6 +3128,13 @@ function DashboardPage() {
   // Volunteer hours management
   const handleAddVolunteer = async () => {
     const selfId = member?.member_id || ''
+    // Issuing hours for others is exec-only (all four perms). Volunteer-only can still approve/deny.
+    const canIssueHours =
+      hasPermission('volunteer') &&
+      hasPermission('applications') &&
+      hasPermission('bills') &&
+      hasPermission('registration')
+
     setVolunteerForm({
       jobTitle: '',
       jobDesc: '',
@@ -3136,16 +3143,11 @@ function DashboardPage() {
       inputMode: 'datetime',
       hours: '',
       workDate: '',
-      forMemberIds: selfId ? [selfId] : [],
+      // Execs start with no selection so issuing to others doesn't also create a pending "You" row.
+      // Non-execs always submit for themselves (no picker).
+      forMemberIds: canIssueHours ? [] : selfId ? [selfId] : [],
     })
     setVolunteerError('')
-
-    // Issuing hours for others is exec-only (all four perms). Volunteer-only can still approve/deny.
-    const canIssueHours =
-      hasPermission('volunteer') &&
-      hasPermission('applications') &&
-      hasPermission('bills') &&
-      hasPermission('registration')
 
     if (canIssueHours) {
       // Prefer management list when already loaded; otherwise public directory RPC.

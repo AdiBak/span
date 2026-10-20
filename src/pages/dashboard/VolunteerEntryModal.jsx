@@ -58,12 +58,8 @@ export default function VolunteerEntryModal({
   const toggleMember = (memberId) => {
     const id = String(memberId)
     const next = new Set(selectedSet)
-    if (next.has(id)) {
-      if (next.size <= 1) return
-      next.delete(id)
-    } else {
-      next.add(id)
-    }
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
     setSelectedIds(Array.from(next))
   }
 
@@ -167,9 +163,11 @@ export default function VolunteerEntryModal({
                     )}
                   </div>
                   <small className="text-muted">
-                    {issuingForOthers
-                      ? 'Selected members (other than you) get approved hours immediately. Your own row stays pending if included.'
-                      : 'Select yourself for a normal pending request, or pick others to issue approved hours.'}
+                    {selectedIds.length === 0
+                      ? 'Select who should receive these hours. Use Only me for your own pending request.'
+                      : issuingForOthers
+                        ? 'Others get approved hours immediately. If you include yourself, your row stays pending.'
+                        : 'Your own request will be submitted as pending approval.'}
                   </small>
                 </div>
               )}

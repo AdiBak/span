@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import CollaboratorAvatars from './CollaboratorAvatars'
 import BillStatusTimeline from './BillStatusTimeline'
 import { fetchBillStatus } from '../lib/legiscan'
+import { toPublicProposalUrl } from '../lib/proposalPdf'
 import './BillCard.css'
 
 // Lazy load PDFViewer since it's heavy (includes PDF.js)
@@ -54,26 +55,25 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
 
   const stateFileName = getStateFileName(bill.state)
 
+  const publicPdfUrl = (() => {
+    const fromStored = toPublicProposalUrl(bill.pdfUrl || bill.proposal_pdf_url)
+    if (fromStored) return fromStored
+    if (!bill?.name || !bill?.state) return null
+    const sanitizedName = String(bill.name).replace(/[^a-zA-Z0-9_-]/g, '_')
+    const sanitizedState = String(bill.state).replace(/[^a-zA-Z0-9_-]/g, '_')
+    return `https://spanationwide.org/proposals/${sanitizedState}/${sanitizedName}.pdf`
+  })()
+
   useEffect(() => {
     if (showPDF && !pdfPath) {
-      const stored =
-        bill.pdfUrl ||
-        bill.proposal_pdf_url ||
-        null
-      if (stored) {
-        setPdfPath(stored)
+      if (publicPdfUrl) {
+        setPdfPath(publicPdfUrl)
         return
       }
-      // Legacy fallback: open canonical path without probing (iframe 404s if missing)
-      const sanitizedName = bill.name.replace(/[^a-zA-Z0-9]/g, '_')
-      const sanitizedState = bill.state.replace(/[^a-zA-Z0-9]/g, '_')
-      setPdfPath(
-        `https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/${sanitizedState}/${sanitizedName}.pdf`
-      )
     } else if (!showPDF) {
       setPdfPath(null)
     }
-  }, [showPDF, pdfPath, bill.name, bill.state, bill.pdfUrl, bill.proposal_pdf_url])
+  }, [showPDF, pdfPath, publicPdfUrl])
 
   useEffect(() => {
     if (!modalRef.current) {
@@ -259,13 +259,26 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
           {(bill.pdfExists || (bill.bill_collaborators && bill.bill_collaborators.length > 0)) && (
             <div className="bill-card-actions">
               {bill.pdfExists && (
-                <button
-                  className="btn btn-outline-dark btn-sm"
-                  onClick={() => setShowPDF(!showPDF)}
-                  style={{ whiteSpace: 'nowrap' }}
-                >
-                  <i className="bi bi-file-pdf"></i> {showPDF ? 'Hide' : 'View'}
-                </button>
+                <div className="d-flex flex-wrap gap-2">
+                  <button
+                    className="btn btn-outline-dark btn-sm"
+                    onClick={() => setShowPDF(!showPDF)}
+                    style={{ whiteSpace: 'nowrap' }}
+                  >
+                    <i className="bi bi-file-pdf"></i> {showPDF ? 'Hide' : 'View'}
+                  </button>
+                  {publicPdfUrl && (
+                    <a
+                      className="btn btn-outline-secondary btn-sm"
+                      href={publicPdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      <i className="bi bi-box-arrow-up-right"></i> Open
+                    </a>
+                  )}
+                </div>
               )}
               {bill.bill_collaborators && bill.bill_collaborators.length > 0 && (
                 <CollaboratorAvatars
@@ -342,12 +355,24 @@ function BillCard({ bill, members, onCollaboratorClick, onKeywordExtracted, curr
                       <h5 className="modal-title" id="pdfModalTitle">
                         {bill.state} {bill.name} - Proposal PDF
                       </h5>
-                      <button
-                        type="button"
-                        className="btn-close"
-                        onClick={() => setShowPDF(false)}
-                        aria-label="Close"
-                      ></button>
+                      <div className="d-flex align-items-center gap-2">
+                        {pdfPath && (
+                          <a
+                            className="btn btn-sm btn-outline-secondary"
+                            href={pdfPath}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <i className="bi bi-box-arrow-up-right me-1"></i>Open in new tab
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          className="btn-close"
+                          onClick={() => setShowPDF(false)}
+                          aria-label="Close"
+                        ></button>
+                      </div>
                     </div>
                     <div className="modal-body">
                       {pdfPath ? (

@@ -5,6 +5,8 @@ const PDFViewer = lazy(() => import('../../components/PDFViewer'))
 export default function BillPdfPreviewModal({ bill, onClose, getBillPdfUrl }) {
   if (!bill) return null
 
+  const pdfUrl = typeof getBillPdfUrl === 'function' ? getBillPdfUrl(bill) : null
+
   return (
     <>
       <div className="modal fade show" style={{ display: 'block', zIndex: 1060 }} onClick={() => onClose()}>
@@ -17,7 +19,19 @@ export default function BillPdfPreviewModal({ bill, onClose, getBillPdfUrl }) {
               <h5 className="modal-title">
                 {bill.state} {bill.name} – Proposal PDF
               </h5>
-              <button type="button" className="btn-close" onClick={() => onClose()} aria-label="Close" />
+              <div className="d-flex align-items-center gap-2">
+                {pdfUrl && (
+                  <a
+                    className="btn btn-sm btn-outline-secondary"
+                    href={pdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <i className="bi bi-box-arrow-up-right me-1"></i>Open in new tab
+                  </a>
+                )}
+                <button type="button" className="btn-close" onClick={() => onClose()} aria-label="Close" />
+              </div>
             </div>
             <div className="modal-body">
               <Suspense
@@ -29,7 +43,7 @@ export default function BillPdfPreviewModal({ bill, onClose, getBillPdfUrl }) {
                   </div>
                 }
               >
-                <PDFViewer url={getBillPdfUrl(bill)} />
+                <PDFViewer url={pdfUrl} />
               </Suspense>
             </div>
           </div>

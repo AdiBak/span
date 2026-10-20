@@ -27,7 +27,17 @@ export default function SpanResearchBillDetail({
   if (showPdf) {
     proposalColumn = (
       <div className="mb-2">
-        <strong>Proposal PDF</strong>
+        <div className="d-flex justify-content-between align-items-center mb-1">
+          <strong>Proposal PDF</strong>
+          <a
+            href={pdfUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-sm btn-outline-secondary"
+          >
+            <i className="bi bi-box-arrow-up-right me-1"></i>Open PDF
+          </a>
+        </div>
         {bill.google_doc_link && (
           <p className="small text-muted mt-1 mb-2">
             <a href={bill.google_doc_link} target="_blank" rel="noopener noreferrer">

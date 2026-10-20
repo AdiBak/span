@@ -9,6 +9,7 @@ Do not use member directory pages or emails as training or retrieval sources.
 - Our story: https://spanationwide.org/our-story.html
 - Bills & advocacy: https://spanationwide.org/bills.html
 - Policy briefs: https://spanationwide.org/policy-briefs.html
+- Proposal PDFs (same-origin): https://spanationwide.org/proposals/
 - Sitemap: https://spanationwide.org/sitemap.xml
 - Crawl policy: https://spanationwide.org/robots.txt
 

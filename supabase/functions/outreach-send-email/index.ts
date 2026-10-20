@@ -25,9 +25,11 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? ""
 
 const DEFAULT_FROM = "Joel Blessan <joel.blessan@spanationwide.org>"
 
-/** Only proposal PDFs from our public storage bucket may be attached. */
-const PROPOSALS_PUBLIC_PREFIX =
+/** Proposal PDFs: Supabase storage and same-origin proxy (spanationwide.org/proposals/). */
+const PROPOSALS_STORAGE_PREFIX =
   "https://qujzohvrbfsouakzocps.supabase.co/storage/v1/object/public/proposals/"
+const PROPOSALS_SITE_PREFIX = "https://spanationwide.org/proposals/"
+const PROPOSALS_SITE_WWW_PREFIX = "https://www.spanationwide.org/proposals/"
 
 const MAX_ATTACHMENT_BYTES = 6 * 1024 * 1024
 
@@ -123,7 +125,24 @@ function isValidEmail(s: string): boolean {
 
 function allowlistedAttachmentUrl(url: string): boolean {
   const t = url.trim()
-  return t.startsWith(PROPOSALS_PUBLIC_PREFIX) && !t.includes("..") && /^https:\/\//i.test(t)
+  if (!t || t.includes("..") || !/^https:\/\//i.test(t)) return false
+  return (
+    t.startsWith(PROPOSALS_STORAGE_PREFIX) ||
+    t.startsWith(PROPOSALS_SITE_PREFIX) ||
+    t.startsWith(PROPOSALS_SITE_WWW_PREFIX)
+  )
+}
+
+/** Fetch from Supabase storage even when the client passes a same-origin /proposals URL. */
+function attachmentFetchUrl(url: string): string {
+  const t = url.trim()
+  if (t.startsWith(PROPOSALS_SITE_PREFIX)) {
+    return PROPOSALS_STORAGE_PREFIX + t.slice(PROPOSALS_SITE_PREFIX.length)
+  }
+  if (t.startsWith(PROPOSALS_SITE_WWW_PREFIX)) {
+    return PROPOSALS_STORAGE_PREFIX + t.slice(PROPOSALS_SITE_WWW_PREFIX.length)
+  }
+  return t
 }
 
 serve(async (req) => {
@@ -323,7 +342,7 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         )
       }
-      const pdfRes = await fetch(attachmentUrl)
+      const pdfRes = await fetch(attachmentFetchUrl(attachmentUrl))
       if (!pdfRes.ok) {
         return new Response(
           JSON.stringify({ error: "Could not download PDF for attachment." }),

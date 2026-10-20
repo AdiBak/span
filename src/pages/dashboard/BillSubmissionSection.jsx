@@ -374,13 +374,25 @@ export default function BillSubmissionSection({
                               )}
                               <div className="mt-3 d-flex gap-2 flex-wrap">
                                 {bill.pdfExists && (
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-dark"
-                                    onClick={() => setBillPdfPreviewBill(bill)}
-                                  >
-                                    <i className="bi bi-file-pdf me-1"></i>View PDF
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-dark"
+                                      onClick={() => setBillPdfPreviewBill(bill)}
+                                    >
+                                      <i className="bi bi-file-pdf me-1"></i>View PDF
+                                    </button>
+                                    {typeof getBillPdfUrl === 'function' && getBillPdfUrl(bill) && (
+                                      <a
+                                        href={getBillPdfUrl(bill)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="btn btn-sm btn-outline-secondary"
+                                      >
+                                        <i className="bi bi-box-arrow-up-right me-1"></i>Open PDF
+                                      </a>
+                                    )}
+                                  </>
                                 )}
                                 {bill.google_doc_link && (
                                   <a

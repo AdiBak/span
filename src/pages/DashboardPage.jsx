@@ -7,6 +7,7 @@ import { billStateGroupKey, canonicalUSStateName } from '../lib/usStateCanonical
 import {
   buildCanonicalProposalPdf,
   enrichBillWithStoredPdf,
+  toPublicProposalUrl,
 } from '../lib/proposalPdf'
 import { fetchLegiscanBillBySearch, isLegiscanBillNumberShape } from '../lib/legiscan'
 import { getClassroomSessionRole } from '../lib/classroom'
@@ -885,8 +886,10 @@ function DashboardPage() {
 
   function getBillPdfUrl(bill) {
     if (!bill) return null
-    if (bill.pdfUrl) return bill.pdfUrl
-    if (bill.proposal_pdf_url) return bill.proposal_pdf_url
+    if (bill.pdfUrl) return toPublicProposalUrl(bill.pdfUrl) || bill.pdfUrl
+    if (bill.proposal_pdf_url) {
+      return toPublicProposalUrl(bill.proposal_pdf_url) || bill.proposal_pdf_url
+    }
     const built = buildCanonicalProposalPdf(bill.state, bill.name)
     return built?.publicUrl || null
   }

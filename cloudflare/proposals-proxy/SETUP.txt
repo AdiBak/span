@@ -1,0 +1,21 @@
+# Same-origin proposal PDFs — Cloudflare Worker setup
+#
+# Goal: https://spanationwide.org/proposals/<state>/<file>.pdf
+#       proxies to the existing Supabase public proposals bucket.
+#
+# 1. Deploy the Worker
+#    cd cloudflare/proposals-proxy
+#    npx wrangler login
+#    npx wrangler deploy
+#
+# 2. Attach routes (Cloudflare Dashboard → Workers & Pages → span-proposals-proxy → Settings → Domains & Routes)
+#    Add:
+#      spanationwide.org/proposals/*
+#      www.spanationwide.org/proposals/*
+#
+# 3. Verify
+#    curl -sI "https://spanationwide.org/proposals/Texas/Some_Bill.pdf" | head
+#    Expect: content-type: application/pdf (or 404 if that file does not exist)
+#
+# 4. Site code already rewrites display/download links to /proposals/... — no further CF Transform needed.
+#    Existing rows that still store supabase.co URLs are rewritten in the browser via toPublicProposalUrl().

@@ -12,6 +12,7 @@
 
 User-agent: *
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -23,6 +24,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: OAI-SearchBot
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -32,6 +34,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: ChatGPT-User
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -41,6 +44,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: GPTBot
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -50,6 +54,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: Claude-SearchBot
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -59,6 +64,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: Claude-User
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -68,6 +74,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: ClaudeBot
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -77,6 +84,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: PerplexityBot
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -86,6 +94,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: Perplexity-User
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -95,6 +104,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: Google-Extended
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -104,6 +114,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: Applebot
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -113,6 +124,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: Googlebot
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -122,6 +134,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: bingbot
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -132,6 +145,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 # Bulk scrapers with little citation value — still keep off PII; optional CF block
 User-agent: CCBot
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html
@@ -141,6 +155,7 @@ Content-Signal: search=yes, ai-input=yes, ai-train=yes
 
 User-agent: Bytespider
 Allow: /
+Allow: /proposals/
 Disallow: /directory.html
 Disallow: /dashboard.html
 Disallow: /login.html

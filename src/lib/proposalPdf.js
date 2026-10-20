@@ -1,17 +1,73 @@
 /**
  * Proposal PDF URLs for the public `proposals` Storage bucket.
  * Prefer persisted `bills.proposal_pdf_url` — avoid mass HEAD/GET probes (cached egress).
+ *
+ * Public / crawlable links use same-origin:
+ *   https://spanationwide.org/proposals/<state>/<file>.pdf
+ * Cloudflare Worker proxies that path to Supabase Storage (see cloudflare/proposals-proxy/).
  */
 import { SUPABASE_PUBLIC_OBJECT_BASE_URL } from './supabasePublicUrls'
 import { canonicalUSStateName } from './usStateCanonical'
 
-export const PROPOSALS_PUBLIC_BASE = `${SUPABASE_PUBLIC_OBJECT_BASE_URL}/proposals`
+export const SITE_ORIGIN = 'https://spanationwide.org'
+/** Same-origin base (proxied by Cloudflare Worker). */
+export const PROPOSALS_SITE_BASE = `${SITE_ORIGIN}/proposals`
+/** Direct Supabase storage base (upload / Worker origin / legacy rows). */
+export const PROPOSALS_STORAGE_BASE = `${SUPABASE_PUBLIC_OBJECT_BASE_URL}/proposals`
+/** @deprecated Use PROPOSALS_STORAGE_BASE or PROPOSALS_SITE_BASE */
+export const PROPOSALS_PUBLIC_BASE = PROPOSALS_STORAGE_BASE
+
+const SITE_PREFIX = `${PROPOSALS_SITE_BASE}/`
+const STORAGE_PREFIX = `${PROPOSALS_STORAGE_BASE}/`
+
+/**
+ * Extract `State/File.pdf` from a storage URL, site URL, or relative /proposals/ path.
+ * @param {string} urlOrPath
+ * @returns {string | null}
+ */
+export function extractProposalStoragePath(urlOrPath) {
+  const raw = String(urlOrPath || '').trim()
+  if (!raw || raw.includes('..')) return null
+
+  let path = raw
+  if (path.startsWith(SITE_PREFIX)) path = path.slice(SITE_PREFIX.length)
+  else if (path.startsWith(STORAGE_PREFIX)) path = path.slice(STORAGE_PREFIX.length)
+  else if (path.startsWith('/proposals/')) path = path.slice('/proposals/'.length)
+  else if (/^https?:\/\//i.test(path)) return null
+  else return null
+
+  path = path.split('?')[0].split('#')[0]
+  try {
+    path = decodeURIComponent(path)
+  } catch {
+    /* keep encoded */
+  }
+  path = path.replace(/^\/+/, '')
+  if (!path || path.includes('..')) return null
+  return path
+}
+
+/** Public link for browsers / crawlers (same-origin). */
+export function toPublicProposalUrl(urlOrPath) {
+  const path = extractProposalStoragePath(urlOrPath)
+  if (path) return `${PROPOSALS_SITE_BASE}/${path.split('/').map(encodeURIComponent).join('/')}`
+  const raw = String(urlOrPath || '').trim()
+  return raw || null
+}
+
+/** Direct Supabase object URL (uploads, Worker fetch, email attach). */
+export function toStorageProposalUrl(urlOrPath) {
+  const path = extractProposalStoragePath(urlOrPath)
+  if (path) return `${PROPOSALS_STORAGE_BASE}/${path.split('/').map(encodeURIComponent).join('/')}`
+  const raw = String(urlOrPath || '').trim()
+  return raw || null
+}
 
 /**
  * Canonical upload path + public URL (sanitized state/name — current upload convention).
  * @param {string} state
  * @param {string} name
- * @returns {{ storagePath: string, publicUrl: string } | null}
+ * @returns {{ storagePath: string, storageUrl: string, publicUrl: string } | null}
  */
 export function buildCanonicalProposalPdf(state, name) {
   const st = String(state || '').trim()
@@ -22,25 +78,29 @@ export function buildCanonicalProposalPdf(state, name) {
   const storagePath = `${sanitizedState}/${sanitizedName}.pdf`
   return {
     storagePath,
-    publicUrl: `${PROPOSALS_PUBLIC_BASE}/${sanitizedState}/${sanitizedName}.pdf`,
+    storageUrl: `${PROPOSALS_STORAGE_BASE}/${sanitizedState}/${sanitizedName}.pdf`,
+    publicUrl: `${PROPOSALS_SITE_BASE}/${sanitizedState}/${sanitizedName}.pdf`,
   }
 }
 
 /**
  * Map DB field → UI helpers without network I/O.
+ * Rewrites legacy Supabase URLs to same-origin for display.
  * @param {object} bill
  */
 export function enrichBillWithStoredPdf(bill) {
   if (!bill) return bill
-  const url = String(bill.proposal_pdf_url || bill.pdfUrl || '').trim()
-  if (url) {
-    return { ...bill, pdfExists: true, pdfUrl: url, proposal_pdf_url: url }
+  const raw = String(bill.proposal_pdf_url || bill.pdfUrl || '').trim()
+  if (raw) {
+    const publicUrl = toPublicProposalUrl(raw) || raw
+    return { ...bill, pdfExists: true, pdfUrl: publicUrl, proposal_pdf_url: publicUrl }
   }
   return { ...bill, pdfExists: false, pdfUrl: undefined }
 }
 
 /**
  * Ordered URL candidates for legacy uploads (no network).
+ * Prefers same-origin; includes storage URLs for existence probes before Worker is live.
  * @param {{ state?: string, name?: string, proposal_pdf_url?: string | null, pdfUrl?: string | null }} bill
  * @returns {string[]}
  */
@@ -51,9 +111,12 @@ export function getProposalPdfUrlCandidates(bill) {
   const add = (u) => {
     if (u && !urls.includes(u)) urls.push(u)
   }
-  if (stored) add(stored)
+  if (stored) {
+    add(toPublicProposalUrl(stored))
+    add(toStorageProposalUrl(stored))
+  }
 
-  if (!bill.state || !bill.name) return urls
+  if (!bill.state || !bill.name) return urls.filter(Boolean)
   const name = String(bill.name).trim()
   const rawState = String(bill.state).trim()
   const canon = canonicalUSStateName(rawState)
@@ -64,14 +127,16 @@ export function getProposalPdfUrlCandidates(bill) {
 
   for (const s of stateVariants) {
     const sanitizedState = s.replace(/[^a-zA-Z0-9]/g, '_')
-    add(`${PROPOSALS_PUBLIC_BASE}/${sanitizedState}/${sanitizedName}.pdf`)
-    add(`${PROPOSALS_PUBLIC_BASE}/${encodeURIComponent(s)}/${encodeURIComponent(name)}.pdf`)
-    add(`${PROPOSALS_PUBLIC_BASE}/${encodeURIComponent(s)}/${encodeURIComponent(spacesToUnderscore)}.pdf`)
+    add(`${PROPOSALS_SITE_BASE}/${sanitizedState}/${sanitizedName}.pdf`)
+    add(`${PROPOSALS_STORAGE_BASE}/${sanitizedState}/${sanitizedName}.pdf`)
+    add(`${PROPOSALS_STORAGE_BASE}/${encodeURIComponent(s)}/${encodeURIComponent(name)}.pdf`)
+    add(`${PROPOSALS_STORAGE_BASE}/${encodeURIComponent(s)}/${encodeURIComponent(spacesToUnderscore)}.pdf`)
     if (compactSanitized && compactSanitized !== sanitizedName) {
-      add(`${PROPOSALS_PUBLIC_BASE}/${sanitizedState}/${compactSanitized}.pdf`)
+      add(`${PROPOSALS_SITE_BASE}/${sanitizedState}/${compactSanitized}.pdf`)
+      add(`${PROPOSALS_STORAGE_BASE}/${sanitizedState}/${compactSanitized}.pdf`)
     }
   }
-  return urls
+  return urls.filter(Boolean)
 }
 
 /** @param {{ state?: string, name?: string, proposal_pdf_url?: string | null }} bill */
@@ -82,14 +147,16 @@ export function getProposalPdfPublicUrl(bill) {
 
 async function publicProposalPdfExists(url) {
   try {
-    let r = await fetch(url, {
+    // Probe storage URL when given same-origin (Worker may not be deployed in local/dev yet)
+    const probe = toStorageProposalUrl(url) || url
+    let r = await fetch(probe, {
       method: 'GET',
       mode: 'cors',
       headers: { Range: 'bytes=0-7' },
       cache: 'no-store',
     })
     if (!r.ok && r.status !== 206) {
-      r = await fetch(url, { method: 'HEAD', mode: 'cors', cache: 'no-store' })
+      r = await fetch(probe, { method: 'HEAD', mode: 'cors', cache: 'no-store' })
       return r.ok
     }
     const buf = new Uint8Array(await r.arrayBuffer())
@@ -113,21 +180,22 @@ async function publicProposalPdfExists(url) {
  */
 export async function resolveProposalPdfPublicUrl(bill, opts = {}) {
   const stored = String(bill?.proposal_pdf_url || bill?.pdfUrl || '').trim()
-  if (stored) return stored
+  if (stored) return toPublicProposalUrl(stored) || stored
 
   for (const url of getProposalPdfUrlCandidates(bill)) {
     if (await publicProposalPdfExists(url)) {
+      const publicUrl = toPublicProposalUrl(url) || url
       if (opts.persist && opts.supabase && bill?.bill_id) {
         try {
           await opts.supabase
             .from('bills')
-            .update({ proposal_pdf_url: url })
+            .update({ proposal_pdf_url: publicUrl })
             .eq('bill_id', bill.bill_id)
         } catch {
           /* non-fatal */
         }
       }
-      return url
+      return publicUrl
     }
   }
   return null
@@ -175,10 +243,17 @@ export async function backfillProposalPdfUrlsFromStorage(supabase) {
       match = built.publicUrl
     } else {
       for (const url of getProposalPdfUrlCandidates(bill)) {
-        const path = url.replace(`${PROPOSALS_PUBLIC_BASE}/`, '').split('?')[0]
-        const decoded = decodeURIComponent(path)
+        const storage = toStorageProposalUrl(url) || url
+        const path = storage.replace(`${PROPOSALS_STORAGE_BASE}/`, '').split('?')[0]
+        let decoded = path
+        try {
+          decoded = decodeURIComponent(path)
+        } catch {
+          /* keep */
+        }
         if (pathSet.has(path) || pathSet.has(decoded)) {
-          match = `${PROPOSALS_PUBLIC_BASE}/${pathSet.has(path) ? path : decoded}`
+          const finalPath = pathSet.has(path) ? path : decoded
+          match = `${PROPOSALS_SITE_BASE}/${finalPath}`
           break
         }
       }

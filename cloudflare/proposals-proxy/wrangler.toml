@@ -1,0 +1,9 @@
+name = "span-proposals-proxy"
+main = "worker.js"
+compatibility_date = "2026-04-01"
+
+# After deploy, attach routes in the dashboard (or uncomment if your account supports routes here):
+# routes = [
+#   { pattern = "spanationwide.org/proposals/*", zone_name = "spanationwide.org" },
+#   { pattern = "www.spanationwide.org/proposals/*", zone_name = "spanationwide.org" },
+# ]

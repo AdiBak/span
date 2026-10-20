@@ -137,9 +137,12 @@ function DashboardPage() {
     endTime: '',
     inputMode: 'datetime', // 'datetime' or 'hours'
     hours: '',
-    workDate: ''
+    workDate: '',
+    forMemberIds: [],
   })
   const [volunteerError, setVolunteerError] = useState('')
+  /** Active members for supervisor “issue hours” picker in Add Entry modal. */
+  const [volunteerIssueMembers, setVolunteerIssueMembers] = useState([])
   const [qrPassword, setQrPassword] = useState('')
   const [qrPasswordError, setQrPasswordError] = useState('')
   const [verifiedPassword, setVerifiedPassword] = useState('')
@@ -3123,26 +3126,91 @@ function DashboardPage() {
   }
 
   // Volunteer hours management
-  const handleAddVolunteer = () => {
-    setVolunteerForm({ 
-      jobTitle: '', 
-      jobDesc: '', 
-      startTime: '', 
+  const handleAddVolunteer = async () => {
+    const selfId = member?.member_id || ''
+    setVolunteerForm({
+      jobTitle: '',
+      jobDesc: '',
+      startTime: '',
       endTime: '',
       inputMode: 'datetime',
       hours: '',
-      workDate: ''
+      workDate: '',
+      forMemberIds: selfId ? [selfId] : [],
     })
     setVolunteerError('')
+
+    // Issuing hours for others is exec-only (all four perms). Volunteer-only can still approve/deny.
+    const canIssueHours =
+      hasPermission('volunteer') &&
+      hasPermission('applications') &&
+      hasPermission('bills') &&
+      hasPermission('registration')
+
+    if (canIssueHours) {
+      // Prefer management list when already loaded; otherwise public directory RPC.
+      let options = (allMembersForManagement || []).filter((m) => m.active !== false)
+      if (options.length === 0) {
+        const { data, error } = await supabase.rpc('get_public_directory_members', {
+          p_require_registration: false,
+          p_role: null,
+        })
+        if (error) {
+          console.error('volunteer issue member list', error)
+        } else {
+          options = data || []
+        }
+      }
+      // Ensure current user is in the list even if inactive/filtered out.
+      if (selfId && !options.some((m) => String(m.member_id) === String(selfId))) {
+        options = [
+          {
+            member_id: selfId,
+            first_name: member.first_name,
+            last_name: member.last_name,
+            preferred_name: member.preferred_name,
+            email: member.email,
+          },
+          ...options,
+        ]
+      }
+      setVolunteerIssueMembers(options)
+    } else {
+      setVolunteerIssueMembers([])
+    }
+
     setShowVolunteerModal(true)
   }
 
   const handleSaveVolunteer = async () => {
-    const { jobTitle, jobDesc, startTime, endTime, inputMode, hours, workDate } = volunteerForm
+    const { jobTitle, jobDesc, startTime, endTime, inputMode, hours, workDate, forMemberIds } =
+      volunteerForm
     setVolunteerError('')
 
     if (!jobTitle || !jobDesc) {
       setVolunteerError('Job title and description are required.')
+      return
+    }
+
+    const canIssueHours =
+      hasPermission('volunteer') &&
+      hasPermission('applications') &&
+      hasPermission('bills') &&
+      hasPermission('registration')
+
+    let targetIds = []
+    if (canIssueHours) {
+      targetIds = (Array.isArray(forMemberIds) ? forMemberIds : [])
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+    }
+    if (targetIds.length === 0 && member?.member_id) {
+      targetIds = [String(member.member_id)]
+    }
+    // De-dupe
+    targetIds = [...new Set(targetIds)]
+    if (targetIds.length === 0) {
+      setVolunteerError('Select at least one member.')
       return
     }
 
@@ -3183,17 +3251,30 @@ function DashboardPage() {
       }
     }
 
+    const nowIso = new Date().toISOString()
+    const selfId = String(member?.member_id || '')
+
     try {
-      const { error } = await supabase.from('volunteers').insert([{
-        volunteering_job_title: jobTitle,
-        volunteering_job_desc: jobDesc,
-        start_timestamp: startTimeObj.toISOString(),
-        end_timestamp: endTimeObj.toISOString(),
-        request_submit_timestamp: new Date().toISOString(),
-        member_id: member.member_id,
-        approved: 'waiting',
-        supervisor_comment: ''
-      }])
+      const rows = targetIds.map((targetMemberId) => {
+        const issuingForOther = canIssueHours && String(targetMemberId) !== selfId
+        const row = {
+          volunteering_job_title: jobTitle,
+          volunteering_job_desc: jobDesc,
+          start_timestamp: startTimeObj.toISOString(),
+          end_timestamp: endTimeObj.toISOString(),
+          request_submit_timestamp: nowIso,
+          member_id: targetMemberId,
+          approved: issuingForOther ? 'approved' : 'waiting',
+          supervisor_comment: issuingForOther ? 'Issued by supervisor' : '',
+        }
+        if (issuingForOther) {
+          row.reviewed_by = member.member_id
+          row.reviewed_at = nowIso
+        }
+        return row
+      })
+
+      const { error } = await supabase.from('volunteers').insert(rows)
 
       if (error) throw error
       setShowVolunteerModal(false)
@@ -7406,6 +7487,14 @@ function DashboardPage() {
         volunteerError={volunteerError}
         onClose={() => setShowVolunteerModal(false)}
         onSave={handleSaveVolunteer}
+        canIssueForOthers={
+          hasPermission('volunteer') &&
+          hasPermission('applications') &&
+          hasPermission('bills') &&
+          hasPermission('registration')
+        }
+        memberOptions={volunteerIssueMembers}
+        currentMemberId={member?.member_id}
       />
 
       <LeaveRequestSubmitModal

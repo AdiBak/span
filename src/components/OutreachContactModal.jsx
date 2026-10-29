@@ -6,9 +6,24 @@ import {
   outreachBodyPlainToHtml,
   outreachPlainWhenAttachingViaEmail,
   resolveProposalPdfPublicUrl,
+  submitterDisplayName,
+  submitterSpanEmail,
 } from '../lib/outreachEmail'
 import { sendOutreachEmailViaResend, sendOutreachReferenceCopy } from '../lib/outreachSend'
 import { supabase } from '../lib/supabase'
+
+const LEADERSHIP_CC_LABEL = 'Joel Blessan & Vishank Panchbhavi (always)'
+
+function collaboratorNameList(bill) {
+  const raw = bill?.bill_collaborators
+  if (Array.isArray(raw)) return raw.map((n) => String(n || '').trim()).filter(Boolean)
+  if (typeof raw === 'string' && raw.trim()) return [raw.trim()]
+  return []
+}
+
+function memberFullName(m) {
+  return `${m?.first_name || ''} ${m?.last_name || ''}`.trim()
+}
 
 async function copyToClipboard(text) {
   try {
@@ -46,6 +61,10 @@ export default function OutreachContactModal({
   const [pdfResolving, setPdfResolving] = useState(false)
   const [letterPdf, setLetterPdf] = useState(null) // { base64, filename, objectUrl, pageCount }
   const [letterPdfError, setLetterPdfError] = useState('')
+  const [teamMembers, setTeamMembers] = useState([])
+  const [ccMemberIds, setCcMemberIds] = useState(() => new Set())
+  const [ccFilter, setCcFilter] = useState('')
+  const [ccLoadError, setCcLoadError] = useState('')
 
   const toEmail = (target?.contact_email || '').trim()
   const canMailto = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)
@@ -58,10 +77,45 @@ export default function OutreachContactModal({
     [target?.display_name, bill?.state]
   )
 
+  const senderMemberId = member?.member_id != null ? String(member.member_id) : ''
+
+  const ccCandidates = useMemo(() => {
+    const q = ccFilter.trim().toLowerCase()
+    return (teamMembers || [])
+      .filter((m) => {
+        if (!m || m.active === false) return false
+        if (senderMemberId && String(m.member_id) === senderMemberId) return false
+        const email = submitterSpanEmail(m)
+        if (!email) return false
+        if (!q) return true
+        const name = memberFullName(m).toLowerCase()
+        return name.includes(q) || email.toLowerCase().includes(q)
+      })
+      .map((m) => ({
+        ...m,
+        _name: memberFullName(m) || submitterDisplayName(m),
+        _email: submitterSpanEmail(m),
+      }))
+  }, [teamMembers, ccFilter, senderMemberId])
+
+  const selectedCcEmails = useMemo(() => {
+    const emails = []
+    for (const m of teamMembers) {
+      if (!ccMemberIds.has(String(m.member_id))) continue
+      const email = submitterSpanEmail(m)
+      if (email) emails.push(email)
+    }
+    return emails
+  }, [teamMembers, ccMemberIds])
+
   useEffect(() => {
     if (!open || !bill || !target) {
       setResolvedPdfUrl(null)
       setPdfResolving(false)
+      setTeamMembers([])
+      setCcMemberIds(new Set())
+      setCcFilter('')
+      setCcLoadError('')
       setLetterPdf((prev) => {
         if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl)
         return null
@@ -77,12 +131,19 @@ export default function OutreachContactModal({
     setRefOk('')
     setSendingRef(false)
     setCopyHint('')
+    setCcFilter('')
+    setCcLoadError('')
     setLetterPdfError('')
     setLetterPdf((prev) => {
       if (prev?.objectUrl) URL.revokeObjectURL(prev.objectUrl)
       return null
     })
     ;(async () => {
+      const membersPromise = supabase
+        .from('members')
+        .select('member_id, first_name, last_name, email, active')
+        .order('last_name', { ascending: true })
+
       const pdfUrl = await resolveProposalPdfPublicUrl(bill, { supabase, persist: true })
       if (cancelled) return
       setResolvedPdfUrl(pdfUrl)
@@ -101,6 +162,30 @@ export default function OutreachContactModal({
       }
       setBodyPlain(body)
       setTab('edit')
+
+      const { data: memberRows, error: membersErr } = await membersPromise
+      if (!cancelled) {
+        if (membersErr) {
+          console.warn('[outreach] CC member list', membersErr)
+          setCcLoadError('Could not load team members for CC.')
+          setTeamMembers([])
+          setCcMemberIds(new Set())
+        } else {
+          const rows = (memberRows || []).filter((m) => m.active !== false)
+          setTeamMembers(rows)
+          const collabNames = collaboratorNameList(bill).map((n) => n.toLowerCase())
+          const pre = new Set()
+          if (collabNames.length) {
+            for (const m of rows) {
+              if (senderMemberId && String(m.member_id) === senderMemberId) continue
+              if (!submitterSpanEmail(m)) continue
+              const full = memberFullName(m).toLowerCase()
+              if (collabNames.includes(full)) pre.add(String(m.member_id))
+            }
+          }
+          setCcMemberIds(pre)
+        }
+      }
 
       const { generatePersonalizedOutreachPdf } = await import('../lib/generateOutreachLetterPDF')
       const built = await generatePersonalizedOutreachPdf({
@@ -135,7 +220,7 @@ export default function OutreachContactModal({
     return () => {
       cancelled = true
     }
-  }, [open, bill, target, member])
+  }, [open, bill, target, member, senderMemberId])
 
   useEffect(() => {
     return () => {
@@ -151,8 +236,37 @@ export default function OutreachContactModal({
     const q = new URLSearchParams()
     q.set('subject', subject)
     q.set('body', bodyPlain)
+    if (selectedCcEmails.length) {
+      q.set('cc', selectedCcEmails.join(','))
+    }
     return `mailto:${encodeURIComponent(toEmail)}?${q.toString()}`
-  }, [canMailto, toEmail, subject, bodyPlain])
+  }, [canMailto, toEmail, subject, bodyPlain, selectedCcEmails])
+
+  const toggleCcMember = (memberId) => {
+    const id = String(memberId)
+    setCcMemberIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const selectBillCollaborators = () => {
+    const collabNames = collaboratorNameList(bill).map((n) => n.toLowerCase())
+    if (!collabNames.length) return
+    setCcMemberIds((prev) => {
+      const next = new Set(prev)
+      for (const m of teamMembers) {
+        if (senderMemberId && String(m.member_id) === senderMemberId) continue
+        if (!submitterSpanEmail(m)) continue
+        if (collabNames.includes(memberFullName(m).toLowerCase())) {
+          next.add(String(m.member_id))
+        }
+      }
+      return next
+    })
+  }
 
   const attachmentPayload = () => {
     if (!attachPdf) return {}
@@ -192,6 +306,7 @@ export default function OutreachContactModal({
         subject,
         html: sendHtml,
         text: sendText,
+        cc: selectedCcEmails,
         ...attachmentPayload(),
       })
       if (!res.ok) {
@@ -199,7 +314,11 @@ export default function OutreachContactModal({
         return
       }
       setSending(false)
-      setSendOk('Email sent.')
+      setSendOk(
+        selectedCcEmails.length
+          ? `Email sent (CC’d ${selectedCcEmails.length} teammate${selectedCcEmails.length === 1 ? '' : 's'} + leadership).`
+          : 'Email sent (Joel & Vishank CC’d).',
+      )
       if (typeof onMarkContacted === 'function') {
         await onMarkContacted()
       }
@@ -225,13 +344,20 @@ export default function OutreachContactModal({
         subject,
         html: htmlBody,
         text: bodyPlain,
+        cc: selectedCcEmails,
         ...attachmentPayload(),
       })
       if (!res.ok) {
         setRefError(res.error || 'Send failed.')
         return
       }
-      setRefOk('Reference copy sent to Joel and Vishank.')
+      setRefOk(
+        selectedCcEmails.length
+          ? `Reference copy sent to Joel & Vishank (CC’d ${selectedCcEmails.length} teammate${
+              selectedCcEmails.length === 1 ? '' : 's'
+            }).`
+          : 'Reference copy sent to Joel and Vishank.',
+      )
     } catch (e) {
       setRefError(e.message || 'Send failed.')
     } finally {
@@ -312,9 +438,14 @@ export default function OutreachContactModal({
                   <hr className="my-2" />
                   <p className="mb-2">
                     After you submit on their website, you can send a <strong>reference copy</strong> of this message
-                    to <strong>Joel Blessan</strong> and <strong>Vishank Panchbhavi</strong> for SPAN&apos;s records.
-                    This
-                    does <em>not</em> go to the legislator — it is only an internal log of what you sent externally.
+                    to <strong>Joel Blessan</strong> and <strong>Vishank Panchbhavi</strong> for SPAN&apos;s records
+                    {selectedCcEmails.length
+                      ? ` (plus ${selectedCcEmails.length} selected teammate${
+                          selectedCcEmails.length === 1 ? '' : 's'
+                        } on CC)`
+                      : ''}
+                    . This does <em>not</em> go to the legislator — it is only an internal log of what you sent
+                    externally. Web forms can&apos;t CC anyone; use the checklist below so teammates get the log.
                   </p>
                   <button
                     type="button"
@@ -327,7 +458,11 @@ export default function OutreachContactModal({
                     }
                     onClick={handleSendReferenceCopy}
                   >
-                    {sendingRef ? 'Sending…' : 'Send reference copy to Joel & Vishank'}
+                    {sendingRef
+                      ? 'Sending…'
+                      : selectedCcEmails.length
+                        ? `Send reference copy (Joel, Vishank + ${selectedCcEmails.length} CC)`
+                        : 'Send reference copy to Joel & Vishank'}
                   </button>
                   {isMentorViewer && (
                     <p className="small text-muted mt-2 mb-0">
@@ -441,6 +576,94 @@ export default function OutreachContactModal({
                       maxLength={550}
                     />
                   </div>
+                  {(canMailto || hasWebmail) && (
+                    <div className="mb-3">
+                      <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+                        <label className="form-label small mb-0" htmlFor="outreach-cc-filter">
+                          CC team members
+                        </label>
+                        {collaboratorNameList(bill).length > 0 && (
+                          <button
+                            type="button"
+                            className="btn btn-link btn-sm p-0"
+                            onClick={selectBillCollaborators}
+                          >
+                            Select bill collaborators
+                          </button>
+                        )}
+                      </div>
+                      <p className="small text-muted mb-2">
+                        {canMailto
+                          ? `Always CC’d on SPAN email: ${LEADERSHIP_CC_LABEL.replace(' (always)', '')}. Optionally add collaborators or other members below.`
+                          : 'Legislator web forms can’t CC anyone. Selected teammates are CC’d on the internal reference copy to Joel & Vishank after you submit.'}
+                      </p>
+                      {ccLoadError && (
+                        <div className="alert alert-warning py-1 small mb-2">{ccLoadError}</div>
+                      )}
+                      <input
+                        id="outreach-cc-filter"
+                        type="search"
+                        className="form-control form-control-sm mb-2"
+                        placeholder="Filter by name or email…"
+                        value={ccFilter}
+                        onChange={(e) => setCcFilter(e.target.value)}
+                        disabled={isMentorViewer}
+                      />
+                      <div
+                        className="border rounded p-2 bg-light"
+                        style={{ maxHeight: 'min(28vh, 200px)', overflow: 'auto' }}
+                      >
+                        <div className="form-check mb-1">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id="outreach-cc-leadership"
+                            checked
+                            disabled
+                          />
+                          <label className="form-check-label small text-muted" htmlFor="outreach-cc-leadership">
+                            {LEADERSHIP_CC_LABEL}
+                          </label>
+                        </div>
+                        {ccCandidates.length === 0 ? (
+                          <p className="small text-muted mb-0">
+                            {teamMembers.length === 0 ? 'Loading members…' : 'No matching members.'}
+                          </p>
+                        ) : (
+                          ccCandidates.map((m) => {
+                            const id = String(m.member_id)
+                            const checked = ccMemberIds.has(id)
+                            return (
+                              <div className="form-check" key={id}>
+                                <input
+                                  className="form-check-input"
+                                  type="checkbox"
+                                  id={`outreach-cc-${id}`}
+                                  checked={checked}
+                                  disabled={isMentorViewer}
+                                  onChange={() => toggleCcMember(id)}
+                                />
+                                <label className="form-check-label small" htmlFor={`outreach-cc-${id}`}>
+                                  {m._name}
+                                  <span className="text-muted"> · {m._email}</span>
+                                </label>
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
+                      {selectedCcEmails.length > 0 && (
+                        <p className="small text-muted mb-0 mt-1">
+                          {selectedCcEmails.length} extra CC
+                          {selectedCcEmails.length === 1 ? '' : 's'} selected
+                          {ccMemberIds.size > selectedCcEmails.length
+                            ? ` (${ccMemberIds.size - selectedCcEmails.length} without a usable email skipped)`
+                            : ''}
+                          .
+                        </p>
+                      )}
+                    </div>
+                  )}
                   <div className="mb-2">
                     <label className="form-label small" htmlFor="outreach-body">
                       {showHtmlPreview

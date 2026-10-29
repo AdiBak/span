@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  deactivateSchool,
   fetchAllClasses,
   fetchSchools,
   fetchTeachers,
   insertSchool,
   insertTeacher,
   provisionTeacher,
+  setSchoolActive,
+  setTeacherActive,
 } from '../../lib/classroom'
 import './ClassroomSection.css'
 
@@ -26,6 +29,19 @@ export default function ClassroomSection({ sectionId, sectionOrder }) {
     lastName: '',
     email: '',
   })
+  /** Soft-removed (active=false) schools/teachers stay in DB; hide them from the Directory by default. */
+  const [showRemoved, setShowRemoved] = useState(false)
+
+  const activeSchools = useMemo(
+    () => schools.filter((s) => s.active !== false),
+    [schools],
+  )
+  const activeTeachers = useMemo(
+    () => teachers.filter((t) => t.active !== false),
+    [teachers],
+  )
+  const removedCount =
+    schools.length - activeSchools.length + (teachers.length - activeTeachers.length)
 
   const tree = useMemo(() => {
     const teachersBySchool = new Map()
@@ -40,14 +56,19 @@ export default function ClassroomSection({ sectionId, sectionOrder }) {
       if (!classesByTeacher.has(key)) classesByTeacher.set(key, [])
       classesByTeacher.get(key).push(c)
     }
-    return schools.map((school) => {
-      const schoolTeachers = (teachersBySchool.get(school.school_id) || []).map((teacher) => ({
+    const schoolList = showRemoved ? schools : activeSchools
+    return schoolList.map((school) => {
+      const rawTeachers = teachersBySchool.get(school.school_id) || []
+      const schoolTeachers = (showRemoved
+        ? rawTeachers
+        : rawTeachers.filter((t) => t.active !== false)
+      ).map((teacher) => ({
         ...teacher,
         classes: classesByTeacher.get(teacher.teacher_id) || [],
       }))
       return { ...school, teachers: schoolTeachers }
     })
-  }, [schools, teachers, classes])
+  }, [schools, teachers, classes, showRemoved, activeSchools])
 
   const orphanClasses = useMemo(() => {
     const teacherIds = new Set(teachers.map((t) => t.teacher_id))
@@ -82,15 +103,21 @@ export default function ClassroomSection({ sectionId, sectionOrder }) {
   }, [load])
 
   useEffect(() => {
-    if (schools.length && !newTeacher.schoolId) {
-      setNewTeacher((t) => ({ ...t, schoolId: schools[0].school_id }))
+    if (activeSchools.length && !newTeacher.schoolId) {
+      setNewTeacher((t) => ({ ...t, schoolId: activeSchools[0].school_id }))
     }
-  }, [schools, newTeacher.schoolId])
+  }, [activeSchools, newTeacher.schoolId])
 
   function openAddTeacher(schoolId) {
+    const preferred =
+      schoolId ||
+      (activeSchools.some((s) => s.school_id === newTeacher.schoolId)
+        ? newTeacher.schoolId
+        : activeSchools[0]?.school_id) ||
+      ''
     setNewTeacher((t) => ({
       ...t,
-      schoolId: schoolId || t.schoolId || schools[0]?.school_id || '',
+      schoolId: preferred,
     }))
     setShowAddTeacher(true)
   }
@@ -139,7 +166,12 @@ export default function ClassroomSection({ sectionId, sectionOrder }) {
       })
       setShowAddTeacher(false)
       const email = newTeacher.email.trim().toLowerCase()
-      setNewTeacher({ schoolId: schools[0]?.school_id || '', firstName: '', lastName: '', email: '' })
+      setNewTeacher({
+        schoolId: activeSchools[0]?.school_id || '',
+        firstName: '',
+        lastName: '',
+        email: '',
+      })
 
       setProvisioningId(teacher.teacher_id)
       try {
@@ -174,6 +206,69 @@ export default function ClassroomSection({ sectionId, sectionOrder }) {
     }
   }
 
+  async function handleRemoveSchool(school) {
+    const teacherCount = (teachers || []).filter((t) => t.school_id === school.school_id).length
+    const ok = window.confirm(
+      `Remove “${school.name}” from Classroom?\n\n` +
+        `This deactivates the school` +
+        (teacherCount ? ` and its ${teacherCount} teacher${teacherCount === 1 ? '' : 's'}` : '') +
+        `. Classes stay in the database, but teachers can’t log in and students can’t join. Use “Show removed” to reactivate later.`,
+    )
+    if (!ok) return
+    setMessage('')
+    setError('')
+    try {
+      await deactivateSchool(school.school_id)
+      setMessage(`Removed ${school.name}. Turn on “Show removed” if you need to reactivate.`)
+      await load()
+    } catch (err) {
+      setError(err.message || 'Could not remove school.')
+    }
+  }
+
+  async function handleReactivateSchool(school) {
+    setMessage('')
+    setError('')
+    try {
+      await setSchoolActive(school.school_id, true)
+      setMessage(`Reactivated ${school.name}. Reactivate teachers separately if needed.`)
+      await load()
+    } catch (err) {
+      setError(err.message || 'Could not reactivate school.')
+    }
+  }
+
+  async function handleRemoveTeacher(teacher) {
+    const name = `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim() || teacher.email
+    const ok = window.confirm(
+      `Remove teacher ${name}?\n\n` +
+        `They will lose Classroom access. Their classes remain. Use “Show removed” to reactivate later.`,
+    )
+    if (!ok) return
+    setMessage('')
+    setError('')
+    try {
+      await setTeacherActive(teacher.teacher_id, false)
+      setMessage(`Removed ${name}. Turn on “Show removed” if you need to reactivate.`)
+      await load()
+    } catch (err) {
+      setError(err.message || 'Could not remove teacher.')
+    }
+  }
+
+  async function handleReactivateTeacher(teacher) {
+    const name = `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim() || teacher.email
+    setMessage('')
+    setError('')
+    try {
+      await setTeacherActive(teacher.teacher_id, true)
+      setMessage(`Reactivated ${name}.`)
+      await load()
+    } catch (err) {
+      setError(err.message || 'Could not reactivate teacher.')
+    }
+  }
+
   return (
     <section id={sectionId} className="mt-5 dashboard-section-anchor classroom-exec-section" style={{ order: sectionOrder }}>
       <div className="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
@@ -195,7 +290,7 @@ export default function ClassroomSection({ sectionId, sectionOrder }) {
             type="button"
             className="btn btn-sm btn-outline-dark"
             onClick={() => openAddTeacher()}
-            disabled={schools.length === 0}
+            disabled={activeSchools.length === 0}
           >
             <i className="bi bi-person-plus me-1" />
             Add teacher
@@ -212,17 +307,37 @@ export default function ClassroomSection({ sectionId, sectionOrder }) {
         </div>
       ) : (
         <div className="card shadow-sm">
-          <div className="card-header bg-white d-flex justify-content-between align-items-center">
+          <div className="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
             <h5 className="mb-0">Directory</h5>
-            <span className="small text-muted">
-              {schools.length} school{schools.length === 1 ? '' : 's'} · {teachers.length} teacher
-              {teachers.length === 1 ? '' : 's'} · {classes.length} class
-              {classes.length === 1 ? '' : 'es'}
-            </span>
+            <div className="d-flex flex-wrap align-items-center gap-3">
+              {removedCount > 0 && (
+                <div className="form-check mb-0">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="classroom-show-removed"
+                    checked={showRemoved}
+                    onChange={(e) => setShowRemoved(e.target.checked)}
+                  />
+                  <label className="form-check-label small" htmlFor="classroom-show-removed">
+                    Show removed ({removedCount})
+                  </label>
+                </div>
+              )}
+              <span className="small text-muted">
+                {activeSchools.length} school{activeSchools.length === 1 ? '' : 's'} ·{' '}
+                {activeTeachers.length} teacher{activeTeachers.length === 1 ? '' : 's'} ·{' '}
+                {classes.length} class{classes.length === 1 ? '' : 'es'}
+              </span>
+            </div>
           </div>
           <div className="classroom-scroll classroom-exec-tree">
             {tree.length === 0 ? (
-              <p className="text-muted p-3 mb-0">No schools yet. Add a school to get started.</p>
+              <p className="text-muted p-3 mb-0">
+                {schools.length === 0
+                  ? 'No schools yet. Add a school to get started.'
+                  : 'No active schools. Turn on “Show removed” to reactivate one.'}
+              </p>
             ) : (
               tree.map((school) => (
                 <div key={school.school_id} className="classroom-school-block">
@@ -239,13 +354,36 @@ export default function ClassroomSection({ sectionId, sectionOrder }) {
                         {school.contact_email ? ` · ${school.contact_email}` : ''}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-secondary flex-shrink-0"
-                      onClick={() => openAddTeacher(school.school_id)}
-                    >
-                      Add teacher
-                    </button>
+                    <div className="d-flex flex-wrap gap-2 flex-shrink-0">
+                      {school.active ? (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-secondary"
+                            onClick={() => openAddTeacher(school.school_id)}
+                          >
+                            Add teacher
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() => handleRemoveSchool(school)}
+                            title="Remove school"
+                            aria-label={`Remove ${school.name}`}
+                          >
+                            <i className="bi bi-trash" aria-hidden="true" />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-success"
+                          onClick={() => handleReactivateSchool(school)}
+                        >
+                          Reactivate school
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {school.teachers.length === 0 ? (
@@ -259,7 +397,9 @@ export default function ClassroomSection({ sectionId, sectionOrder }) {
                               <span className="fw-semibold">
                                 {teacher.first_name} {teacher.last_name}
                               </span>
-                              {teacher.user_id ? (
+                              {!teacher.active ? (
+                                <span className="badge bg-secondary">Inactive</span>
+                              ) : teacher.user_id ? (
                                 <span className="badge bg-success">Linked</span>
                               ) : (
                                 <span className="badge bg-warning text-dark">Unlinked</span>
@@ -267,16 +407,39 @@ export default function ClassroomSection({ sectionId, sectionOrder }) {
                             </div>
                             <div className="small text-muted text-truncate">{teacher.email}</div>
                           </div>
-                          {!teacher.user_id && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-dark flex-shrink-0"
-                              disabled={provisioningId === teacher.teacher_id}
-                              onClick={() => handleProvisionTeacher(teacher)}
-                            >
-                              {provisioningId === teacher.teacher_id ? 'Creating…' : 'Create login'}
-                            </button>
-                          )}
+                          <div className="d-flex flex-wrap gap-2 flex-shrink-0">
+                            {teacher.active ? (
+                              <>
+                                {!teacher.user_id && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-dark"
+                                    disabled={provisioningId === teacher.teacher_id}
+                                    onClick={() => handleProvisionTeacher(teacher)}
+                                  >
+                                    {provisioningId === teacher.teacher_id ? 'Creating…' : 'Create login'}
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-danger"
+                                  onClick={() => handleRemoveTeacher(teacher)}
+                                  title="Remove teacher"
+                                  aria-label={`Remove ${teacher.first_name} ${teacher.last_name}`}
+                                >
+                                  <i className="bi bi-trash" aria-hidden="true" />
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-success"
+                                onClick={() => handleReactivateTeacher(teacher)}
+                              >
+                                Reactivate
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {teacher.classes.length === 0 ? (
@@ -411,7 +574,7 @@ export default function ClassroomSection({ sectionId, sectionOrder }) {
                     value={newTeacher.schoolId}
                     onChange={(e) => setNewTeacher({ ...newTeacher, schoolId: e.target.value })}
                   >
-                    {schools.map((s) => (
+                    {activeSchools.map((s) => (
                       <option key={s.school_id} value={s.school_id}>
                         {s.name}
                       </option>

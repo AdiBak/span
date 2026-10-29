@@ -51,6 +51,44 @@ function leadershipCcForPrimary(toAddress: string): string[] {
   return referenceLogRecipients().filter((e) => e.toLowerCase() !== t)
 }
 
+const MAX_EXTRA_CC = 25
+
+/** Optional client CC list (team members). Deduped / validated; excludes `to` and already-listed addresses. */
+function normalizeExtraCc(
+  raw: unknown,
+  toAddress: string,
+  already: string[],
+): { ok: true; emails: string[] } | { ok: false; error: string } {
+  let list: string[] = []
+  if (raw == null || raw === "") {
+    list = []
+  } else if (Array.isArray(raw)) {
+    list = raw.map((x) => String(x ?? "").trim())
+  } else if (typeof raw === "string") {
+    list = raw.split(/[,;]+/).map((s) => s.trim())
+  } else {
+    return { ok: false, error: "Invalid cc list." }
+  }
+  list = list.filter(Boolean)
+  if (list.length > MAX_EXTRA_CC) {
+    return { ok: false, error: `Too many CC addresses (max ${MAX_EXTRA_CC}).` }
+  }
+  const toLower = toAddress.trim().toLowerCase()
+  const seen = new Set(already.map((e) => e.toLowerCase()).filter(Boolean))
+  if (toLower) seen.add(toLower)
+  const out: string[] = []
+  for (const e of list) {
+    if (!isValidEmail(e)) {
+      return { ok: false, error: `Invalid CC email: ${e}` }
+    }
+    const key = e.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(e)
+  }
+  return { ok: true, emails: out }
+}
+
 function fromAddress(): string {
   return Deno.env.get("OUTREACH_FROM")?.trim() || Deno.env.get("INVITATION_FROM")?.trim() || DEFAULT_FROM
 }
@@ -163,6 +201,8 @@ serve(async (req) => {
       subject?: string
       html?: string
       text?: string
+      /** Extra CC addresses (team members). Merged with leadership CC on primary sends. */
+      cc?: string | string[] | null
       attachment_url?: string | null
       /** Client-generated PDF (e.g. personalized outreach letter). Prefer over attachment_url when set. */
       attachment_base64?: string | null
@@ -369,9 +409,29 @@ serve(async (req) => {
       html,
     }
     if (mode === "primary") {
-      const cc = leadershipCcForPrimary(to)
+      const leadership = leadershipCcForPrimary(to)
+      const extra = normalizeExtraCc(body.cc, to, leadership)
+      if (!extra.ok) {
+        return new Response(JSON.stringify({ error: extra.error }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      const cc = [...leadership, ...extra.emails]
       if (cc.length) {
         resendBody.cc = cc
+      }
+    } else if (mode === "reference_log") {
+      // Leadership is To; optional team CCs (e.g. bill collaborators) ride along for the webmail log.
+      const extra = normalizeExtraCc(body.cc, "", recipients)
+      if (!extra.ok) {
+        return new Response(JSON.stringify({ error: extra.error }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
+      if (extra.emails.length) {
+        resendBody.cc = extra.emails
       }
     }
     if (text.trim()) {

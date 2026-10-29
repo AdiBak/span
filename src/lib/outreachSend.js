@@ -10,6 +10,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
  *   subject: string,
  *   html: string,
  *   text?: string,
+ *   cc?: string[],
  *   attachment_url?: string | null,
  *   attachment_base64?: string | null,
  *   attachment_filename?: string | null,
@@ -26,6 +27,12 @@ export async function sendOutreachEmailViaResend(payload) {
     return { ok: false, error: 'Not signed in' }
   }
 
+  const { cc, ...rest } = payload
+  const body = { mode: 'primary', ...rest }
+  if (Array.isArray(cc) && cc.length) {
+    body.cc = cc.filter((e) => typeof e === 'string' && e.trim()).map((e) => e.trim())
+  }
+
   const resp = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/outreach-send-email`, {
     method: 'POST',
     headers: {
@@ -33,7 +40,7 @@ export async function sendOutreachEmailViaResend(payload) {
       Authorization: `Bearer ${token}`,
       apikey: SUPABASE_ANON_KEY,
     },
-    body: JSON.stringify({ mode: 'primary', ...payload }),
+    body: JSON.stringify(body),
   })
 
   const json = await resp.json().catch(() => ({}))
@@ -51,11 +58,12 @@ export async function sendOutreachEmailViaResend(payload) {
 
 /**
  * After submitting via a legislator web form, send the same message to Joel/Vishank for internal records.
- * Recipients are fixed server-side. Exec-only.
+ * Leadership To is fixed server-side; optional `cc` (team members / collaborators) is merged.
  * @param {{
  *   subject: string,
  *   html: string,
  *   text?: string,
+ *   cc?: string[],
  *   attachment_url?: string | null,
  *   attachment_base64?: string | null,
  *   attachment_filename?: string | null,
@@ -72,7 +80,19 @@ export async function sendOutreachReferenceCopy(payload) {
     return { ok: false, error: 'Not signed in' }
   }
 
-  const { subject, html, text, attachment_url, attachment_base64, attachment_filename } = payload
+  const { subject, html, text, cc, attachment_url, attachment_base64, attachment_filename } = payload
+  const body = {
+    mode: 'reference_log',
+    subject,
+    html,
+    text: text ?? '',
+    attachment_url: attachment_url ?? null,
+    attachment_base64: attachment_base64 ?? null,
+    attachment_filename: attachment_filename ?? null,
+  }
+  if (Array.isArray(cc) && cc.length) {
+    body.cc = cc.filter((e) => typeof e === 'string' && e.trim()).map((e) => e.trim())
+  }
   const resp = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/outreach-send-email`, {
     method: 'POST',
     headers: {
@@ -80,15 +100,7 @@ export async function sendOutreachReferenceCopy(payload) {
       Authorization: `Bearer ${token}`,
       apikey: SUPABASE_ANON_KEY,
     },
-    body: JSON.stringify({
-      mode: 'reference_log',
-      subject,
-      html,
-      text: text ?? '',
-      attachment_url: attachment_url ?? null,
-      attachment_base64: attachment_base64 ?? null,
-      attachment_filename: attachment_filename ?? null,
-    }),
+    body: JSON.stringify(body),
   })
 
   const json = await resp.json().catch(() => ({}))

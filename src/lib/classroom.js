@@ -238,6 +238,47 @@ export async function insertTeacher(row) {
   return data
 }
 
+/** Soft-remove / restore a classroom school (does not wipe classes). */
+export async function setSchoolActive(schoolId, active) {
+  const { data, error } = await supabase
+    .from('classroom_schools')
+    .update({ active: !!active })
+    .eq('school_id', schoolId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+/**
+ * Soft-remove / restore a classroom teacher.
+ * Inactive teachers cannot use Classroom; classes remain for history.
+ */
+export async function setTeacherActive(teacherId, active) {
+  const { data, error } = await supabase
+    .from('classroom_teachers')
+    .update({ active: !!active })
+    .eq('teacher_id', teacherId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+/**
+ * Soft-remove a school and deactivate its teachers so logins and joins stop.
+ * Prefer this over hard delete (CASCADE would wipe classes/enrollments).
+ */
+export async function deactivateSchool(schoolId) {
+  const school = await setSchoolActive(schoolId, false)
+  const { error } = await supabase
+    .from('classroom_teachers')
+    .update({ active: false })
+    .eq('school_id', schoolId)
+  if (error) throw error
+  return school
+}
+
 /** Exec: create auth user if needed, link teacher, email Classroom login. */
 export async function provisionTeacher(teacherId) {
   const { data: { session } } = await supabase.auth.getSession()

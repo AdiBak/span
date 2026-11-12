@@ -232,21 +232,7 @@ function BillsPage() {
       setBillError('State, name, description, and bill date are required.')
       return
     }
-    const hasNewPdf = !!editBillPdfFile
-    const hadPdf = !!(selectedBill && (selectedBill.pdfExists || selectedBill.proposal_pdf_url))
-    const hasDocLink = !!(googleDocLink && googleDocLink.trim())
-    if (!hasDocLink) {
-      setBillError('Please provide a link to the proposal document (e.g. Google Doc).')
-      return
-    }
-    if (!hasNewPdf && !hadPdf) {
-      setBillError('Please upload a proposal PDF (or ensure one is already stored for this bill).')
-      return
-    }
-    if (!collaborators || collaborators.length === 0) {
-      setBillError('Please select at least one collaborator.')
-      return
-    }
+    // Published-bill edits: doc link, PDF, and collaborators are optional (keep existing values if omitted).
 
     const stateStored = canonicalUSStateName(state) || state.trim()
 
@@ -748,9 +734,7 @@ function BillsPage() {
                     />
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">
-                      Proposal link (Google Doc or similar) <span className="text-danger">*</span>
-                    </label>
+                    <label className="form-label">Proposal link (Google Doc or similar)</label>
                     <input
                       type="url"
                       className="form-control"
@@ -758,12 +742,10 @@ function BillsPage() {
                       value={editBillForm.googleDocLink}
                       onChange={(e) => setEditBillForm({ ...editBillForm, googleDocLink: e.target.value })}
                     />
-                    <small className="text-muted">Provide a link to the proposal doc so it can be edited.</small>
+                    <small className="text-muted">Optional — leave blank to clear, or keep the existing link.</small>
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">
-                      Proposal PDF <span className="text-danger">*</span>
-                    </label>
+                    <label className="form-label">Proposal PDF</label>
                     <input
                       type="file"
                       className="form-control"
@@ -780,11 +762,11 @@ function BillsPage() {
                       }}
                     />
                     <small className="text-muted">
-                      A PDF must be on file—upload if missing, or upload a new file to replace the existing one.
+                      Optional on edit — upload only to add or replace the stored PDF.
                     </small>
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Collaborators <span className="text-danger">*</span></label>
+                    <label className="form-label">Collaborators</label>
                     <div className="border rounded p-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                       {members.length === 0 ? (
                         <p className="text-muted small mb-0">Loading members...</p>
@@ -808,7 +790,7 @@ function BillsPage() {
                         </div>
                       )}
                     </div>
-                    <small className="text-muted">Select at least one collaborator</small>
+                    <small className="text-muted">Optional on edit</small>
                   </div>
                   {currentUser && (currentUser.bills === true || currentUser.bills === 'true') && (
                     <div className="mb-3 form-check">

@@ -4022,24 +4022,7 @@ function DashboardPage() {
       setBillError('State, name, description, and bill date are required.')
       return
     }
-    const hasNewPdf = !!editBillPdfFile
-    const hadPdf = !!(
-      selectedBillForEdit &&
-      (selectedBillForEdit.pdfExists || selectedBillForEdit.proposal_pdf_url)
-    )
-    const hasDocLink = !!(googleDocLink && googleDocLink.trim())
-    if (!hasDocLink) {
-      setBillError('Please provide a link to the proposal document (e.g. Google Doc).')
-      return
-    }
-    if (!hasNewPdf && !hadPdf) {
-      setBillError('Please upload a proposal PDF (or ensure one is already stored for this bill).')
-      return
-    }
-    if (!collaborators || collaborators.length === 0) {
-      setBillError('Please select at least one collaborator.')
-      return
-    }
+    // Published / existing bill edits: doc link, PDF, and collaborators are optional.
 
     const stateStoredEdit = canonicalUSStateName(state) || state.trim()
 

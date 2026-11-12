@@ -111,9 +111,7 @@ export default function BillEditModal({
                 />
               </div>
               <div className="mb-3">
-                <label className="form-label">
-                  Proposal link (Google Doc or similar) <span className="text-danger">*</span>
-                </label>
+                <label className="form-label">Proposal link (Google Doc or similar)</label>
                 <input
                   type="url"
                   className="form-control"
@@ -121,12 +119,10 @@ export default function BillEditModal({
                   value={editBillForm.googleDocLink}
                   onChange={(e) => setEditBillForm({ ...editBillForm, googleDocLink: e.target.value })}
                 />
-                <small className="text-muted">Provide a link to the proposal doc so it can be edited.</small>
+                <small className="text-muted">Optional — leave blank to clear, or keep the existing link.</small>
               </div>
               <div className="mb-3">
-                <label className="form-label">
-                  Proposal PDF <span className="text-danger">*</span>
-                </label>
+                <label className="form-label">Proposal PDF</label>
                 <input
                   type="file"
                   className="form-control"
@@ -143,13 +139,11 @@ export default function BillEditModal({
                   }}
                 />
                 <small className="text-muted">
-                  A PDF must be on file—upload if missing, or upload a new file to replace the existing one.
+                  Optional on edit — upload only to add or replace the stored PDF.
                 </small>
               </div>
               <div className="mb-3">
-                <label className="form-label">
-                  Collaborators <span className="text-danger">*</span>
-                </label>
+                <label className="form-label">Collaborators</label>
                 <div className="border rounded p-3" style={{ maxHeight: '200px', overflowY: 'auto' }}>
                   {allMembers.length === 0 ? (
                     <p className="text-muted small mb-0">Loading members...</p>
@@ -173,7 +167,7 @@ export default function BillEditModal({
                     </div>
                   )}
                 </div>
-                <small className="text-muted">Select at least one collaborator</small>
+                <small className="text-muted">Optional on edit</small>
               </div>
               {showHiddenCheckbox ? (
                 <div className="mb-3 form-check">
